@@ -27,7 +27,7 @@ export const connect = async (uri = 'mongodb://localhost:27017') => {
     log(`Connecting to MongoDB at ${uri}…`)
     client = new MongoClient(uri, { useUnifiedTopology: true })
     await client.connect()
-    currentDbName = 'admin'
+    currentDbName = uri.split('/').pop().split('?')[0] || 'admin'
     currentDb = client.db(currentDbName)
     log(`Connected to MongoDB successfully, using database: ${currentDbName}`)
     return true

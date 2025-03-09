@@ -1,19 +1,35 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { z } from 'zod'
+import { dirname, join } from 'path'
+import { fileURLToPath } from 'url'
+import { readFileSync } from 'fs'
 import mongodb from 'mongodb'
+import { z } from 'zod'
+
 const { MongoClient, ObjectId } = mongodb
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+const packageJson = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'))
+const PACKAGE_VERSION = packageJson.version
+const VERBOSE_LOGGING = process.env.VERBOSE_LOGGING === 'true'
 
 let client = null
 let currentDb = null
 let currentDbName = null
 
+const log = (message, forceLog = false) => {
+  if (forceLog || VERBOSE_LOGGING) console.error(message)
+}
+
 export const connect = async (uri = 'mongodb://localhost:27017') => {
   try {
+    log(`Connecting to MongoDB at ${uri}…`)
     client = new MongoClient(uri, { useUnifiedTopology: true })
     await client.connect()
     currentDbName = 'admin'
     currentDb = client.db(currentDbName)
+    log(`Connected to MongoDB successfully, using database: ${currentDbName}`)
     return true
   } catch (error) {
     console.error(`MongoDB connection error: ${error.message}`)
@@ -22,12 +38,18 @@ export const connect = async (uri = 'mongodb://localhost:27017') => {
 }
 
 export const main = async (mongoUri) => {
-  const connected = await connect(mongoUri)
-  if (!connected) return false
+  log(`MongoDB Lens v${PACKAGE_VERSION} starting…`, true)
   
+  const connected = await connect(mongoUri)
+  if (!connected) {
+    log('Failed to connect to MongoDB database.', true)
+    return false
+  }
+  
+  log('Initializing MCP server…')
   const server = new McpServer({
     name: 'MongoDB Lens',
-    version: '1.0.0',
+    version: PACKAGE_VERSION,
     instructions: `
 # MongoDB Lens MCP Server
 
@@ -50,12 +72,20 @@ This server provides access to your MongoDB database through MCP. You can:
 `
   })
   
+  log('Registering MCP resources…')
   registerResources(server)
+  
+  log('Registering MCP tools…')
   registerTools(server)
+  
+  log('Registering MCP prompts…')
   registerPrompts(server)
   
+  log('Connecting MCP server transport…')
   const transport = new StdioServerTransport()
   await server.connect(transport)
+  
+  log('MongoDB Lens server running.', true)
   return true
 }
 
@@ -65,7 +95,9 @@ const registerResources = (server) => {
     'mongodb://databases',
     { description: 'List of all accessible MongoDB databases' },
     async () => {
+      log('Resource: Retrieving list of databases…')
       const dbs = await listDatabases()
+      log(`Resource: Found ${dbs.length} databases.`)
       return {
         contents: [{
           uri: 'mongodb://databases',
@@ -80,7 +112,9 @@ const registerResources = (server) => {
     'mongodb://collections',
     { description: 'List of collections in the current database' },
     async () => {
+      log(`Resource: Retrieving collections from database '${currentDbName}'…`)
       const collections = await listCollections()
+      log(`Resource: Found ${collections.length} collections.`)
       return {
         contents: [{
           uri: 'mongodb://collections',
@@ -95,7 +129,9 @@ const registerResources = (server) => {
     new ResourceTemplate('mongodb://collection/{name}/schema', { 
       list: async () => {
         try {
+          log('Resource: Listing collection schemas…')
           const collections = await listCollections()
+          log(`Resource: Preparing schema resources for ${collections.length} collections.`)
           return {
             resources: collections.map(coll => ({
               uri: `mongodb://collection/${coll.name}/schema`,
@@ -111,10 +147,13 @@ const registerResources = (server) => {
       complete: {
         name: async (value) => {
           try {
+            log(`Resource: Autocompleting collection name with prefix '${value}'…`)
             const collections = await listCollections()
-            return collections
+            const matches = collections
               .map(coll => coll.name)
               .filter(name => name.toLowerCase().includes(value.toLowerCase()))
+            log(`Resource: Found ${matches.length} matching collections.`)
+            return matches
           } catch (error) {
             console.error('Error completing collection names:', error)
             return []
@@ -124,7 +163,9 @@ const registerResources = (server) => {
     }),
     { description: 'Schema information for a MongoDB collection' },
     async (uri, { name }) => {
+      log(`Resource: Inferring schema for collection '${name}'…`)
       const schema = await inferSchema(name)
+      log(`Resource: Schema inference complete for '${name}', identified ${Object.keys(schema.fields).length} fields.`)
       return {
         contents: [{
           uri: uri.href,
@@ -139,7 +180,9 @@ const registerResources = (server) => {
     new ResourceTemplate('mongodb://collection/{name}/stats', { 
       list: async () => {
         try {
+          log('Resource: Listing collection stats resources…')
           const collections = await listCollections()
+          log(`Resource: Preparing stats resources for ${collections.length} collections.`)
           return {
             resources: collections.map(coll => ({
               uri: `mongodb://collection/${coll.name}/stats`,
@@ -155,10 +198,13 @@ const registerResources = (server) => {
       complete: {
         name: async (value) => {
           try {
+            log(`Resource: Autocompleting collection name for stats with prefix '${value}'…`)
             const collections = await listCollections()
-            return collections
+            const matches = collections
               .map(coll => coll.name)
               .filter(name => name.toLowerCase().includes(value.toLowerCase()))
+            log(`Resource: Found ${matches.length} matching collections for stats.`)
+            return matches
           } catch (error) {
             console.error('Error completing collection names:', error)
             return []
@@ -168,7 +214,9 @@ const registerResources = (server) => {
     }),
     { description: 'Performance statistics for a MongoDB collection' },
     async (uri, { name }) => {
+      log(`Resource: Retrieving stats for collection '${name}'…`)
       const stats = await getCollectionStats(name)
+      log(`Resource: Retrieved stats for collection '${name}'.`)
       return {
         contents: [{
           uri: uri.href,
@@ -183,7 +231,9 @@ const registerResources = (server) => {
     new ResourceTemplate('mongodb://collection/{name}/indexes', { 
       list: async () => {
         try {
+          log('Resource: Listing collection indexes resources…')
           const collections = await listCollections()
+          log(`Resource: Preparing index resources for ${collections.length} collections.`)
           return {
             resources: collections.map(coll => ({
               uri: `mongodb://collection/${coll.name}/indexes`,
@@ -199,10 +249,13 @@ const registerResources = (server) => {
       complete: {
         name: async (value) => {
           try {
+            log(`Resource: Autocompleting collection name for indexes with prefix '${value}'…`)
             const collections = await listCollections()
-            return collections
+            const matches = collections
               .map(coll => coll.name)
               .filter(name => name.toLowerCase().includes(value.toLowerCase()))
+            log(`Resource: Found ${matches.length} matching collections for indexes.`)
+            return matches
           } catch (error) {
             console.error('Error completing collection names:', error)
             return []
@@ -212,7 +265,9 @@ const registerResources = (server) => {
     }),
     { description: 'Index information for a MongoDB collection' },
     async (uri, { name }) => {
+      log(`Resource: Retrieving indexes for collection '${name}'…`)
       const indexes = await getCollectionIndexes(name)
+      log(`Resource: Retrieved ${indexes.length} indexes for collection '${name}'.`)
       return {
         contents: [{
           uri: uri.href,
@@ -231,14 +286,16 @@ const registerPrompts = (server) => {
       collection: z.string().min(1).describe('Collection name to query'),
       condition: z.string().describe('Describe the condition in natural language (e.g., "users older than 30")')
     },
-    ({ collection, condition }) => ({
-      description: `MongoDB Query Builder for ${collection}`,
-      messages: [
-        {
-          role: 'user',
-          content: {
-            type: 'text',
-            text: `Please help me create a MongoDB query for the '${collection}' collection based on this condition: "${condition}".
+    ({ collection, condition }) => {
+      log(`Prompt: Initializing queryBuilder for collection '${collection}' with condition: "${condition}".`)
+      return {
+        description: `MongoDB Query Builder for ${collection}`,
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `Please help me create a MongoDB query for the '${collection}' collection based on this condition: "${condition}".
 
 I need both the filter object and a complete example showing how to use it with the findDocuments tool.
 
@@ -249,10 +306,11 @@ Guidelines:
 4. Suggest any relevant projections or sort options
 
 Remember: I'm working with the ${currentDbName} database and the ${collection} collection.`
+            }
           }
-        }
-      ]
-    })
+        ]
+      }
+    }
   )
   
   server.prompt(
@@ -262,14 +320,16 @@ Remember: I'm working with the ${currentDbName} database and the ${collection} c
       collection: z.string().min(1).describe('Collection name for aggregation'),
       goal: z.string().describe('What you want to calculate or analyze')
     },
-    ({ collection, goal }) => ({
-      description: `MongoDB Aggregation Pipeline Builder for ${collection}`,
-      messages: [
-        {
-          role: 'user',
-          content: {
-            type: 'text',
-            text: `I need to create a MongoDB aggregation pipeline for the '${collection}' collection to ${goal}.
+    ({ collection, goal }) => {
+      log(`Prompt: Initializing aggregationBuilder for collection '${collection}' with goal: "${goal}".`)
+      return {
+        description: `MongoDB Aggregation Pipeline Builder for ${collection}`,
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `I need to create a MongoDB aggregation pipeline for the '${collection}' collection to ${goal}.
 
 Please help me create:
 1. A complete aggregation pipeline as a JSON array
@@ -277,10 +337,11 @@ Please help me create:
 3. How to execute this with the aggregateData tool
 
 Remember: I'm working with the ${currentDbName} database and the ${collection} collection.`
+            }
           }
-        }
-      ]
-    })
+        ]
+      }
+    }
   )
   
   server.prompt(
@@ -290,9 +351,9 @@ Remember: I'm working with the ${currentDbName} database and the ${collection} c
       collection: z.string().min(1).describe('Collection name to analyze')
     },
     async ({ collection }) => {
-      // First get the actual schema to make the prompt more informed
+      log(`Prompt: Initializing schemaAnalysis for collection '${collection}'…`)
       const schema = await inferSchema(collection)
-      
+      log(`Prompt: Retrieved schema for '${collection}' with ${Object.keys(schema.fields).length} fields.`)
       return {
         description: `MongoDB Schema Analysis for ${collection}`,
         messages: [
@@ -325,14 +386,16 @@ Could you help with:
       collection: z.string().min(1).describe('Collection name'),
       queryPattern: z.string().describe('Common query pattern or operation')
     },
-    ({ collection, queryPattern }) => ({
-      description: `MongoDB Index Recommendations for ${collection}`,
-      messages: [
-        {
-          role: 'user',
-          content: {
-            type: 'text',
-            text: `I need index recommendations for the '${collection}' collection to optimize this query pattern: "${queryPattern}".
+    ({ collection, queryPattern }) => {
+      log(`Prompt: Initializing indexRecommendation for collection '${collection}' with query pattern: "${queryPattern}".`)
+      return {
+        description: `MongoDB Index Recommendations for ${collection}`,
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `I need index recommendations for the '${collection}' collection to optimize this query pattern: "${queryPattern}".
 
 Please provide:
 1. Recommended index(es) with proper key specification
@@ -342,10 +405,11 @@ Please provide:
 5. Any potential trade-offs or considerations for this index
 
 Remember: I'm working with the ${currentDbName} database and the ${collection} collection.`
+            }
           }
-        }
-      ]
-    })
+        ]
+      }
+    }
   )
   
   server.prompt(
@@ -355,14 +419,16 @@ Remember: I'm working with the ${currentDbName} database and the ${collection} c
       operation: z.string().describe('Operation you want to perform'),
       details: z.string().optional().describe('Additional details about the operation')
     },
-    ({ operation, details }) => ({
-      description: 'MongoDB Shell Command Generator',
-      messages: [
-        {
-          role: 'user',
-          content: {
-            type: 'text',
-            text: `Please generate MongoDB shell commands to ${operation}${details ? ` with these details: ${details}` : ''}.
+    ({ operation, details }) => {
+      log(`Prompt: Initializing mongoShell for operation: "${operation}" with${details ? ' details: "' + details + '"' : 'out details'}.`)
+      return {
+        description: 'MongoDB Shell Command Generator',
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `Please generate MongoDB shell commands to ${operation}${details ? ` with these details: ${details}` : ''}.
 
 I need:
 1. The exact MongoDB shell command(s)
@@ -371,45 +437,49 @@ I need:
 4. Any important considerations or variations
 
 Current database: ${currentDbName}`
+            }
           }
-        }
-      ]
-    })
+        ]
+      }
+    }
   )
   
   server.prompt(
     'inspectorGuide',
     'Get help using MongoDB Lens with MCP Inspector',
     {},
-    () => ({
-      description: 'MongoDB Lens Inspector Guide',
-      messages: [
-        {
-          role: 'user',
-          content: {
-            type: 'text',
-            text: `I'm using the MCP Inspector with MongoDB Lens. How can I best use these tools together?
+    () => {
+      log('Prompt: Initializing inspectorGuide.')
+      return {
+        description: 'MongoDB Lens Inspector Guide',
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `I'm using the MCP Inspector with MongoDB Lens. How can I best use these tools together?
 
 Please provide:
 1. An overview of the most useful Inspector features for MongoDB
 2. Tips for debugging MongoDB queries
 3. Common workflows for exploring a database
 4. How to use the Inspector features with MongoDB Lens resources and tools`
+            }
           }
-        }
-      ]
-    })
+        ]
+      }
+    }
   )
 }
 
 async function generateExampleFilter(collectionName) {
   try {
+    log(`Generating example filter for collection '${collectionName}'…`)
     const schema = await inferSchema(collectionName, 5)
     const fields = Object.entries(schema.fields)
     
     if (fields.length === 0) return '{}'
     
-    // Find a suitable field for filtering
     const fieldEntry = fields.find(([name, info]) => 
       info.types.includes('string') || 
       info.types.includes('number') || 
@@ -419,6 +489,7 @@ async function generateExampleFilter(collectionName) {
     if (!fieldEntry) return '{}'
     
     const [fieldName, info] = fieldEntry
+    log(`Found suitable field for example filter: ${fieldName} (${info.types.join(', ')}).`)
     
     if (info.types.includes('string')) {
       return JSON.stringify({ [fieldName]: { $regex: "example" } })
@@ -437,8 +508,11 @@ async function generateExampleFilter(collectionName) {
 
 async function getFieldsForCollection(collectionName) {
   try {
+    log(`Retrieving fields for collection '${collectionName}'…`)
     const schema = await inferSchema(collectionName, 5)
-    return Object.keys(schema.fields)
+    const fields = Object.keys(schema.fields)
+    log(`Retrieved ${fields.length} fields from collection '${collectionName}'.`)
+    return fields
   } catch (error) {
     console.error(`Error getting fields for ${collectionName}:`, error)
     return []
@@ -455,7 +529,9 @@ const registerTools = (server) => {
     'List all accessible MongoDB databases',
     async () => {
       try {
+        log('Tool: Listing databases…')
         const dbs = await listDatabases()
+        log(`Tool: Found ${dbs.length} databases.`)
         return {
           content: [{
             type: 'text',
@@ -463,6 +539,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
+        console.error('Error listing databases:', error)
         return {
           content: [{
             type: 'text',
@@ -482,7 +559,9 @@ const registerTools = (server) => {
     },
     async ({ database }) => {
       try {
+        log(`Tool: Switching to database '${database}'…`)
         await switchDatabase(database)
+        log(`Tool: Successfully switched to database '${database}'.`)
         return {
           content: [{
             type: 'text',
@@ -490,6 +569,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
+        console.error('Error switching database:', error)
         return {
           content: [{
             type: 'text',
@@ -506,7 +586,9 @@ const registerTools = (server) => {
     'List collections in the current database',
     async () => {
       try {
+        log(`Tool: Listing collections in database '${currentDbName}'…`)
         const collections = await listCollections()
+        log(`Tool: Found ${collections.length} collections in database '${currentDbName}'.`)
         return {
           content: [{
             type: 'text',
@@ -514,6 +596,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
+        console.error('Error listing collections:', error)
         return {
           content: [{
             type: 'text',
@@ -538,11 +621,18 @@ const registerTools = (server) => {
     },
     async ({ collection, filter, projection, limit, skip, sort }) => {
       try {
+        log(`Tool: Finding documents in collection '${collection}'…`)
+        log(`Tool: Using filter: ${filter}`)
+        if (projection) log(`Tool: Using projection: ${projection}`)
+        if (sort) log(`Tool: Using sort: ${sort}`)
+        log(`Tool: Using limit: ${limit}, skip: ${skip}`)
+        
         const parsedFilter = filter ? JSON.parse(filter) : {}
         const parsedProjection = projection ? JSON.parse(projection) : null
         const parsedSort = sort ? JSON.parse(sort) : null
         
         const documents = await findDocuments(collection, parsedFilter, parsedProjection, limit, skip, parsedSort)
+        log(`Tool: Found ${documents.length} documents in collection '${collection}'.`)
         return {
           content: [{
             type: 'text',
@@ -550,6 +640,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
+        console.error('Error finding documents:', error)
         return {
           content: [{
             type: 'text',
@@ -570,8 +661,12 @@ const registerTools = (server) => {
     },
     async ({ collection, filter }) => {
       try {
+        log(`Tool: Counting documents in collection '${collection}'…`)
+        log(`Tool: Using filter: ${filter}`)
+        
         const parsedFilter = filter ? JSON.parse(filter) : {}
         const count = await countDocuments(collection, parsedFilter)
+        log(`Tool: Count result: ${count} documents.`)
         return {
           content: [{
             type: 'text',
@@ -579,6 +674,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
+        console.error('Error counting documents:', error)
         return {
           content: [{
             type: 'text',
@@ -599,8 +695,12 @@ const registerTools = (server) => {
     },
     async ({ collection, pipeline }) => {
       try {
+        log(`Tool: Running aggregation on collection '${collection}'…`)
+        log(`Tool: Using pipeline: ${pipeline}`)
+        
         const parsedPipeline = JSON.parse(pipeline)
         const results = await aggregateData(collection, parsedPipeline)
+        log(`Tool: Aggregation returned ${results.length} results.`)
         return {
           content: [{
             type: 'text',
@@ -608,6 +708,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
+        console.error('Error running aggregation:', error)
         return {
           content: [{
             type: 'text',
@@ -630,10 +731,14 @@ const registerTools = (server) => {
       try {
         let stats
         if (target === 'database') {
+          log(`Tool: Getting statistics for database '${currentDbName}'…`)
           stats = await getDatabaseStats()
+          log(`Tool: Retrieved database statistics.`)
         } else if (target === 'collection') {
           if (!name) throw new Error('Collection name is required for collection stats')
+          log(`Tool: Getting statistics for collection '${name}'…`)
           stats = await getCollectionStats(name)
+          log(`Tool: Retrieved collection statistics.`)
         }
         
         return {
@@ -643,6 +748,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
+        console.error('Error getting stats:', error)
         return {
           content: [{
             type: 'text',
@@ -663,7 +769,9 @@ const registerTools = (server) => {
     },
     async ({ collection, sampleSize }) => {
       try {
+        log(`Tool: Analyzing schema for collection '${collection}' with sample size ${sampleSize}…`)
         const schema = await inferSchema(collection, sampleSize)
+        log(`Tool: Schema analysis complete for '${collection}', found ${Object.keys(schema.fields).length} fields.`)
         return {
           content: [{
             type: 'text',
@@ -671,6 +779,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
+        console.error('Error inferring schema:', error)
         return {
           content: [{
             type: 'text',
@@ -692,10 +801,15 @@ const registerTools = (server) => {
     },
     async ({ collection, keys, options }) => {
       try {
+        log(`Tool: Creating index on collection '${collection}'…`)
+        log(`Tool: Index keys: ${keys}`)
+        if (options) log(`Tool: Index options: ${options}`)
+        
         const parsedKeys = JSON.parse(keys)
         const parsedOptions = options ? JSON.parse(options) : {}
         
         const result = await createIndex(collection, parsedKeys, parsedOptions)
+        log(`Tool: Index created successfully: ${result}`)
         return {
           content: [{
             type: 'text',
@@ -703,6 +817,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
+        console.error('Error creating index:', error)
         return {
           content: [{
             type: 'text',
@@ -724,8 +839,13 @@ const registerTools = (server) => {
     },
     async ({ collection, filter, verbosity }) => {
       try {
+        log(`Tool: Explaining query on collection '${collection}'…`)
+        log(`Tool: Filter: ${filter}`)
+        log(`Tool: Verbosity level: ${verbosity}`)
+        
         const parsedFilter = JSON.parse(filter)
         const explanation = await explainQuery(collection, parsedFilter, verbosity)
+        log(`Tool: Query explanation generated.`)
         return {
           content: [{
             type: 'text',
@@ -733,6 +853,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
+        console.error('Error explaining query:', error)
         return {
           content: [{
             type: 'text',
@@ -746,23 +867,30 @@ const registerTools = (server) => {
 }
 
 const listDatabases = async () => {
+  log('DB Operation: Listing databases…')
   const adminDb = client.db('admin')
   const result = await adminDb.admin().listDatabases()
+  log(`DB Operation: Found ${result.databases.length} databases.`)
   return result.databases
 }
 
 const switchDatabase = async (dbName) => {
+  log(`DB Operation: Switching to database '${dbName}'…`)
   currentDbName = dbName
   currentDb = client.db(dbName)
+  log(`DB Operation: Successfully switched to database '${dbName}'.`)
   return currentDb
 }
 
 const listCollections = async () => {
+  log(`DB Operation: Listing collections in database '${currentDbName}'…`)
   const collections = await currentDb.listCollections().toArray()
+  log(`DB Operation: Found ${collections.length} collections.`)
   return collections
 }
 
 const findDocuments = async (collectionName, filter = {}, projection = null, limit = 10, skip = 0, sort = null) => {
+  log(`DB Operation: Finding documents in collection '${collectionName}'…`)
   const collection = currentDb.collection(collectionName)
   let query = collection.find(filter)
   
@@ -771,34 +899,54 @@ const findDocuments = async (collectionName, filter = {}, projection = null, lim
   if (limit) query = query.limit(limit)
   if (sort) query = query.sort(sort)
   
-  return await query.toArray()
+  const results = await query.toArray()
+  log(`DB Operation: Found ${results.length} documents.`)
+  return results
 }
 
 const countDocuments = async (collectionName, filter = {}) => {
+  log(`DB Operation: Counting documents in collection '${collectionName}'…`)
   const collection = currentDb.collection(collectionName)
-  return await collection.countDocuments(filter)
+  const count = await collection.countDocuments(filter)
+  log(`DB Operation: Count result: ${count} documents.`)
+  return count
 }
 
 const aggregateData = async (collectionName, pipeline) => {
+  log(`DB Operation: Running aggregation on collection '${collectionName}'…`)
+  log(`DB Operation: Pipeline has ${pipeline.length} stages.`)
   const collection = currentDb.collection(collectionName)
-  return await collection.aggregate(pipeline).toArray()
+  const results = await collection.aggregate(pipeline).toArray()
+  log(`DB Operation: Aggregation returned ${results.length} results.`)
+  return results
 }
 
 const getDatabaseStats = async () => {
-  return await currentDb.stats()
+  log(`DB Operation: Getting statistics for database '${currentDbName}'…`)
+  const stats = await currentDb.stats()
+  log(`DB Operation: Retrieved database statistics.`)
+  return stats
 }
 
 const getCollectionStats = async (collectionName) => {
-  return await currentDb.collection(collectionName).stats()
+  log(`DB Operation: Getting statistics for collection '${collectionName}'…`)
+  const stats = await currentDb.collection(collectionName).stats()
+  log(`DB Operation: Retrieved statistics for collection '${collectionName}'.`)
+  return stats
 }
 
 const getCollectionIndexes = async (collectionName) => {
-  return await currentDb.collection(collectionName).indexes()
+  log(`DB Operation: Getting indexes for collection '${collectionName}'…`)
+  const indexes = await currentDb.collection(collectionName).indexes()
+  log(`DB Operation: Retrieved ${indexes.length} indexes for collection '${collectionName}'.`)
+  return indexes
 }
 
 const inferSchema = async (collectionName, sampleSize = 100) => {
+  log(`DB Operation: Inferring schema for collection '${collectionName}' with sample size ${sampleSize}…`)
   const collection = currentDb.collection(collectionName)
   const documents = await collection.find({}).limit(sampleSize).toArray()
+  log(`DB Operation: Retrieved ${documents.length} sample documents for schema inference.`)
   
   const schema = {}
   documents.forEach(doc => {
@@ -820,6 +968,7 @@ const inferSchema = async (collectionName, sampleSize = 100) => {
     schema[key].types = Array.from(schema[key].types)
   }
   
+  log(`DB Operation: Schema inference complete, identified ${Object.keys(schema).length} fields.`)
   return { 
     collectionName,
     sampleSize: documents.length,
@@ -828,14 +977,22 @@ const inferSchema = async (collectionName, sampleSize = 100) => {
 }
 
 const createIndex = async (collectionName, keys, options = {}) => {
+  log(`DB Operation: Creating index on collection '${collectionName}'…`)
+  log(`DB Operation: Index keys: ${JSON.stringify(keys)}`)
+  if (Object.keys(options).length > 0) log(`DB Operation: Index options: ${JSON.stringify(options)}`)
+  
   const collection = currentDb.collection(collectionName)
   const result = await collection.createIndex(keys, options)
+  log(`DB Operation: Index created successfully: ${result}`)
   return result
 }
 
 const explainQuery = async (collectionName, filter, verbosity = 'executionStats') => {
+  log(`DB Operation: Explaining query on collection '${collectionName}'…`)
   const collection = currentDb.collection(collectionName)
-  return await collection.find(filter).explain(verbosity)
+  const explanation = await collection.find(filter).explain(verbosity)
+  log(`DB Operation: Query explanation generated.`)
+  return explanation
 }
 
 const formatDatabasesList = (databases) => {
@@ -885,7 +1042,7 @@ const formatSchema = (schema) => {
       }
       
       if (sample.length > 50) {
-        sample = sample.substring(0, 47) + '...'
+        sample = sample.substring(0, 47) + '…'
       }
       
       sample = ` (example: ${sample})`

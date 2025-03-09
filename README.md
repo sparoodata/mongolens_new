@@ -45,6 +45,7 @@ MongoDB Lens exposes the following capabilities through MCP:
 ### Tools
 
 - **listDatabases**: View all accessible MongoDB databases
+- **currentDatabase**: Show the current database context
 - **useDatabase**: Switch to a specific database context
 - **listCollections**: Explore collections in the current database
 - **findDocuments**: Run queries with filters, projections, and sorting

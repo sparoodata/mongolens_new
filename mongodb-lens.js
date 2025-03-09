@@ -550,6 +550,31 @@ const registerTools = (server) => {
       }
     }
   )
+
+  server.tool(
+    'currentDatabase',
+    'Get the name of the current database',
+    async () => {
+      try {
+        log('Tool: Getting current database name...')
+        return {
+          content: [{
+            type: 'text',
+            text: `Current database: ${currentDbName}`
+          }]
+        }
+      } catch (error) {
+        console.error('Error getting current database:', error)
+        return {
+          content: [{
+            type: 'text',
+            text: `Error getting current database: ${error.message}`
+          }],
+          isError: true
+        }
+      }
+    }
+  )
   
   server.tool(
     'useDatabase',

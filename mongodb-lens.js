@@ -280,7 +280,7 @@ const registerResources = (server) => {
 
 const registerPrompts = (server) => {
   server.prompt(
-    'queryBuilder',
+    'query-builder',
     'Help construct MongoDB query filters',
     {
       collection: z.string().min(1).describe('Collection name to query'),
@@ -314,7 +314,7 @@ Remember: I'm working with the ${currentDbName} database and the ${collection} c
   )
   
   server.prompt(
-    'aggregationBuilder',
+    'aggregation-builder',
     'Help construct MongoDB aggregation pipelines',
     {
       collection: z.string().min(1).describe('Collection name for aggregation'),
@@ -345,7 +345,7 @@ Remember: I'm working with the ${currentDbName} database and the ${collection} c
   )
   
   server.prompt(
-    'schemaAnalysis',
+    'schema-analysis',
     'Analyze collection schema and recommend improvements',
     {
       collection: z.string().min(1).describe('Collection name to analyze')
@@ -380,7 +380,7 @@ Could you help with:
   )
   
   server.prompt(
-    'indexRecommendation',
+    'index-recommendation',
     'Get index recommendations for query patterns',
     {
       collection: z.string().min(1).describe('Collection name'),
@@ -413,7 +413,7 @@ Remember: I'm working with the ${currentDbName} database and the ${collection} c
   )
   
   server.prompt(
-    'mongoShell',
+    'mongo-shell',
     'Generate MongoDB shell commands',
     {
       operation: z.string().describe('Operation you want to perform'),
@@ -445,7 +445,7 @@ Current database: ${currentDbName}`
   )
   
   server.prompt(
-    'inspectorGuide',
+    'inspector-guide',
     'Get help using MongoDB Lens with MCP Inspector',
     {},
     () => {
@@ -525,7 +525,7 @@ function isValidFieldName(field) {
 
 const registerTools = (server) => {
   server.tool(
-    'listDatabases',
+    'list-databases',
     'List all accessible MongoDB databases',
     async () => {
       try {
@@ -552,7 +552,7 @@ const registerTools = (server) => {
   )
 
   server.tool(
-    'currentDatabase',
+    'current-database',
     'Get the name of the current database',
     async () => {
       try {
@@ -577,7 +577,7 @@ const registerTools = (server) => {
   )
   
   server.tool(
-    'useDatabase',
+    'use-database',
     'Switch to a specific database',
     {
       database: z.string().min(1).describe('Database name to use')
@@ -607,7 +607,7 @@ const registerTools = (server) => {
   )
   
   server.tool(
-    'listCollections',
+    'list-collections',
     'List collections in the current database',
     async () => {
       try {
@@ -634,7 +634,7 @@ const registerTools = (server) => {
   )
   
   server.tool(
-    'findDocuments',
+    'find-documents',
     'Run queries with filters and projections',
     {
       collection: z.string().min(1).describe('Collection name'),
@@ -678,7 +678,7 @@ const registerTools = (server) => {
   )
   
   server.tool(
-    'countDocuments',
+    'count-documents',
     'Count documents with optional filter',
     {
       collection: z.string().min(1).describe('Collection name'),
@@ -712,7 +712,7 @@ const registerTools = (server) => {
   )
   
   server.tool(
-    'aggregateData',
+    'aggregate-data',
     'Run aggregation pipelines',
     {
       collection: z.string().min(1).describe('Collection name'),
@@ -746,7 +746,7 @@ const registerTools = (server) => {
   )
   
   server.tool(
-    'getStats',
+    'get-stats',
     'Get database or collection statistics',
     {
       target: z.enum(['database', 'collection']).describe('Target type'),
@@ -786,7 +786,7 @@ const registerTools = (server) => {
   )
   
   server.tool(
-    'analyzeSchema',
+    'analyze-schema',
     'Automatically infer schema from collection',
     {
       collection: z.string().min(1).describe('Collection name'),
@@ -817,7 +817,7 @@ const registerTools = (server) => {
   )
   
   server.tool(
-    'createIndex',
+    'create-index',
     'Create new index on collection',
     {
       collection: z.string().min(1).describe('Collection name'),
@@ -855,7 +855,7 @@ const registerTools = (server) => {
   )
   
   server.tool(
-    'explainQuery',
+    'explain-query',
     'Analyze query performance',
     {
       collection: z.string().min(1).describe('Collection name'),

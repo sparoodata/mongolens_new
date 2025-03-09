@@ -44,26 +44,26 @@ MongoDB Lens exposes the following capabilities through MCP:
 
 ### Tools
 
-- **listDatabases**: View all accessible MongoDB databases
-- **currentDatabase**: Show the current database context
-- **useDatabase**: Switch to a specific database context
-- **listCollections**: Explore collections in the current database
-- **findDocuments**: Run queries with filters, projections, and sorting
-- **countDocuments**: Count documents matching specified criteria
-- **aggregateData**: Execute aggregation pipelines
-- **getStats**: Retrieve database or collection statistics
-- **analyzeSchema**: Automatically infer collection schemas
-- **createIndex**: Create new indexes for performance optimization
-- **explainQuery**: Analyze query execution plans
+- **list-databases**: View all accessible MongoDB databases
+- **current-database**: Show the current database context
+- **use-database**: Switch to a specific database context
+- **list-collections**: Explore collections in the current database
+- **find-documents**: Run queries with filters, projections, and sorting
+- **count-documents**: Count documents matching specified criteria
+- **aggregate-data**: Execute aggregation pipelines
+- **get-stats**: Retrieve database or collection statistics
+- **analyze-schema**: Automatically infer collection schemas
+- **create-index**: Create new indexes for performance optimization
+- **explain-query**: Analyze query execution plans
 
 ### Prompts
 
-- **queryBuilder**: Interactive guidance for constructing MongoDB queries
-- **aggregationBuilder**: Step-by-step creation of aggregation pipelines
-- **schemaAnalysis**: Detailed collection schema analysis with recommendations
-- **indexRecommendation**: Get personalized index suggestions based on query patterns
-- **mongoShell**: Generate MongoDB shell commands with explanations
-- **inspectorGuide**: Get help using MongoDB Lens with MCP Inspector
+- **query-builder**: Interactive guidance for constructing MongoDB queries
+- **aggregation-builder**: Step-by-step creation of aggregation pipelines
+- **schema-analysis**: Detailed collection schema analysis with recommendations
+- **index-recommendation**: Get personalized index suggestions based on query patterns
+- **mongo-shell**: Generate MongoDB shell commands with explanations
+- **inspector-guide**: Get help using MongoDB Lens with MCP Inspector
 
 ## Configuration
 

@@ -41,6 +41,11 @@ This server provides access to your MongoDB database through MCP. You can:
 3. Analyze schemas and indexes
 4. Run aggregation pipelines
 5. Get assistance with queries and database operations
+6. Manage collections and perform document operations
+7. Extract unique values and validate collections
+8. Access server status and replication information
+9. Export data and analyze query performance
+10. Get advice on data modeling, security, and optimization
 
 ## Getting Started
 
@@ -50,6 +55,8 @@ This server provides access to your MongoDB database through MCP. You can:
 4. Explore schemas with \`mongodb://collection/{name}/schema\` resources
 5. Query data with the \`findDocuments\` tool
 6. Try prompts like \`queryBuilder\` for help building queries
+7. Use \`distinctValues\` to find unique values in a collection
+8. Check system status with \`mongodb://server/status\` resource
 `
   })
   
@@ -272,6 +279,124 @@ const registerResources = (server) => {
       }
     }
   )
+
+  server.resource(
+    'server-status',
+    'mongodb://server/status',
+    { description: 'MongoDB server status information' },
+    async () => {
+      log('Resource: Retrieving server status…')
+      const status = await getServerStatus()
+      log('Resource: Retrieved server status information.')
+      return {
+        contents: [{
+          uri: 'mongodb://server/status',
+          text: formatServerStatus(status)
+        }]
+      }
+    }
+  )
+
+  server.resource(
+    'replica-status',
+    'mongodb://server/replica',
+    { description: 'MongoDB replica set status and configuration' },
+    async () => {
+      log('Resource: Retrieving replica set status…')
+      const status = await getReplicaSetStatus()
+      log('Resource: Retrieved replica set status information.')
+      return {
+        contents: [{
+          uri: 'mongodb://server/replica',
+          text: formatReplicaSetStatus(status)
+        }]
+      }
+    }
+  )
+
+  server.resource(
+    'collection-validation',
+    new ResourceTemplate('mongodb://collection/{name}/validation', {
+      list: async () => {
+        try {
+          log('Resource: Listing collection validation resources…')
+          const collections = await listCollections()
+          log(`Resource: Preparing validation resources for ${collections.length} collections.`)
+          return {
+            resources: collections.map(coll => ({
+              uri: `mongodb://collection/${coll.name}/validation`,
+              name: `${coll.name} Validation`,
+              description: `Validation rules for ${coll.name} collection`
+            }))
+          }
+        } catch (error) {
+          console.error('Error listing collections for validation:', error)
+          return { resources: [] }
+        }
+      },
+      complete: {
+        name: async (value) => {
+          try {
+            log(`Resource: Autocompleting collection name for validation with prefix '${value}'…`)
+            const collections = await listCollections()
+            const matches = collections
+              .map(coll => coll.name)
+              .filter(name => name.toLowerCase().includes(value.toLowerCase()))
+            return matches
+          } catch (error) {
+            console.error('Error completing collection names:', error)
+            return []
+          }
+        }
+      }
+    }),
+    { description: 'Validation rules for a MongoDB collection' },
+    async (uri, { name }) => {
+      log(`Resource: Retrieving validation rules for collection '${name}'…`)
+      const validation = await getCollectionValidation(name)
+      log(`Resource: Retrieved validation rules for collection '${name}'.`)
+      return {
+        contents: [{
+          uri: uri.href,
+          text: formatValidationRules(validation)
+        }]
+      }
+    }
+  )
+
+  server.resource(
+    'database-users',
+    'mongodb://database/users',
+    { description: 'MongoDB database users and roles' },
+    async () => {
+      log('Resource: Retrieving database users…')
+      const users = await getDatabaseUsers()
+      log(`Resource: Retrieved user information.`)
+      return {
+        contents: [{
+          uri: 'mongodb://database/users',
+          text: formatDatabaseUsers(users)
+        }]
+      }
+    }
+  )
+
+  server.resource(
+    'stored-functions',
+    'mongodb://database/functions',
+    { description: 'MongoDB stored JavaScript functions' },
+    async () => {
+      log('Resource: Retrieving stored JavaScript functions…')
+      const functions = await getStoredFunctions()
+      log(`Resource: Retrieved stored functions.`)
+      return {
+        contents: [{
+          uri: 'mongodb://database/functions',
+          text: formatStoredFunctions(functions)
+        }]
+      }
+    }
+  )
 }
 
 const registerPrompts = (server) => {
@@ -460,6 +585,205 @@ Please provide:
 2. Tips for debugging MongoDB queries
 3. Common workflows for exploring a database
 4. How to use the Inspector features with MongoDB Lens resources and tools`
+            }
+          }
+        ]
+      }
+    }
+  )
+
+  server.prompt(
+    'data-modeling',
+    'Get MongoDB data modeling advice for specific use cases',
+    {
+      useCase: z.string().describe('Describe your application or data use case'),
+      requirements: z.string().describe('Key requirements (performance, access patterns, etc.)'),
+      existingData: z.string().optional().describe('Optional: describe any existing data structure')
+    },
+    ({ useCase, requirements, existingData }) => {
+      log(`Prompt: Initializing dataModeling for use case: "${useCase}".`)
+      return {
+        description: 'MongoDB Data Modeling Guide',
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `I need help designing a MongoDB data model for this use case: "${useCase}".
+
+Key requirements:
+${requirements}
+
+${existingData ? `Existing data structure:\n${existingData}\n\n` : ''}
+Please provide:
+1. Recommended data model with collection structures
+2. Sample document structures in JSON format
+3. Explanation of design decisions and trade-offs
+4. Appropriate indexing strategy
+5. Any MongoDB-specific features or patterns I should consider
+6. How this model addresses the stated requirements`
+            }
+          }
+        ]
+      }
+    }
+  )
+
+  server.prompt(
+    'query-optimizer',
+    'Get optimization advice for slow queries',
+    {
+      collection: z.string().min(1).describe('Collection name'),
+      query: z.string().describe('The slow query (as a JSON filter)'),
+      performance: z.string().optional().describe('Optional: current performance metrics')
+    },
+    async ({ collection, query, performance }) => {
+      log(`Prompt: Initializing queryOptimizer for collection '${collection}' with query: ${query}.`)
+      
+      // Get collection stats and index information to help with optimization
+      const stats = await getCollectionStats(collection)
+      const indexes = await getCollectionIndexes(collection)
+      
+      return {
+        description: 'MongoDB Query Optimization Advisor',
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `I have a slow MongoDB query on the '${collection}' collection and need help optimizing it.
+
+Query filter: ${query}
+
+${performance ? `Current performance: ${performance}\n\n` : ''}
+Collection stats:
+${formatStats(stats)}
+
+Current indexes:
+${formatIndexes(indexes)}
+
+Please provide:
+1. Analysis of why this query might be slow
+2. Recommend index changes (additions or modifications)
+3. Suggest query structure improvements
+4. Explain how to verify performance improvements
+5. Other optimization techniques I should consider`
+            }
+          }
+        ]
+      }
+    }
+  )
+
+  server.prompt(
+    'security-audit',
+    'Get MongoDB security recommendations',
+    {},
+    async () => {
+      log('Prompt: Initializing securityAudit.')
+      
+      // Get server status for security info
+      const serverStatus = await getServerStatus()
+      
+      // Get user information
+      const users = await getDatabaseUsers()
+      
+      return {
+        description: 'MongoDB Security Audit',
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `Please help me perform a security audit on my MongoDB deployment.
+
+Server information:
+${formatServerStatus(serverStatus)}
+
+User information:
+${formatDatabaseUsers(users)}
+
+Please provide:
+1. Potential security vulnerabilities in my current setup
+2. Recommendations for improving security
+3. Authentication and authorization best practices
+4. Network security considerations
+5. Data encryption options
+6. Audit logging recommendations
+7. Backup security considerations`
+            }
+          }
+        ]
+      }
+    }
+  )
+
+  server.prompt(
+    'backup-strategy',
+    'Get advice on MongoDB backup and recovery approaches',
+    {
+      databaseSize: z.string().optional().describe('Optional: database size information'),
+      uptime: z.string().optional().describe('Optional: uptime requirements (e.g., "99.9%")'),
+      rpo: z.string().optional().describe('Optional: recovery point objective'),
+      rto: z.string().optional().describe('Optional: recovery time objective')
+    },
+    ({ databaseSize, uptime, rpo, rto }) => {
+      log('Prompt: Initializing backupStrategy.')
+      return {
+        description: 'MongoDB Backup & Recovery Strategy',
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `I need recommendations for a MongoDB backup and recovery strategy.
+
+${databaseSize ? `Database size: ${databaseSize}\n` : ''}${uptime ? `Uptime requirement: ${uptime}\n` : ''}${rpo ? `Recovery Point Objective (RPO): ${rpo}\n` : ''}${rto ? `Recovery Time Objective (RTO): ${rto}\n` : ''}
+Current database: ${currentDbName}
+
+Please provide:
+1. Recommended backup methods for my scenario
+2. Backup frequency and retention recommendations
+3. Storage considerations and best practices
+4. Restoration procedures and testing strategy
+5. Monitoring and validation approaches
+6. High availability considerations
+7. Tools and commands for implementing the strategy`
+            }
+          }
+        ]
+      }
+    }
+  )
+
+  server.prompt(
+    'migration-guide',
+    'Generate MongoDB migration steps between versions',
+    {
+      sourceVersion: z.string().describe('Source MongoDB version'),
+      targetVersion: z.string().describe('Target MongoDB version'),
+      features: z.string().optional().describe('Optional: specific features you use')
+    },
+    ({ sourceVersion, targetVersion, features }) => {
+      log(`Prompt: Initializing migrationGuide from ${sourceVersion} to ${targetVersion}.`)
+      return {
+        description: 'MongoDB Version Migration Guide',
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `I need to migrate my MongoDB deployment from version ${sourceVersion} to ${targetVersion}.
+
+${features ? `Key features I'm using: ${features}\n\n` : ''}
+Please provide:
+1. Step-by-step migration plan
+2. Pre-migration checks and preparations
+3. Breaking changes and deprecated features to be aware of
+4. New features or improvements I can leverage
+5. Common pitfalls and how to avoid them
+6. Performance considerations
+7. Rollback strategy in case of issues`
             }
           }
         ]
@@ -885,6 +1209,348 @@ const registerTools = (server) => {
       }
     }
   )
+
+  server.tool(
+    'distinct-values',
+    'Get unique values for a field',
+    {
+      collection: z.string().min(1).describe('Collection name'),
+      field: z.string().min(1).describe('Field name to get distinct values for'),
+      filter: z.string().default('{}').describe('Optional filter as JSON string')
+    },
+    async ({ collection, field, filter }) => {
+      try {
+        log(`Tool: Getting distinct values for field '${field}' in collection '${collection}'…`)
+        log(`Tool: Using filter: ${filter}`)
+        
+        const parsedFilter = filter ? JSON.parse(filter) : {}
+        const values = await getDistinctValues(collection, field, parsedFilter)
+        log(`Tool: Found ${values.length} distinct values.`)
+        return {
+          content: [{
+            type: 'text',
+            text: formatDistinctValues(field, values)
+          }]
+        }
+      } catch (error) {
+        console.error('Error getting distinct values:', error)
+        return {
+          content: [{
+            type: 'text',
+            text: `Error getting distinct values: ${error.message}`
+          }],
+          isError: true
+        }
+      }
+    }
+  )
+
+  server.tool(
+    'validate-collection',
+    'Run validation on a collection to check for inconsistencies',
+    {
+      collection: z.string().min(1).describe('Collection name'),
+      full: z.boolean().default(false).describe('Perform full validation (slower but more thorough)')
+    },
+    async ({ collection, full }) => {
+      try {
+        log(`Tool: Validating collection '${collection}'…`)
+        log(`Tool: Full validation: ${full}`)
+        
+        const results = await validateCollection(collection, full)
+        log(`Tool: Validation complete.`)
+        return {
+          content: [{
+            type: 'text',
+            text: formatValidationResults(results)
+          }]
+        }
+      } catch (error) {
+        console.error('Error validating collection:', error)
+        return {
+          content: [{
+            type: 'text',
+            text: `Error validating collection: ${error.message}`
+          }],
+          isError: true
+        }
+      }
+    }
+  )
+
+  server.tool(
+    'create-collection',
+    'Create a new collection with options',
+    {
+      name: z.string().min(1).describe('Collection name'),
+      options: z.string().default('{}').describe('Collection options as JSON string (capped, size, etc.)')
+    },
+    async ({ name, options }) => {
+      try {
+        log(`Tool: Creating collection '${name}'…`)
+        log(`Tool: Using options: ${options}`)
+        
+        const parsedOptions = options ? JSON.parse(options) : {}
+        const result = await createCollection(name, parsedOptions)
+        log(`Tool: Collection created successfully.`)
+        return {
+          content: [{
+            type: 'text',
+            text: `Collection '${name}' created successfully.`
+          }]
+        }
+      } catch (error) {
+        console.error('Error creating collection:', error)
+        return {
+          content: [{
+            type: 'text',
+            text: `Error creating collection: ${error.message}`
+          }],
+          isError: true
+        }
+      }
+    }
+  )
+
+  server.tool(
+    'drop-collection',
+    'Remove a collection',
+    {
+      name: z.string().min(1).describe('Collection name')
+    },
+    async ({ name }) => {
+      try {
+        log(`Tool: Dropping collection '${name}'…`)
+        
+        const result = await dropCollection(name)
+        log(`Tool: Collection dropped successfully.`)
+        return {
+          content: [{
+            type: 'text',
+            text: `Collection '${name}' dropped successfully.`
+          }]
+        }
+      } catch (error) {
+        console.error('Error dropping collection:', error)
+        return {
+          content: [{
+            type: 'text',
+            text: `Error dropping collection: ${error.message}`
+          }],
+          isError: true
+        }
+      }
+    }
+  )
+
+  server.tool(
+    'rename-collection',
+    'Rename an existing collection',
+    {
+      oldName: z.string().min(1).describe('Current collection name'),
+      newName: z.string().min(1).describe('New collection name'),
+      dropTarget: z.boolean().default(false).describe('Whether to drop target collection if it exists')
+    },
+    async ({ oldName, newName, dropTarget }) => {
+      try {
+        log(`Tool: Renaming collection from '${oldName}' to '${newName}'…`)
+        log(`Tool: Drop target if exists: ${dropTarget}`)
+        
+        const result = await renameCollection(oldName, newName, dropTarget)
+        log(`Tool: Collection renamed successfully.`)
+        return {
+          content: [{
+            type: 'text',
+            text: `Collection '${oldName}' renamed to '${newName}' successfully.`
+          }]
+        }
+      } catch (error) {
+        console.error('Error renaming collection:', error)
+        return {
+          content: [{
+            type: 'text',
+            text: `Error renaming collection: ${error.message}`
+          }],
+          isError: true
+        }
+      }
+    }
+  )
+
+  server.tool(
+    'modify-document',
+    'Insert, update, or delete specific documents',
+    {
+      collection: z.string().min(1).describe('Collection name'),
+      operation: z.enum(['insert', 'update', 'delete']).describe('Operation type'),
+      document: z.string().describe('Document as JSON string (for insert)'),
+      filter: z.string().optional().describe('Filter as JSON string (for update/delete)'),
+      update: z.string().optional().describe('Update operations as JSON string (for update)'),
+      options: z.string().optional().describe('Options as JSON string')
+    },
+    async ({ collection, operation, document, filter, update, options }) => {
+      try {
+        log(`Tool: Modifying documents in collection '${collection}' with operation '${operation}'…`)
+        
+        let result
+        const parsedOptions = options ? JSON.parse(options) : {}
+        
+        if (operation === 'insert') {
+          if (!document) throw new Error('Document is required for insert operation')
+          const parsedDocument = JSON.parse(document)
+          result = await insertDocument(collection, parsedDocument, parsedOptions)
+          log(`Tool: Document inserted successfully.`)
+        } else if (operation === 'update') {
+          if (!filter) throw new Error('Filter is required for update operation')
+          if (!update) throw new Error('Update is required for update operation')
+          const parsedFilter = JSON.parse(filter)
+          const parsedUpdate = JSON.parse(update)
+          result = await updateDocument(collection, parsedFilter, parsedUpdate, parsedOptions)
+          log(`Tool: Document(s) updated successfully.`)
+        } else if (operation === 'delete') {
+          if (!filter) throw new Error('Filter is required for delete operation')
+          const parsedFilter = JSON.parse(filter)
+          result = await deleteDocument(collection, parsedFilter, parsedOptions)
+          log(`Tool: Document(s) deleted successfully.`)
+        }
+        
+        return {
+          content: [{
+            type: 'text',
+            text: formatModifyResult(operation, result)
+          }]
+        }
+      } catch (error) {
+        console.error(`Error in ${operation} operation:`, error)
+        return {
+          content: [{
+            type: 'text',
+            text: `Error in ${operation} operation: ${error.message}`
+          }],
+          isError: true
+        }
+      }
+    }
+  )
+
+  server.tool(
+    'export-data',
+    'Export query results to formatted JSON or CSV',
+    {
+      collection: z.string().min(1).describe('Collection name'),
+      filter: z.string().default('{}').describe('Filter as JSON string'),
+      format: z.enum(['json', 'csv']).default('json').describe('Export format'),
+      fields: z.string().optional().describe('Comma-separated list of fields to include (for CSV)'),
+      limit: z.number().int().min(1).max(10000).default(1000).describe('Maximum documents to export')
+    },
+    async ({ collection, filter, format, fields, limit }) => {
+      try {
+        log(`Tool: Exporting data from collection '${collection}' in ${format} format…`)
+        log(`Tool: Using filter: ${filter}`)
+        log(`Tool: Max documents: ${limit}`)
+        
+        const parsedFilter = filter ? JSON.parse(filter) : {}
+        let fieldsArray = fields ? fields.split(',').map(f => f.trim()) : null
+        
+        const documents = await findDocuments(collection, parsedFilter, null, limit, 0)
+        log(`Tool: Found ${documents.length} documents to export.`)
+        
+        const exportData = await formatExport(documents, format, fieldsArray)
+        log(`Tool: Data exported successfully in ${format} format.`)
+        
+        return {
+          content: [{
+            type: 'text',
+            text: exportData
+          }]
+        }
+      } catch (error) {
+        console.error('Error exporting data:', error)
+        return {
+          content: [{
+            type: 'text',
+            text: `Error exporting data: ${error.message}`
+          }],
+          isError: true
+        }
+      }
+    }
+  )
+
+  server.tool(
+    'map-reduce',
+    'Run MapReduce operations',
+    {
+      collection: z.string().min(1).describe('Collection name'),
+      map: z.string().describe('Map function as string'),
+      reduce: z.string().describe('Reduce function as string'),
+      options: z.string().optional().describe('Options as JSON string (query, limit, etc.)')
+    },
+    async ({ collection, map, reduce, options }) => {
+      try {
+        log(`Tool: Running MapReduce on collection '${collection}'…`)
+        
+        const mapFunction = new Function('function() {' + map + '}')()
+        const reduceFunction = new Function('function(key, values) {' + reduce + '}')()
+        const parsedOptions = options ? JSON.parse(options) : {}
+        
+        const results = await runMapReduce(collection, mapFunction, reduceFunction, parsedOptions)
+        log(`Tool: MapReduce operation complete.`)
+        
+        return {
+          content: [{
+            type: 'text',
+            text: formatMapReduceResults(results)
+          }]
+        }
+      } catch (error) {
+        console.error('Error running MapReduce:', error)
+        return {
+          content: [{
+            type: 'text',
+            text: `Error running MapReduce: ${error.message}`
+          }],
+          isError: true
+        }
+      }
+    }
+  )
+
+  server.tool(
+    'bulk-operations',
+    'Perform bulk inserts, updates, or deletes',
+    {
+      collection: z.string().min(1).describe('Collection name'),
+      operations: z.string().describe('Array of operations as JSON string'),
+      ordered: z.boolean().default(true).describe('Whether operations should be performed in order')
+    },
+    async ({ collection, operations, ordered }) => {
+      try {
+        log(`Tool: Performing bulk operations on collection '${collection}'…`)
+        log(`Tool: Ordered: ${ordered}`)
+        
+        const parsedOperations = JSON.parse(operations)
+        const result = await bulkOperations(collection, parsedOperations, ordered)
+        log(`Tool: Bulk operations complete.`)
+        
+        return {
+          content: [{
+            type: 'text',
+            text: formatBulkResult(result)
+          }]
+        }
+      } catch (error) {
+        console.error('Error in bulk operations:', error)
+        return {
+          content: [{
+            type: 'text',
+            text: `Error in bulk operations: ${error.message}`
+          }],
+          isError: true
+        }
+      }
+    }
+  )
 }
 
 const listDatabases = async () => {
@@ -1014,6 +1680,246 @@ const explainQuery = async (collectionName, filter, verbosity = 'executionStats'
   const explanation = await collection.find(filter).explain(verbosity)
   log(`DB Operation: Query explanation generated.`)
   return explanation
+}
+
+const getServerStatus = async () => {
+  log('DB Operation: Getting server status…')
+  try {
+    const adminDb = client.db('admin')
+    const status = await adminDb.command({ serverStatus: 1 })
+    log('DB Operation: Retrieved server status.')
+    return status
+  } catch (error) {
+    log(`DB Operation: Error getting server status: ${error.message}`)
+    // Return minimal info if full status isn't available
+    return {
+      host: client.s.options.host || 'unknown',
+      port: client.s.options.port || 'unknown',
+      version: 'Information unavailable',
+      error: error.message
+    }
+  }
+}
+
+const getReplicaSetStatus = async () => {
+  log('DB Operation: Getting replica set status…')
+  try {
+    const adminDb = client.db('admin')
+    const status = await adminDb.command({ replSetGetStatus: 1 })
+    log('DB Operation: Retrieved replica set status.')
+    return status
+  } catch (error) {
+    log(`DB Operation: Error getting replica set status: ${error.message}`)
+    // Return minimal info if not available
+    return {
+      isReplicaSet: false,
+      info: 'This server is not part of a replica set or you may not have permissions to view replica set status.',
+      error: error.message
+    }
+  }
+}
+
+const getCollectionValidation = async (collectionName) => {
+  log(`DB Operation: Getting validation rules for collection '${collectionName}'…`)
+  try {
+    const collections = await currentDb.listCollections({ name: collectionName }, { validator: 1 }).toArray()
+    log(`DB Operation: Retrieved validation information for collection '${collectionName}'.`)
+    
+    if (collections.length === 0) {
+      return { hasValidation: false }
+    }
+    
+    return {
+      hasValidation: !!collections[0].options?.validator,
+      validator: collections[0].options?.validator || {},
+      validationLevel: collections[0].options?.validationLevel || 'strict',
+      validationAction: collections[0].options?.validationAction || 'error'
+    }
+  } catch (error) {
+    log(`DB Operation: Error getting validation for ${collectionName}: ${error.message}`)
+    return { hasValidation: false, error: error.message }
+  }
+}
+
+const getDatabaseUsers = async () => {
+  log(`DB Operation: Getting users for database '${currentDbName}'…`)
+  try {
+    const users = await currentDb.command({ usersInfo: 1 })
+    log(`DB Operation: Retrieved user information.`)
+    return users
+  } catch (error) {
+    log(`DB Operation: Error getting users: ${error.message}`)
+    return { 
+      users: [],
+      info: 'Could not retrieve user information. You may not have sufficient permissions.',
+      error: error.message
+    }
+  }
+}
+
+const getStoredFunctions = async () => {
+  log(`DB Operation: Getting stored JavaScript functions…`)
+  try {
+    const system = currentDb.collection('system.js')
+    const functions = await system.find({}).toArray()
+    log(`DB Operation: Retrieved ${functions.length} stored functions.`)
+    return functions
+  } catch (error) {
+    log(`DB Operation: Error getting stored functions: ${error.message}`)
+    return []
+  }
+}
+
+const getDistinctValues = async (collectionName, field, filter = {}) => {
+  log(`DB Operation: Getting distinct values for field '${field}' in collection '${collectionName}'…`)
+  const collection = currentDb.collection(collectionName)
+  const values = await collection.distinct(field, filter)
+  log(`DB Operation: Found ${values.length} distinct values.`)
+  return values
+}
+
+const validateCollection = async (collectionName, full = false) => {
+  log(`DB Operation: Validating collection '${collectionName}'…`)
+  const result = await currentDb.command({ validate: collectionName, full })
+  log(`DB Operation: Collection validation complete.`)
+  return result
+}
+
+const createCollection = async (name, options = {}) => {
+  log(`DB Operation: Creating collection '${name}'…`)
+  await currentDb.createCollection(name, options)
+  log(`DB Operation: Collection created successfully.`)
+  return { success: true, name }
+}
+
+const dropCollection = async (name) => {
+  log(`DB Operation: Dropping collection '${name}'…`)
+  const result = await currentDb.collection(name).drop()
+  log(`DB Operation: Collection dropped successfully.`)
+  return { success: result, name }
+}
+
+const renameCollection = async (oldName, newName, dropTarget = false) => {
+  log(`DB Operation: Renaming collection from '${oldName}' to '${newName}'…`)
+  const result = await currentDb.collection(oldName).rename(newName, { dropTarget })
+  log(`DB Operation: Collection renamed successfully.`)
+  return { success: true, oldName, newName }
+}
+
+const insertDocument = async (collectionName, document, options = {}) => {
+  log(`DB Operation: Inserting document into collection '${collectionName}'…`)
+  const collection = currentDb.collection(collectionName)
+  const result = await collection.insertOne(document, options)
+  log(`DB Operation: Document inserted successfully.`)
+  return result
+}
+
+const updateDocument = async (collectionName, filter, update, options = {}) => {
+  log(`DB Operation: Updating document(s) in collection '${collectionName}'…`)
+  const collection = currentDb.collection(collectionName)
+  
+  // Handle both update document and update operators
+  const hasUpdateOperators = Object.keys(update).some(key => key.startsWith('$'))
+  
+  let result
+  if (options.multi === true || options.many === true) {
+    if (!hasUpdateOperators) {
+      // Convert to $set if no operators
+      update = { $set: update }
+    }
+    result = await collection.updateMany(filter, update, options)
+  } else {
+    if (!hasUpdateOperators) {
+      // Convert to $set if no operators
+      update = { $set: update }
+    }
+    result = await collection.updateOne(filter, update, options)
+  }
+  
+  log(`DB Operation: Document(s) updated successfully.`)
+  return result
+}
+
+const deleteDocument = async (collectionName, filter, options = {}) => {
+  log(`DB Operation: Deleting document(s) from collection '${collectionName}'…`)
+  const collection = currentDb.collection(collectionName)
+  
+  let result
+  if (options.many === true) {
+    result = await collection.deleteMany(filter, options)
+  } else {
+    result = await collection.deleteOne(filter, options)
+  }
+  
+  log(`DB Operation: Document(s) deleted successfully.`)
+  return result
+}
+
+const formatExport = async (documents, format, fields = null) => {
+  log(`DB Operation: Formatting ${documents.length} documents for export in ${format} format…`)
+  
+  if (format === 'json') {
+    return JSON.stringify(documents, (key, value) => serializeForExport(value), 2)
+  } else if (format === 'csv') {
+    // If no fields specified, use all fields from the first document
+    if (!fields || !fields.length) {
+      if (documents.length > 0) {
+        fields = Object.keys(documents[0])
+      } else {
+        return 'No documents found for export'
+      }
+    }
+    
+    // Create CSV header
+    let csv = fields.join(',') + '\n'
+    
+    // Add rows
+    for (const doc of documents) {
+      const row = fields.map(field => {
+        const value = getNestedValue(doc, field)
+        return formatCsvValue(value)
+      })
+      csv += row.join(',') + '\n'
+    }
+    
+    return csv
+  }
+  
+  throw new Error(`Unsupported export format: ${format}`)
+}
+
+const runMapReduce = async (collectionName, map, reduce, options = {}) => {
+  log(`DB Operation: Running MapReduce on collection '${collectionName}'…`)
+  const collection = currentDb.collection(collectionName)
+  const results = await collection.mapReduce(map, reduce, options)
+  log(`DB Operation: MapReduce operation complete.`)
+  return results.toArray()
+}
+
+const bulkOperations = async (collectionName, operations, ordered = true) => {
+  log(`DB Operation: Performing bulk operations on collection '${collectionName}'…`)
+  const collection = currentDb.collection(collectionName)
+  const bulk = ordered ? collection.initializeOrderedBulkOp() : collection.initializeUnorderedBulkOp()
+  
+  for (const op of operations) {
+    if (op.insertOne) {
+      bulk.insert(op.insertOne.document)
+    } else if (op.updateOne) {
+      bulk.find(op.updateOne.filter).updateOne(op.updateOne.update)
+    } else if (op.updateMany) {
+      bulk.find(op.updateMany.filter).update(op.updateMany.update)
+    } else if (op.deleteOne) {
+      bulk.find(op.deleteOne.filter).deleteOne()
+    } else if (op.deleteMany) {
+      bulk.find(op.deleteMany.filter).delete()
+    } else if (op.replaceOne) {
+      bulk.find(op.replaceOne.filter).replaceOne(op.replaceOne.replacement)
+    }
+  }
+  
+  const result = await bulk.execute()
+  log(`DB Operation: Bulk operations complete.`)
+  return result
 }
 
 const formatDatabasesList = (databases) => {
@@ -1148,11 +2054,335 @@ const formatExplanation = (explanation) => {
   return result
 }
 
+const formatServerStatus = (status) => {
+  if (!status) return 'Server status information not available'
+  
+  let result = 'MongoDB Server Status:\n'
+  
+  if (status.error) {
+    result += `Note: Limited information available. ${status.error}\n\n`
+  }
+  
+  // Basic server info
+  result += '## Server Information\n'
+  result += `- Host: ${status.host || 'Unknown'}\n`
+  result += `- Version: ${status.version || 'Unknown'}\n`
+  result += `- Process: ${status.process || 'Unknown'}\n`
+  result += `- Uptime: ${formatUptime(status.uptime)}\n`
+  
+  // Connection info if available
+  if (status.connections) {
+    result += '\n## Connections\n'
+    result += `- Current: ${status.connections.current}\n`
+    result += `- Available: ${status.connections.available}\n`
+    result += `- Total Created: ${status.connections.totalCreated}\n`
+  }
+  
+  // Memory info if available
+  if (status.mem) {
+    result += '\n## Memory Usage\n'
+    result += `- Resident: ${formatSize(status.mem.resident * 1024 * 1024)}\n`
+    result += `- Virtual: ${formatSize(status.mem.virtual * 1024 * 1024)}\n`
+    result += `- Page Faults: ${status.extra_info?.page_faults || 'N/A'}\n`
+  }
+  
+  // Operation counters if available
+  if (status.opcounters) {
+    result += '\n## Operation Counters\n'
+    result += `- Insert: ${status.opcounters.insert}\n`
+    result += `- Query: ${status.opcounters.query}\n`
+    result += `- Update: ${status.opcounters.update}\n`
+    result += `- Delete: ${status.opcounters.delete}\n`
+    result += `- Getmore: ${status.opcounters.getmore}\n`
+    result += `- Command: ${status.opcounters.command}\n`
+  }
+  
+  return result
+}
+
+const formatReplicaSetStatus = (status) => {
+  if (!status) return 'Replica set status information not available'
+  
+  if (status.error) {
+    return `Replica Set Status: Not available (${status.info})\n\n${status.error}`
+  }
+  
+  let result = `Replica Set: ${status.set}\n`
+  result += `Status: ${status.myState === 1 ? 'PRIMARY' : status.myState === 2 ? 'SECONDARY' : 'OTHER'}\n`
+  result += `Current Time: ${new Date(status.date.$date || status.date).toISOString()}\n\n`
+  
+  result += '## Members:\n'
+  if (status.members) {
+    for (const member of status.members) {
+      result += `- ${member.name} (${member.stateStr})\n`
+      result += `  Health: ${member.health}\n`
+      result += `  Uptime: ${formatUptime(member.uptime)}\n`
+      if (member.syncingTo) {
+        result += `  Syncing to: ${member.syncingTo}\n`
+      }
+      result += '\n'
+    }
+  }
+  
+  return result
+}
+
+const formatValidationRules = (validation) => {
+  if (!validation) return 'Validation information not available'
+  
+  if (!validation.hasValidation) {
+    return 'This collection does not have any validation rules configured.'
+  }
+  
+  let result = 'Collection Validation Rules:\n'
+  result += `- Validation Level: ${validation.validationLevel}\n`
+  result += `- Validation Action: ${validation.validationAction}\n\n`
+  
+  result += 'Validator:\n'
+  result += JSON.stringify(validation.validator, null, 2)
+  
+  return result
+}
+
+const formatDatabaseUsers = (usersInfo) => {
+  if (!usersInfo) return 'User information not available'
+  
+  if (usersInfo.error) {
+    return `Users: Not available\n\n${usersInfo.info}\n${usersInfo.error}`
+  }
+  
+  const users = usersInfo.users || []
+  if (users.length === 0) {
+    return 'No users found in the current database.'
+  }
+  
+  let result = `Users in database '${currentDbName}' (${users.length}):\n\n`
+  
+  for (const user of users) {
+    result += `## ${user.user}${user.customData ? ' (' + JSON.stringify(user.customData) + ')' : ''}\n`
+    result += `- User ID: ${user._id || 'N/A'}\n`
+    result += `- Database: ${user.db}\n`
+    
+    if (user.roles && user.roles.length > 0) {
+      result += '- Roles:\n'
+      for (const role of user.roles) {
+        result += `  - ${role.role} on ${role.db}\n`
+      }
+    } else {
+      result += '- Roles: None\n'
+    }
+    
+    result += '\n'
+  }
+  
+  return result
+}
+
+const formatStoredFunctions = (functions) => {
+  if (!functions || !Array.isArray(functions)) return 'Stored functions information not available'
+  
+  if (functions.length === 0) {
+    return 'No stored JavaScript functions found in the current database.'
+  }
+  
+  let result = `Stored Functions in database '${currentDbName}' (${functions.length}):\n\n`
+  
+  for (const func of functions) {
+    result += `## ${func._id}\n`
+    
+    if (typeof func.value === 'function') {
+      result += `${func.value.toString()}\n\n`
+    } else {
+      result += `${func.value}\n\n`
+    }
+  }
+  
+  return result
+}
+
+const formatDistinctValues = (field, values) => {
+  if (!values || !Array.isArray(values)) {
+    return `No distinct values found for field '${field}'`
+  }
+  
+  let result = `Distinct values for field '${field}' (${values.length}):\n`
+  
+  // For large result sets, limit the output
+  const maxDisplay = 100
+  const displayValues = values.length > maxDisplay ? values.slice(0, maxDisplay) : values
+  
+  for (const value of displayValues) {
+    result += `- ${formatValue(value)}\n`
+  }
+  
+  if (values.length > maxDisplay) {
+    result += `... and ${values.length - maxDisplay} more values\n`
+  }
+  
+  return result
+}
+
+const formatValidationResults = (results) => {
+  if (!results) return 'Validation results not available'
+  
+  let result = 'Collection Validation Results:\n'
+  result += `- Collection: ${results.ns}\n`
+  result += `- Valid: ${results.valid}\n`
+  
+  if (results.errors && results.errors.length > 0) {
+    result += `- Errors: ${results.errors}\n`
+  }
+  
+  if (results.warnings && results.warnings.length > 0) {
+    result += `- Warnings: ${results.warnings}\n`
+  }
+  
+  if (results.nrecords !== undefined) {
+    result += `- Records Validated: ${results.nrecords}\n`
+  }
+  
+  if (results.nInvalidDocuments !== undefined) {
+    result += `- Invalid Documents: ${results.nInvalidDocuments}\n`
+  }
+  
+  if (results.advice) {
+    result += `- Advice: ${results.advice}\n`
+  }
+  
+  return result
+}
+
+const formatModifyResult = (operation, result) => {
+  if (!result) return `${operation} operation result not available`
+  
+  let output = ''
+  
+  switch (operation) {
+    case 'insert':
+      output = `Document inserted successfully\n`
+      output += `- ID: ${result.insertedId}\n`
+      output += `- Acknowledged: ${result.acknowledged}\n`
+      break
+    case 'update':
+      output = `Document update operation complete\n`
+      output += `- Matched: ${result.matchedCount}\n`
+      output += `- Modified: ${result.modifiedCount}\n`
+      output += `- Acknowledged: ${result.acknowledged}\n`
+      if (result.upsertedId) {
+        output += `- Upserted ID: ${result.upsertedId}\n`
+      }
+      break
+    case 'delete':
+      output = `Document delete operation complete\n`
+      output += `- Deleted: ${result.deletedCount}\n`
+      output += `- Acknowledged: ${result.acknowledged}\n`
+      break
+    default:
+      output = `Operation ${operation} completed\n`
+      output += JSON.stringify(result, null, 2)
+  }
+  
+  return output
+}
+
+const formatMapReduceResults = (results) => {
+  if (!results || !Array.isArray(results)) {
+    return 'MapReduce results not available'
+  }
+  
+  let output = `MapReduce Results (${results.length} entries):\n`
+  
+  // Limit output for large result sets
+  const maxDisplay = 50
+  const displayResults = results.length > maxDisplay ? results.slice(0, maxDisplay) : results
+  
+  for (const result of displayResults) {
+    output += `- Key: ${formatValue(result._id)}\n`
+    output += `  Value: ${formatValue(result.value)}\n`
+  }
+  
+  if (results.length > maxDisplay) {
+    output += `... and ${results.length - maxDisplay} more results\n`
+  }
+  
+  return output
+}
+
+const formatBulkResult = (result) => {
+  if (!result) return 'Bulk operation results not available'
+  
+  let output = 'Bulk Operations Results:\n'
+  output += `- Acknowledged: ${result.acknowledged}\n`
+  
+  if (result.insertedCount) output += `- Inserted: ${result.insertedCount}\n`
+  if (result.matchedCount) output += `- Matched: ${result.matchedCount}\n`
+  if (result.modifiedCount) output += `- Modified: ${result.modifiedCount}\n`
+  if (result.deletedCount) output += `- Deleted: ${result.deletedCount}\n`
+  if (result.upsertedCount) output += `- Upserted: ${result.upsertedCount}\n`
+  
+  if (result.insertedIds && Object.keys(result.insertedIds).length > 0) {
+    output += '- Inserted IDs:\n'
+    for (const [index, id] of Object.entries(result.insertedIds)) {
+      output += `  - Index ${index}: ${id}\n`
+    }
+  }
+  
+  if (result.upsertedIds && Object.keys(result.upsertedIds).length > 0) {
+    output += '- Upserted IDs:\n'
+    for (const [index, id] of Object.entries(result.upsertedIds)) {
+      output += `  - Index ${index}: ${id}\n`
+    }
+  }
+  
+  return output
+}
+
 const formatSize = (sizeInBytes) => {
   if (sizeInBytes < 1024) return `${sizeInBytes} bytes`
   if (sizeInBytes < 1024 * 1024) return `${(sizeInBytes / 1024).toFixed(2)} KB`
   if (sizeInBytes < 1024 * 1024 * 1024) return `${(sizeInBytes / (1024 * 1024)).toFixed(2)} MB`
   return `${(sizeInBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
+
+const formatUptime = (seconds) => {
+  if (seconds === undefined) return 'Unknown'
+  
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const remainingSeconds = Math.floor(seconds % 60)
+  
+  const parts = []
+  if (days > 0) parts.push(`${days}d`)
+  if (hours > 0) parts.push(`${hours}h`)
+  if (minutes > 0) parts.push(`${minutes}m`)
+  if (remainingSeconds > 0 || parts.length === 0) parts.push(`${remainingSeconds}s`)
+  
+  return parts.join(' ')
+}
+
+const formatValue = (value) => {
+  if (value === null) return 'null'
+  if (value === undefined) return 'undefined'
+  
+  if (typeof value === 'object') {
+    return JSON.stringify(value)
+  }
+  
+  return String(value)
+}
+
+const formatCsvValue = (value) => {
+  if (value === null || value === undefined) return ''
+  
+  const stringValue = typeof value === 'object' ? JSON.stringify(value) : String(value)
+  
+  // Escape quotes and wrap in quotes if contains comma, newline, or quote
+  if (stringValue.includes(',') || stringValue.includes('\n') || stringValue.includes('"')) {
+    return `"${stringValue.replace(/"/g, '""')}"`
+  }
+  
+  return stringValue
 }
 
 const getTypeName = (value) => {
@@ -1180,6 +2410,29 @@ const serializeDocument = (doc) => {
   }
   
   return result
+}
+
+const serializeForExport = (value) => {
+  if (value instanceof ObjectId) {
+    return value.toString()
+  } else if (value instanceof Date) {
+    return value.toISOString()
+  }
+  return value
+}
+
+const getNestedValue = (obj, path) => {
+  const parts = path.split('.')
+  let current = obj
+  
+  for (const part of parts) {
+    if (current === null || current === undefined) {
+      return undefined
+    }
+    current = current[part]
+  }
+  
+  return current
 }
 
 const log = (message, forceLog = false) => {

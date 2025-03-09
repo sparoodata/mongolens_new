@@ -30,6 +30,7 @@ MongoDB Lens exposes the following capabilities through MCP:
 
 - [Resources](#resources)
 - [Tools](#tools)
+- [Prompts](#prompts)
 
 ### Resources
 
@@ -51,6 +52,14 @@ MongoDB Lens exposes the following capabilities through MCP:
 - **analyzeSchema**: Automatically infer collection schemas
 - **createIndex**: Create new indexes for performance optimization
 - **explainQuery**: Analyze query execution plans
+
+### Prompts
+
+- **queryBuilder**: Interactive guidance for constructing MongoDB queries
+- **aggregationBuilder**: Step-by-step creation of aggregation pipelines
+- **schemaAnalysis**: Detailed collection schema analysis with recommendations
+- **indexRecommendation**: Get personalized index suggestions based on query patterns
+- **mongoShell**: Generate MongoDB shell commands with explanations
 
 ## Configuration
 
@@ -132,6 +141,11 @@ Here are some example prompts to use with MongoDB Lens:
 - _"Show me the indexes on the products collection"_
 - _"Create an index on the email field in the users collection"_
 - _"Analyze the performance of this query: { status: 'completed', date: { $gt: new Date('2023-01-01') } }"_
+- _"Help me build a MongoDB query to find active users who haven't logged in for 30 days"_
+- _"Create an aggregation pipeline to group sales by region and calculate totals"_
+- _"Analyze the schema of my customers collection and suggest improvements"_
+- _"What indexes should I create for queries that frequently filter by status and sort by date?"_
+- _"Show me the MongoDB shell commands to create a new collection with validation"_
 
 ## License
 

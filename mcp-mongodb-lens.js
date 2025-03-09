@@ -32,6 +32,7 @@ export const main = async (mongoUri) => {
   
   registerResources(server)
   registerTools(server)
+  registerPrompts(server)
   
   const transport = new StdioServerTransport()
   await server.connect(transport)
@@ -107,6 +108,161 @@ const registerResources = (server) => {
         }]
       }
     }
+  )
+}
+
+const registerPrompts = (server) => {
+  server.prompt(
+    'queryBuilder',
+    'Help construct MongoDB query filters',
+    {
+      collection: z.string().min(1).describe('Collection name to query'),
+      condition: z.string().describe('Describe the condition in natural language (e.g., "users older than 30")')
+    },
+    ({ collection, condition }) => ({
+      description: `MongoDB Query Builder for ${collection}`,
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Please help me create a MongoDB query for the '${collection}' collection based on this condition: "${condition}".
+
+I need both the filter object and a complete example showing how to use it with the findDocuments tool.
+
+Guidelines:
+1. Create a valid MongoDB query filter as a JSON object
+2. Show me how special MongoDB operators work if needed (like $gt, $in, etc.)
+3. Provide a complete example of using this with the findDocuments tool
+4. Suggest any relevant projections or sort options
+
+Remember: I'm working with the ${currentDbName} database and the ${collection} collection.`
+          }
+        }
+      ]
+    })
+  )
+  
+  server.prompt(
+    'aggregationBuilder',
+    'Help construct MongoDB aggregation pipelines',
+    {
+      collection: z.string().min(1).describe('Collection name for aggregation'),
+      goal: z.string().describe('What you want to calculate or analyze')
+    },
+    ({ collection, goal }) => ({
+      description: `MongoDB Aggregation Pipeline Builder for ${collection}`,
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `I need to create a MongoDB aggregation pipeline for the '${collection}' collection to ${goal}.
+
+Please help me create:
+1. A complete aggregation pipeline as a JSON array
+2. An explanation of each stage in the pipeline
+3. How to execute this with the aggregateData tool
+
+Remember: I'm working with the ${currentDbName} database and the ${collection} collection.`
+          }
+        }
+      ]
+    })
+  )
+  
+  server.prompt(
+    'schemaAnalysis',
+    'Analyze collection schema and recommend improvements',
+    {
+      collection: z.string().min(1).describe('Collection name to analyze')
+    },
+    async ({ collection }) => {
+      // First get the actual schema to make the prompt more informed
+      const schema = await inferSchema(collection)
+      
+      return {
+        description: `MongoDB Schema Analysis for ${collection}`,
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `Please analyze the schema of the '${collection}' collection and provide recommendations:
+
+Here's the current schema:
+${formatSchema(schema)}
+
+Could you help with:
+1. Identifying any schema design issues or inconsistencies
+2. Suggesting schema improvements for better performance
+3. Recommending appropriate indexes based on the data structure
+4. Best practices for this type of data model
+5. Any potential MongoDB-specific optimizations`
+            }
+          }
+        ]
+      }
+    }
+  )
+  
+  server.prompt(
+    'indexRecommendation',
+    'Get index recommendations for query patterns',
+    {
+      collection: z.string().min(1).describe('Collection name'),
+      queryPattern: z.string().describe('Common query pattern or operation')
+    },
+    ({ collection, queryPattern }) => ({
+      description: `MongoDB Index Recommendations for ${collection}`,
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `I need index recommendations for the '${collection}' collection to optimize this query pattern: "${queryPattern}".
+
+Please provide:
+1. Recommended index(es) with proper key specification
+2. Explanation of why this index would help
+3. The exact command to create this index using the createIndex tool
+4. How to verify the index is being used
+5. Any potential trade-offs or considerations for this index
+
+Remember: I'm working with the ${currentDbName} database and the ${collection} collection.`
+          }
+        }
+      ]
+    })
+  )
+  
+  server.prompt(
+    'mongoShell',
+    'Generate MongoDB shell commands',
+    {
+      operation: z.string().describe('Operation you want to perform'),
+      details: z.string().optional().describe('Additional details about the operation')
+    },
+    ({ operation, details }) => ({
+      description: 'MongoDB Shell Command Generator',
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Please generate MongoDB shell commands to ${operation}${details ? ` with these details: ${details}` : ''}.
+
+I need:
+1. The exact MongoDB shell command(s)
+2. Explanation of each part of the command
+3. How this translates to using MongoDB Lens tools
+4. Any important considerations or variations
+
+Current database: ${currentDbName}`
+          }
+        }
+      ]
+    })
   )
 }
 

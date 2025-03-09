@@ -1,6 +1,6 @@
 # MongoDB Lens
 
-**MongoDB Lens** is a Model Context Protocol (MCP) server enabling full featured access to MongoDB databases via natural langue to perform queries, run aggregations, analyze collections, and more.
+**MongoDB Lens** is a Model Context Protocol (MCP) server providing full featured access to MongoDB databases using natural language via LLMs to perform queries, run aggregations, analyze collections, optimize performance, and more.
 
 ## Contents
 
@@ -8,9 +8,9 @@
 - [Features](#features)
 - [Configuration](#configuration)
 - [Usage](#usage)
-- [Examples](#examples)
+- [Prompts](#prompts)
 - [Smithery](#smithery)
-- [License](#license)
+- [Disclaimer](#disclaimer)
 
 ## Quick Start
 
@@ -176,7 +176,7 @@ MongoDB Lens can be used with any MCP-compatible client:
 
 See the [MCP documentation](https://modelcontextprotocol.io/clients) for client-specific integration details.
 
-## Examples
+## Prompts
 
 Here are some example prompts to use with MongoDB Lens:
 
@@ -197,10 +197,14 @@ Here are some example prompts to use with MongoDB Lens:
 
 ## Smithery
 
-[Smithery](https://smithery.ai) is a platform for discovering, sharing, and deploying MCP servers.
+[Smithery](https://smithery.ai) is a platform for discovering, sharing, and deploying MCP servers. This repository includes a [`smithery.yaml`](./smithery.yaml) configuration file for deployment to Smithery.
 
-This repository includes a [`smithery.yaml`](./smithery.yaml) configuration file for deployment.
+## Disclaimer
 
-## License
+This project:
 
-This project is licensed under the [MIT License](./LICENSE).
+- is licensed under the [MIT License](./LICENSE).
+- is not affiliated with or endorsed by MongoDB, Inc.
+- is written with the assistance of AI and may contain errors.
+- is intended for educational and experimental purposes only.
+- is provided as-is with no warranty or support—use at your own risk.

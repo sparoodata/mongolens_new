@@ -1,11 +1,11 @@
 {
-  "name": "mcp-mongodb-lens",
+  "name": "mongodb-lens",
   "version": "1.0.0",
   "description": "MongoDB Lens",
   "type": "module",
-  "main": "mcp-mongodb-lens.js",
+  "main": "mongodb-lens.js",
   "scripts": {
-    "start": "node mcp-mongodb-lens.js"
+    "start": "node mongodb-lens.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

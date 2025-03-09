@@ -1,6 +1,6 @@
-# mcp-mongodb-lens
+# MongoDB Lens
 
-**MongoDB Lens** is a Model Context Protocol (MCP) server providing LLMs comprehensive access to MongoDB databases to explore database structures, perform queries, run aggregations, analyze collections, and more.
+**MongoDB Lens** is a Model Context Protocol (MCP) server enabling full featured access to MongoDB databases via natural langue to perform queries, run aggregations, analyze collections, and more.
 
 ## Contents
 
@@ -9,6 +9,8 @@
 - [Configuration](#configuration)
 - [Usage](#usage)
 - [Examples](#examples)
+- [Smithery](#smithery)
+- [License](#license)
 
 ## Quick Start
 
@@ -19,7 +21,7 @@
     ```
 - Either run the server with your MongoDB connection string…<br>
     ```console
-    node mcp-mongodb-lens.js mongodb://your-connection-string
+    node mongodb-lens.js mongodb://your-connection-string
     ```
   …or configure your MCP Client to start the server (e.g. [Claude Desktop](#usage-with-claude-desktop))
 - Start exploring your MongoDB databases with natural language queries
@@ -104,7 +106,7 @@ To use MongoDB Lens with Claude Desktop:
           "mongodb-lens": {
             "command": "/absolute/path/to/node",
             "args": [
-              "/absolute/path/to/mcp-mongodb-lens.js",
+              "/absolute/path/to/mongodb-lens.js",
               "mongodb://your-connection-string"
             ]
           }
@@ -112,7 +114,7 @@ To use MongoDB Lens with Claude Desktop:
       }
       ```
       - Replace `/absolute/path/to/node` with the actual file path
-      - Replace `/absolute/path/to/mcp-mongodb-lens.js` with the actual file path
+      - Replace `/absolute/path/to/mongodb-lens.js` with the actual file path
       - Replace `mongodb://your-connection-string` with your MongoDB connection string
 3. Restart Claude Desktop
 4. Start a conversation with Claude and ask about your MongoDB data
@@ -121,25 +123,25 @@ To use MongoDB Lens with Claude Desktop:
 
 ### Usage with MCP Inspector
 
-The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is a development tool specifically designed for testing and debugging MCP servers. It provides a visual interface to explore resources, run tools, and understand your MongoDB database.
+The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is a development tool specifically designed for testing and debugging MCP servers. It provides a visual interface to explore resources, run tools, and via MongoDB Lens understand your MongoDB database.
 
 To use MongoDB Lens with MCP Inspector:
 
-1. No need to clone either repository, simply use `npx`:<br>
+1. Run Inspector via `npx`:<br>
     ```console
-    npx @modelcontextprotocol/inspector node mcp-mongodb-lens.js mongodb://your-connection-string
+    npx @modelcontextprotocol/inspector node mongodb-lens.js mongodb://your-connection-string
     ```
 2. The Inspector will start both a server (default port 3000) and a web UI (default port 5173)
 3. Open your browser to http://localhost:5173 to access the Inspector interface
 4. The interface provides several tabs:
-   - **Resources**: View available resources like database listings and collection schemas
-   - **Tools**: Execute MongoDB operations directly and see results
-   - **Prompts**: Access guided templates for common MongoDB tasks
-   - **Debug**: See the full message exchange between the client and server
+    - **Resources**: View available resources like database listings and collection schemas
+    - **Tools**: Execute MongoDB operations directly and see results
+    - **Prompts**: Access guided templates for common MongoDB tasks
+    - **Debug**: See the full message exchange between the client and server
 
 5. You can customize the ports if needed:<br>
     ```console
-    CLIENT_PORT=8080 SERVER_PORT=9000 npx @modelcontextprotocol/inspector node mcp-mongodb-lens.js
+    CLIENT_PORT=8080 SERVER_PORT=9000 npx @modelcontextprotocol/inspector node mongodb-lens.js
     ```
 
 6. The Inspector supports the full range of MongoDB Lens capabilities, including autocompletion for collection names and query fields.
@@ -175,6 +177,15 @@ Here are some example prompts to use with MongoDB Lens:
 - _"Analyze the schema of my customers collection and suggest improvements"_
 - _"What indexes should I create for queries that frequently filter by status and sort by date?"_
 - _"Show me the MongoDB shell commands to create a new collection with validation"_
+
+## Smithery
+
+[Smithery](https://smithery.ai) is a platform for discovering, sharing, and deploying MCP servers.
+
+This repository includes Smithery configuration files for deployment:
+
+- `Dockerfile`: Defines how to build the MongoDB Lens container using Node.js 22.
+- `smithery.yaml`: Configures how Smithery should run the server, including the MongoDB connection URI as a required configuration parameter.
 
 ## License
 

@@ -180,21 +180,21 @@ See the [MCP documentation](https://modelcontextprotocol.io/clients) for client-
 
 Here are some example LLM prompts for inspiration:
 
+
 - _"List all databases in my MongoDB instance"_
-- _"Show me all collections in the current database"_
 - _"What's the schema of the users collection?"_
+- _"Show me the indexes on the products collection"_
+- _"Show me all collections in the current database"_
 - _"How many documents are in the orders collection?"_
 - _"Find the 5 most recent orders for customer with ID 12345"_
-- _"Run an aggregation to calculate the average order value by product category"_
-- _"Show me the indexes on the products collection"_
 - _"Create an index on the email field in the users collection"_
-- _"Analyze the performance of this query: { status: 'completed', date: { $gt: new Date('2023-01-01') } }"_
-- _"Help me build a MongoDB query to find active users who haven't logged in for 30 days"_
-- _"Create an aggregation pipeline to group sales by region and calculate totals"_
 - _"Analyze the schema of my customers collection and suggest improvements"_
-- _"What indexes should I create for queries that frequently filter by status and sort by date?"_
+- _"Run an aggregation to calculate the average order value by product category"_
+- _"Create an aggregation pipeline to group sales by region and calculate totals"_
 - _"Show me the MongoDB shell commands to create a new collection with validation"_
-
+- _"Help me build a MongoDB query to find active users who haven't logged in for 30 days"_
+- _"What indexes should I create for queries that frequently filter by status and sort by date?"_
+- _"Analyze the performance of this query: { status: 'completed', date: { $gt: new Date('2023-01-01') } }"_
 ## Smithery
 
 [Smithery](https://smithery.ai) is a platform for discovering, sharing, and deploying MCP servers. 

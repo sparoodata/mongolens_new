@@ -180,7 +180,8 @@ See the [MCP documentation](https://modelcontextprotocol.io/clients) for client-
 
 Here are some example LLM prompts for inspiration:
 
-- _"List all databases in my MongoDB instance"_
+- _"List all databases"_
+- _"Switch to the sales database"_
 - _"What's the schema of the users collection?"_
 - _"Show me the indexes on the products collection"_
 - _"Show me all collections in the current database"_
@@ -194,6 +195,10 @@ Here are some example LLM prompts for inspiration:
 - _"Help me build a MongoDB query to find active users who haven't logged in for 30 days"_
 - _"What indexes should I create for queries that frequently filter by status and sort by date?"_
 - _"Analyze the performance of this query: { status: 'completed', date: { $gt: new Date('2023-01-01') } }"_
+
+If you're feeling adventurous, you try something like:
+
+- _"Analyze my database and generate an interactive summary of any interesting observtions"_
 
 ## Smithery
 

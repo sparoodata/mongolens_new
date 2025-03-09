@@ -41,6 +41,11 @@ MongoDB Lens exposes the following capabilities through MCP:
 - Collection statistics
 - Schema inference
 - Index information
+- Server status and metrics
+- Replica set configuration
+- Collection validation rules
+- Database users and roles
+- Stored JavaScript functions
 
 ### Tools
 
@@ -55,6 +60,15 @@ MongoDB Lens exposes the following capabilities through MCP:
 - **analyze-schema**: Automatically infer collection schemas
 - **create-index**: Create new indexes for performance optimization
 - **explain-query**: Analyze query execution plans
+- **distinct-values**: Extract unique values for any field
+- **validate-collection**: Check for data inconsistencies
+- **create-collection**: Create new collections with custom options
+- **drop-collection**: Remove collections from the database
+- **rename-collection**: Rename existing collections
+- **modify-document**: Insert, update, or delete specific documents
+- **export-data**: Export query results in JSON or CSV format
+- **map-reduce**: Run MapReduce operations for complex data processing
+- **bulk-operations**: Perform multiple operations efficiently
 
 ### Prompts
 
@@ -64,6 +78,11 @@ MongoDB Lens exposes the following capabilities through MCP:
 - **index-recommendation**: Get personalized index suggestions based on query patterns
 - **mongo-shell**: Generate MongoDB shell commands with explanations
 - **inspector-guide**: Get help using MongoDB Lens with MCP Inspector
+- **data-modeling**: Expert advice on MongoDB schema design for specific use cases
+- **query-optimizer**: Optimization recommendations for slow queries
+- **security-audit**: Database security analysis and improvement recommendations
+- **backup-strategy**: Customized backup and recovery recommendations
+- **migration-guide**: Step-by-step MongoDB version migration plans
 
 ## Configuration
 
@@ -181,6 +200,8 @@ See the [MCP documentation](https://modelcontextprotocol.io/clients) for client-
 
 Here are some example LLM prompts for inspiration:
 
+### Basic Operations
+
 - _"List all databases"_
 - _"Switch to the sales database"_
 - _"What's the schema of the users collection?"_
@@ -188,24 +209,50 @@ Here are some example LLM prompts for inspiration:
 - _"Show me all collections in the current database"_
 - _"How many documents are in the orders collection?"_
 - _"Find the 5 most recent orders for customer with ID 12345"_
+- _"Show me distinct values for the 'status' field in the orders collection"_
+
+### Admin & Diagnostics
+
+- _"Show me current server status and metrics"_
+- _"Get information about my replica set configuration"_
+- _"Validate the customers collection for inconsistencies"_
+- _"What users and roles exist in this database?"_
+- _"Create a new capped collection called 'logs' with a 5MB size limit"_
+- _"Rename the 'old_products' collection to 'archive_products'"_
+
+### Analytics & Optimization
+
 - _"Create an index on the email field in the users collection"_
 - _"Analyze the schema of my customers collection and suggest improvements"_
 - _"Run an aggregation to calculate the average order value by product category"_
 - _"Create an aggregation pipeline to group sales by region and calculate totals"_
-- _"Show me the MongoDB shell commands to create a new collection with validation"_
+- _"Help me optimize this slow query: { status: 'completed', date: { $gt: new Date('2023-01-01') } }"_
+- _"Export the last 1000 transactions to CSV format with just date, amount, and status fields"_
+
+### Data Management
+
+- _"Insert a new user document with name 'John Doe' and email 'john@example.com'"_
+- _"Update all products where stock is less than 5 to add a 'low_stock' flag"_
+- _"Delete inactive users who haven't logged in for over a year"_
+- _"Run a bulk operation to update prices for multiple products at once"_
+
+### Advanced
+
+- _"Generate an interactive summary of my database"_
+- _"Design a data model for a blog application with users, posts, and comments"_
+- _"What's the best backup strategy for my 50GB database with 99.9% uptime requirements?"_
+- _"Audit my database security settings and recommend improvements"_
+- _"Generate a migration plan from MongoDB 3.6 to 4.4"_
 - _"Help me build a MongoDB query to find active users who haven't logged in for 30 days"_
 - _"What indexes should I create for queries that frequently filter by status and sort by date?"_
-- _"Analyze the performance of this query: { status: 'completed', date: { $gt: new Date('2023-01-01') } }"_
-
-If you're feeling adventurous, you try something like:
-
-- _"Analyze my database and generate an interactive summary of any interesting observations"_
 
 ## Smithery
 
 [Smithery](https://smithery.ai) is a platform for discovering, sharing, and deploying MCP servers. 
 
 This repository includes a [`smithery.yaml`](./smithery.yaml) configuration file for deployment to Smithery.
+
+For more, see: https://smithery.ai/server/@furey/mongodb-lens
 
 ## Disclaimer
 

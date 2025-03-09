@@ -86,9 +86,24 @@ The connection string can be passed as a command-line argument (e.g. when runnin
 
 ## Usage
 
+- [Usage with Docker](#usage-with-docker)
 - [Usage with Claude Desktop](#usage-with-claude-desktop)
 - [Usage with MCP Inspector](#usage-with-mcp-inspector)
 - [Usage with Other MCP Clients](#usage-with-other-mcp-clients)
+
+### Usage with Docker
+
+To run MongoDB Lens in a Docker container:
+
+1. Build the Docker image:<br>
+    ```console
+    docker build -t mongodb-lens .
+    ```
+2. Run the Docker container with your MongoDB connection string:<br>
+    ```console
+    $ docker run -p 3000:3000 mongodb-lens mongodb://your-connection-string
+    ```
+3. The server will be accessible at http://localhost:3000 (or the host/port you specified)
 
 ### Usage with Claude Desktop
 
@@ -182,10 +197,7 @@ Here are some example prompts to use with MongoDB Lens:
 
 [Smithery](https://smithery.ai) is a platform for discovering, sharing, and deploying MCP servers.
 
-This repository includes Smithery configuration files for deployment:
-
-- `Dockerfile`: Defines how to build the MongoDB Lens container using Node.js 22.
-- `smithery.yaml`: Configures how Smithery should run the server, including the MongoDB connection URI as a required configuration parameter.
+This repository includes a [`smithery.yaml`](./smithery.yaml) configuration file for deployment.
 
 ## License
 

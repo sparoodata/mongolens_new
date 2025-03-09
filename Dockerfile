@@ -10,4 +10,4 @@ COPY . .
 
 EXPOSE 3000
 
-CMD ["node", "mongodb-lens.js"]
+ENTRYPOINT ["node", "mongodb-lens.js"]

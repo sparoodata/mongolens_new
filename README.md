@@ -84,6 +84,8 @@ Examples:
 
 The connection string can be passed as a command-line argument (e.g. when running your own server) or set in the MCP client configuration (e.g. via Claude Desktop's config file).
 
+If no connection string is provided, the server will attempt to connect to a local MongoDB instance on the default port (27017) i.e. `mongodb://localhost:27017`.
+
 ## Usage
 
 - [Usage with Docker](#usage-with-docker)

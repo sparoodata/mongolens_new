@@ -18,26 +18,7 @@ let client = null
 let currentDb = null
 let currentDbName = null
 
-const log = (message, forceLog = false) => {
-  if (forceLog || VERBOSE_LOGGING) console.error(message)
-}
-
-export const connect = async (uri = 'mongodb://localhost:27017') => {
-  try {
-    log(`Connecting to MongoDB at ${uri}…`)
-    client = new MongoClient(uri, { useUnifiedTopology: true })
-    await client.connect()
-    currentDbName = uri.split('/').pop().split('?')[0] || 'admin'
-    currentDb = client.db(currentDbName)
-    log(`Connected to MongoDB successfully, using database: ${currentDbName}`)
-    return true
-  } catch (error) {
-    console.error(`MongoDB connection error: ${error.message}`)
-    return false
-  }
-}
-
-export const main = async (mongoUri) => {
+const main = async (mongoUri) => {
   log(`MongoDB Lens v${PACKAGE_VERSION} starting…`, true)
   
   const connected = await connect(mongoUri)
@@ -87,6 +68,21 @@ This server provides access to your MongoDB database through MCP. You can:
   
   log('MongoDB Lens server running.', true)
   return true
+}
+
+const connect = async (uri = 'mongodb://localhost:27017') => {
+  try {
+    log(`Connecting to MongoDB at ${uri}…`)
+    client = new MongoClient(uri, { useUnifiedTopology: true })
+    await client.connect()
+    currentDbName = uri.split('/').pop().split('?')[0] || 'admin'
+    currentDb = client.db(currentDbName)
+    log(`Connected to MongoDB successfully, using database: ${currentDbName}`)
+    return true
+  } catch (error) {
+    console.error(`MongoDB connection error: ${error.message}`)
+    return false
+  }
 }
 
 const registerResources = (server) => {
@@ -1184,6 +1180,10 @@ const serializeDocument = (doc) => {
   }
   
   return result
+}
+
+const log = (message, forceLog = false) => {
+  if (forceLog || VERBOSE_LOGGING) console.error(message)
 }
 
 if (process.argv.length > 2) {

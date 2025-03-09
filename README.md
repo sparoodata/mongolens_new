@@ -8,7 +8,7 @@
 - [Features](#features)
 - [Configuration](#configuration)
 - [Usage](#usage)
-- [Prompts](#prompts)
+- [Example Prompts](#example-prompts)
 - [Smithery](#smithery)
 - [Disclaimer](#disclaimer)
 
@@ -38,9 +38,9 @@ MongoDB Lens exposes the following capabilities through MCP:
 
 - Database listings
 - Collection metadata
+- Collection statistics
 - Schema inference
 - Index information
-- Collection statistics
 
 ### Tools
 
@@ -176,10 +176,9 @@ MongoDB Lens can be used with any MCP-compatible client:
 
 See the [MCP documentation](https://modelcontextprotocol.io/clients) for client-specific integration details.
 
-## Prompts
+## Example Prompts
 
 Here are some example LLM prompts for inspiration:
-
 
 - _"List all databases in my MongoDB instance"_
 - _"What's the schema of the users collection?"_
@@ -195,6 +194,7 @@ Here are some example LLM prompts for inspiration:
 - _"Help me build a MongoDB query to find active users who haven't logged in for 30 days"_
 - _"What indexes should I create for queries that frequently filter by status and sort by date?"_
 - _"Analyze the performance of this query: { status: 'completed', date: { $gt: new Date('2023-01-01') } }"_
+
 ## Smithery
 
 [Smithery](https://smithery.ai) is a platform for discovering, sharing, and deploying MCP servers. 

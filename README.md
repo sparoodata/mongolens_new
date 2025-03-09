@@ -1,6 +1,6 @@
 # MongoDB Lens
 
-**MongoDB Lens** is a Model Context Protocol (MCP) server providing full featured access to MongoDB databases using natural language via LLMs to perform queries, run aggregations, analyze collections, optimize performance, and more.
+**MongoDB Lens** is a Model Context Protocol (MCP) server with full featured access to MongoDB databases using natural language via LLMs to perform queries, run aggregations, optimize performance, and more.
 
 ## Contents
 

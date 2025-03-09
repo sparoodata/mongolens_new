@@ -198,7 +198,7 @@ Here are some example LLM prompts for inspiration:
 
 If you're feeling adventurous, you try something like:
 
-- _"Analyze my database and generate an interactive summary of any interesting observtions"_
+- _"Analyze my database and generate an interactive summary of any interesting observations"_
 
 ## Smithery
 

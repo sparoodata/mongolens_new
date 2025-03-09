@@ -178,7 +178,7 @@ See the [MCP documentation](https://modelcontextprotocol.io/clients) for client-
 
 ## Prompts
 
-Here are some example prompts to use with MongoDB Lens:
+Here are some example LLM prompts for inspiration:
 
 - _"List all databases in my MongoDB instance"_
 - _"Show me all collections in the current database"_
@@ -197,7 +197,9 @@ Here are some example prompts to use with MongoDB Lens:
 
 ## Smithery
 
-[Smithery](https://smithery.ai) is a platform for discovering, sharing, and deploying MCP servers. This repository includes a [`smithery.yaml`](./smithery.yaml) configuration file for deployment to Smithery.
+[Smithery](https://smithery.ai) is a platform for discovering, sharing, and deploying MCP servers. 
+
+This repository includes a [`smithery.yaml`](./smithery.yaml) configuration file for deployment to Smithery.
 
 ## Disclaimer
 

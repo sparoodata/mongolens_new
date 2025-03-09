@@ -60,6 +60,7 @@ MongoDB Lens exposes the following capabilities through MCP:
 - **schemaAnalysis**: Detailed collection schema analysis with recommendations
 - **indexRecommendation**: Get personalized index suggestions based on query patterns
 - **mongoShell**: Generate MongoDB shell commands with explanations
+- **inspectorGuide**: Get help using MongoDB Lens with MCP Inspector
 
 ## Configuration
 
@@ -69,7 +70,7 @@ MongoDB Lens exposes the following capabilities through MCP:
 
 The server accepts a standard MongoDB connection URI:
 
-```
+```txt
 mongodb://[username:password@]host[:port][/database][?options]
 ```
 
@@ -84,6 +85,7 @@ The connection string can be passed as a command-line argument (e.g. when runnin
 ## Usage
 
 - [Usage with Claude Desktop](#usage-with-claude-desktop)
+- [Usage with MCP Inspector](#usage-with-mcp-inspector)
 - [Usage with Other MCP Clients](#usage-with-other-mcp-clients)
 
 ### Usage with Claude Desktop
@@ -116,6 +118,33 @@ To use MongoDB Lens with Claude Desktop:
 4. Start a conversation with Claude and ask about your MongoDB data
     - Claude will show a hammer icon indicating available tools
     - Ask questions like "What databases do I have?" or "Show me the schema for the users collection"
+
+### Usage with MCP Inspector
+
+The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is a development tool specifically designed for testing and debugging MCP servers. It provides a visual interface to explore resources, run tools, and understand your MongoDB database.
+
+To use MongoDB Lens with MCP Inspector:
+
+1. No need to clone either repository, simply use `npx`:<br>
+    ```console
+    npx @modelcontextprotocol/inspector node mcp-mongodb-lens.js mongodb://your-connection-string
+    ```
+2. The Inspector will start both a server (default port 3000) and a web UI (default port 5173)
+3. Open your browser to http://localhost:5173 to access the Inspector interface
+4. The interface provides several tabs:
+   - **Resources**: View available resources like database listings and collection schemas
+   - **Tools**: Execute MongoDB operations directly and see results
+   - **Prompts**: Access guided templates for common MongoDB tasks
+   - **Debug**: See the full message exchange between the client and server
+
+5. You can customize the ports if needed:<br>
+    ```console
+    CLIENT_PORT=8080 SERVER_PORT=9000 npx @modelcontextprotocol/inspector node mcp-mongodb-lens.js
+    ```
+
+6. The Inspector supports the full range of MongoDB Lens capabilities, including autocompletion for collection names and query fields.
+
+For more detailed information about using the Inspector, refer to the [MCP Inspector documentation](https://modelcontextprotocol.io/docs/tools/inspector).
 
 ### Usage with Other MCP Clients
 

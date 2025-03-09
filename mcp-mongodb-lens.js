@@ -27,7 +27,27 @@ export const main = async (mongoUri) => {
   
   const server = new McpServer({
     name: 'MongoDB Lens',
-    version: '1.0.0'
+    version: '1.0.0',
+    instructions: `
+# MongoDB Lens MCP Server
+
+This server provides access to your MongoDB database through MCP. You can:
+
+1. Browse databases and collections
+2. Query and count documents
+3. Analyze schemas and indexes
+4. Run aggregation pipelines
+5. Get assistance with queries and database operations
+
+## Getting Started
+
+1. Use \`listDatabases\` to see available databases
+2. Use \`useDatabase\` to select a database to work with
+3. Use \`listCollections\` to view collections in the current database
+4. Explore schemas with \`mongodb://collection/{name}/schema\` resources
+5. Query data with the \`findDocuments\` tool
+6. Try prompts like \`queryBuilder\` for help building queries
+`
   })
   
   registerResources(server)
@@ -43,6 +63,7 @@ const registerResources = (server) => {
   server.resource(
     'databases',
     'mongodb://databases',
+    { description: 'List of all accessible MongoDB databases' },
     async () => {
       const dbs = await listDatabases()
       return {
@@ -57,6 +78,7 @@ const registerResources = (server) => {
   server.resource(
     'collections',
     'mongodb://collections',
+    { description: 'List of collections in the current database' },
     async () => {
       const collections = await listCollections()
       return {
@@ -70,7 +92,37 @@ const registerResources = (server) => {
   
   server.resource(
     'collection-schema',
-    new ResourceTemplate('mongodb://collection/{name}/schema', { list: undefined }),
+    new ResourceTemplate('mongodb://collection/{name}/schema', { 
+      list: async () => {
+        try {
+          const collections = await listCollections()
+          return {
+            resources: collections.map(coll => ({
+              uri: `mongodb://collection/${coll.name}/schema`,
+              name: `${coll.name} Schema`,
+              description: `Schema for ${coll.name} collection`
+            }))
+          }
+        } catch (error) {
+          console.error('Error listing collection schemas:', error)
+          return { resources: [] }
+        }
+      },
+      complete: {
+        name: async (value) => {
+          try {
+            const collections = await listCollections()
+            return collections
+              .map(coll => coll.name)
+              .filter(name => name.toLowerCase().includes(value.toLowerCase()))
+          } catch (error) {
+            console.error('Error completing collection names:', error)
+            return []
+          }
+        }
+      }
+    }),
+    { description: 'Schema information for a MongoDB collection' },
     async (uri, { name }) => {
       const schema = await inferSchema(name)
       return {
@@ -84,7 +136,37 @@ const registerResources = (server) => {
   
   server.resource(
     'collection-stats',
-    new ResourceTemplate('mongodb://collection/{name}/stats', { list: undefined }),
+    new ResourceTemplate('mongodb://collection/{name}/stats', { 
+      list: async () => {
+        try {
+          const collections = await listCollections()
+          return {
+            resources: collections.map(coll => ({
+              uri: `mongodb://collection/${coll.name}/stats`,
+              name: `${coll.name} Stats`,
+              description: `Statistics for ${coll.name} collection`
+            }))
+          }
+        } catch (error) {
+          console.error('Error listing collections for stats:', error)
+          return { resources: [] }
+        }
+      },
+      complete: {
+        name: async (value) => {
+          try {
+            const collections = await listCollections()
+            return collections
+              .map(coll => coll.name)
+              .filter(name => name.toLowerCase().includes(value.toLowerCase()))
+          } catch (error) {
+            console.error('Error completing collection names:', error)
+            return []
+          }
+        }
+      }
+    }),
+    { description: 'Performance statistics for a MongoDB collection' },
     async (uri, { name }) => {
       const stats = await getCollectionStats(name)
       return {
@@ -98,7 +180,37 @@ const registerResources = (server) => {
   
   server.resource(
     'collection-indexes',
-    new ResourceTemplate('mongodb://collection/{name}/indexes', { list: undefined }),
+    new ResourceTemplate('mongodb://collection/{name}/indexes', { 
+      list: async () => {
+        try {
+          const collections = await listCollections()
+          return {
+            resources: collections.map(coll => ({
+              uri: `mongodb://collection/${coll.name}/indexes`,
+              name: `${coll.name} Indexes`,
+              description: `Indexes for ${coll.name} collection`
+            }))
+          }
+        } catch (error) {
+          console.error('Error listing collections for indexes:', error)
+          return { resources: [] }
+        }
+      },
+      complete: {
+        name: async (value) => {
+          try {
+            const collections = await listCollections()
+            return collections
+              .map(coll => coll.name)
+              .filter(name => name.toLowerCase().includes(value.toLowerCase()))
+          } catch (error) {
+            console.error('Error completing collection names:', error)
+            return []
+          }
+        }
+      }
+    }),
+    { description: 'Index information for a MongoDB collection' },
     async (uri, { name }) => {
       const indexes = await getCollectionIndexes(name)
       return {
@@ -264,6 +376,77 @@ Current database: ${currentDbName}`
       ]
     })
   )
+  
+  server.prompt(
+    'inspectorGuide',
+    'Get help using MongoDB Lens with MCP Inspector',
+    {},
+    () => ({
+      description: 'MongoDB Lens Inspector Guide',
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `I'm using the MCP Inspector with MongoDB Lens. How can I best use these tools together?
+
+Please provide:
+1. An overview of the most useful Inspector features for MongoDB
+2. Tips for debugging MongoDB queries
+3. Common workflows for exploring a database
+4. How to use the Inspector features with MongoDB Lens resources and tools`
+          }
+        }
+      ]
+    })
+  )
+}
+
+async function generateExampleFilter(collectionName) {
+  try {
+    const schema = await inferSchema(collectionName, 5)
+    const fields = Object.entries(schema.fields)
+    
+    if (fields.length === 0) return '{}'
+    
+    // Find a suitable field for filtering
+    const fieldEntry = fields.find(([name, info]) => 
+      info.types.includes('string') || 
+      info.types.includes('number') || 
+      info.types.includes('boolean')
+    )
+    
+    if (!fieldEntry) return '{}'
+    
+    const [fieldName, info] = fieldEntry
+    
+    if (info.types.includes('string')) {
+      return JSON.stringify({ [fieldName]: { $regex: "example" } })
+    } else if (info.types.includes('number')) {
+      return JSON.stringify({ [fieldName]: { $gt: 0 } })
+    } else if (info.types.includes('boolean')) {
+      return JSON.stringify({ [fieldName]: true })
+    }
+    
+    return '{}'
+  } catch (error) {
+    console.error('Error generating example filter:', error)
+    return '{}'
+  }
+}
+
+async function getFieldsForCollection(collectionName) {
+  try {
+    const schema = await inferSchema(collectionName, 5)
+    return Object.keys(schema.fields)
+  } catch (error) {
+    console.error(`Error getting fields for ${collectionName}:`, error)
+    return []
+  }
+}
+
+function isValidFieldName(field) {
+  return typeof field === 'string' && field.length > 0 && !field.startsWith('$')
 }
 
 const registerTools = (server) => {

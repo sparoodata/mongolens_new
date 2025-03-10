@@ -4,10 +4,8 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm ci --no-fun --no-audit
+RUN npm ci --no-fund --no-audit
 
 COPY . .
-
-EXPOSE 3000
 
 ENTRYPOINT ["node", "mongodb-lens.js"]

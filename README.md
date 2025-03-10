@@ -259,11 +259,11 @@ For more, see: [MCP Documentation: Example Clients](https://modelcontextprotocol
 
 This tutorial will guide you through setting up a MongoDB instance with sample data and using MongoDB Lens to interact with it through natural language queries.
 
-- [Setting Up MongoDB Container](#setting-up-mongodb-container)
+- [Setting Up MongoDB](#setting-up-mongodb)
 - [Importing Sample Data](#importing-sample-data)
 - [Example Queries for Sample Data](#example-queries-for-sample-data)
 
-### Setting Up MongoDB Container
+### Setting Up MongoDB
 
 1. Run MongoDB Docker container:<br>
    ```console

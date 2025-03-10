@@ -15,7 +15,7 @@
 - Clone repository
 - [Install](#installation) dependencies
 - [Configure](#mcp-client-setup) your MCP Client (e.g. [Claude Desktop](#usage-with-claude-desktop))
-- Start exploring your MongoDB databases with natural language queries
+- Start exploring your MongoDB databases with [natural language queries](#example-queries)
 
 ## Features
 
@@ -261,7 +261,7 @@ This tutorial will guide you through setting up a MongoDB instance with sample d
 
 - [Setting Up MongoDB](#setting-up-mongodb)
 - [Importing Sample Data](#importing-sample-data)
-- [Example Queries for Sample Data](#example-queries-for-sample-data)
+- [Example Queries](#example-queries)
 
 ### Setting Up MongoDB
 
@@ -310,7 +310,7 @@ Set your [MCP Client](#mcp-client-setup) to connect to MongoDB Lens with the con
 mongodb://localhost:27017/mongodb-sampledata
 ```
 
-### Example Queries for Sample Data
+### Example Queries
 
 With your MCP Client running and connected to MongoDB Lens, try these queries on the sample dataset:
 

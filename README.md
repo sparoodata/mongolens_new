@@ -312,7 +312,7 @@ mongodb://localhost:27017/mongodb-sampledata
 
 ### Example Queries for Sample Data
 
-With your MCP Client running and connected to MongoDB Lens, try these example queries based on the sample datasets:
+With your MCP Client running and connected to MongoDB Lens, try these queries on the sample dataset:
 
 #### Exploring Databases and Collections
 

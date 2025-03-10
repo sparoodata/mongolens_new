@@ -1448,18 +1448,21 @@ const registerTools = (server) => {
       filter: z.string().default('{}').describe('Filter as JSON string'),
       format: z.enum(['json', 'csv']).default('json').describe('Export format'),
       fields: z.string().optional().describe('Comma-separated list of fields to include (for CSV)'),
-      limit: z.number().int().min(1).max(10000).default(1000).describe('Maximum documents to export')
+      limit: z.number().int().min(1).max(10000).default(1000).describe('Maximum documents to export'),
+      sort: z.string().optional().describe('Sort specification as JSON string (e.g., {"date": -1} for descending)')
     },
-    async ({ collection, filter, format, fields, limit }) => {
+    async ({ collection, filter, format, fields, limit, sort }) => {
       try {
         log(`Tool: Exporting data from collection '${collection}' in ${format} format…`)
         log(`Tool: Using filter: ${filter}`)
+        if (sort) log(`Tool: Using sort: ${sort}`)
         log(`Tool: Max documents: ${limit}`)
         
         const parsedFilter = filter ? JSON.parse(filter) : {}
+        const parsedSort = sort ? JSON.parse(sort) : null
         let fieldsArray = fields ? fields.split(',').map(f => f.trim()) : null
         
-        const documents = await findDocuments(collection, parsedFilter, null, limit, 0)
+        const documents = await findDocuments(collection, parsedFilter, null, limit, 0, parsedSort)
         log(`Tool: Found ${documents.length} documents to export.`)
         
         const exportData = await formatExport(documents, format, fieldsArray)

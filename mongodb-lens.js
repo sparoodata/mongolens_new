@@ -646,11 +646,8 @@ Please provide:
     },
     async ({ collection, query, performance }) => {
       log(`Prompt: Initializing queryOptimizer for collection '${collection}' with query: ${query}.`)
-      
-      // Get collection stats and index information to help with optimization
       const stats = await getCollectionStats(collection)
       const indexes = await getCollectionIndexes(collection)
-      
       return {
         description: 'MongoDB Query Optimization Advisor',
         messages: [
@@ -688,13 +685,8 @@ Please provide:
     {},
     async () => {
       log('Prompt: Initializing securityAudit.')
-      
-      // Get server status for security info
       const serverStatus = await getServerStatus()
-      
-      // Get user information
       const users = await getDatabaseUsers()
-      
       return {
         description: 'MongoDB Security Audit',
         messages: [
@@ -1678,18 +1670,35 @@ const createIndex = async (collectionName, keys, options = {}) => {
   log(`DB Operation: Index keys: ${JSON.stringify(keys)}`)
   if (Object.keys(options).length > 0) log(`DB Operation: Index options: ${JSON.stringify(options)}`)
   
-  const collection = currentDb.collection(collectionName)
-  const result = await collection.createIndex(keys, options)
-  log(`DB Operation: Index created successfully: ${result}`)
-  return result
+  try {
+    const collection = currentDb.collection(collectionName)
+    const result = await collection.createIndex(keys, options)
+
+    if (!result || typeof result !== 'string') {
+      const errorMsg = "Index creation did not return a valid index name"
+      log(`DB Operation: Index creation failed: ${errorMsg}`)
+      throw new Error(errorMsg)
+    }
+
+    log(`DB Operation: Index created successfully: ${result}`)
+    return result
+  } catch (error) {
+    log(`DB Operation: Index creation failed: ${error.message}`)
+    throw error
+  }
 }
 
 const explainQuery = async (collectionName, filter, verbosity = 'executionStats') => {
   log(`DB Operation: Explaining query on collection '${collectionName}'…`)
-  const collection = currentDb.collection(collectionName)
-  const explanation = await collection.find(filter).explain(verbosity)
-  log(`DB Operation: Query explanation generated.`)
-  return explanation
+  try {
+    const collection = currentDb.collection(collectionName)
+    const explanation = await collection.find(filter).explain(verbosity)
+    log(`DB Operation: Query explanation generated.`)
+    return explanation
+  } catch (error) {
+    log(`DB Operation: Query explanation failed: ${error.message}`)
+    throw error
+  }
 }
 
 const getServerStatus = async () => {
@@ -1701,7 +1710,6 @@ const getServerStatus = async () => {
     return status
   } catch (error) {
     log(`DB Operation: Error getting server status: ${error.message}`)
-    // Return minimal info if full status isn't available
     return {
       host: client.s.options.host || 'unknown',
       port: client.s.options.port || 'unknown',
@@ -1720,7 +1728,6 @@ const getReplicaSetStatus = async () => {
     return status
   } catch (error) {
     log(`DB Operation: Error getting replica set status: ${error.message}`)
-    // Return minimal info if not available
     return {
       isReplicaSet: false,
       info: 'This server is not part of a replica set or you may not have permissions to view replica set status.',
@@ -1782,154 +1789,248 @@ const getStoredFunctions = async () => {
 
 const getDistinctValues = async (collectionName, field, filter = {}) => {
   log(`DB Operation: Getting distinct values for field '${field}' in collection '${collectionName}'…`)
-  const collection = currentDb.collection(collectionName)
-  const values = await collection.distinct(field, filter)
-  log(`DB Operation: Found ${values.length} distinct values.`)
-  return values
+  try {
+    const collection = currentDb.collection(collectionName)
+    const values = await collection.distinct(field, filter)
+    log(`DB Operation: Found ${values.length} distinct values.`)
+    return values
+  } catch (error) {
+    log(`DB Operation: Failed to get distinct values: ${error.message}`)
+    throw error
+  }
 }
 
 const validateCollection = async (collectionName, full = false) => {
   log(`DB Operation: Validating collection '${collectionName}'…`)
-  const result = await currentDb.command({ validate: collectionName, full })
-  log(`DB Operation: Collection validation complete.`)
-  return result
+  try {
+    const result = await currentDb.command({ validate: collectionName, full })
+    log(`DB Operation: Collection validation complete.`)
+    return result
+  } catch (error) {
+    log(`DB Operation: Collection validation failed: ${error.message}`)
+    throw error
+  }
 }
 
 const createCollection = async (name, options = {}) => {
   log(`DB Operation: Creating collection '${name}'…`)
-  await currentDb.createCollection(name, options)
-  log(`DB Operation: Collection created successfully.`)
-  return { success: true, name }
+  try {
+    const result = await currentDb.createCollection(name, options)
+    
+    if (!result || !result.collectionName || result.collectionName !== name) {
+      const errorMsg = "Collection creation did not return a valid collection"
+      log(`DB Operation: Collection creation failed: ${errorMsg}`)
+      throw new Error(errorMsg)
+    }
+    
+    log(`DB Operation: Collection created successfully.`)
+    return { success: true, name }
+  } catch (error) {
+    log(`DB Operation: Collection creation failed: ${error.message}`)
+    throw error
+  }
 }
 
 const dropCollection = async (name) => {
   log(`DB Operation: Dropping collection '${name}'…`)
-  const result = await currentDb.collection(name).drop()
-  log(`DB Operation: Collection dropped successfully.`)
-  return { success: result, name }
+  try {
+    const result = await currentDb.collection(name).drop()
+
+    if (result !== true) {
+      const errorMsg = "Collection drop operation did not return success"
+      log(`DB Operation: Collection drop failed: ${errorMsg}`)
+      throw new Error(errorMsg)
+    }
+
+    log(`DB Operation: Collection dropped successfully.`)
+    return { success: result, name }
+  } catch (error) {
+    log(`DB Operation: Collection drop failed: ${error.message}`)
+    throw error
+  }
 }
 
 const renameCollection = async (oldName, newName, dropTarget = false) => {
   log(`DB Operation: Renaming collection from '${oldName}' to '${newName}'…`)
-  const result = await currentDb.collection(oldName).rename(newName, { dropTarget })
-  log(`DB Operation: Collection renamed successfully.`)
-  return { success: true, oldName, newName }
+  try {
+    const result = await currentDb.collection(oldName).rename(newName, { dropTarget })
+
+    if (!result || !result.collectionName || result.collectionName !== newName) {
+      const errorMsg = "Collection rename did not return a valid collection"
+      log(`DB Operation: Collection rename failed: ${errorMsg}`)
+      throw new Error(errorMsg)
+    }
+
+    log(`DB Operation: Collection renamed successfully.`)
+    return { success: true, oldName, newName }
+  } catch (error) {
+    log(`DB Operation: Collection rename failed: ${error.message}`)
+    throw error
+  }
 }
 
 const insertDocument = async (collectionName, document, options = {}) => {
   log(`DB Operation: Inserting document into collection '${collectionName}'…`)
-  const collection = currentDb.collection(collectionName)
-  const result = await collection.insertOne(document, options)
-  log(`DB Operation: Document inserted successfully.`)
-  return result
+  try {
+    const collection = currentDb.collection(collectionName)
+    const result = await collection.insertOne(document, options)
+    
+    if (!result || !result.acknowledged) {
+      const errorMsg = "Insert operation was not acknowledged by MongoDB"
+      log(`DB Operation: Document insertion failed: ${errorMsg}`)
+      throw new Error(errorMsg)
+    }
+    
+    log(`DB Operation: Document inserted successfully.`)
+    return result
+  } catch (error) {
+    log(`DB Operation: Document insertion failed: ${error.message}`)
+    throw error
+  }
 }
 
 const updateDocument = async (collectionName, filter, update, options = {}) => {
   log(`DB Operation: Updating document(s) in collection '${collectionName}'…`)
-  const collection = currentDb.collection(collectionName)
-  
-  // Handle both update document and update operators
-  const hasUpdateOperators = Object.keys(update).some(key => key.startsWith('$'))
-  
-  let result
-  if (options.multi === true || options.many === true) {
-    if (!hasUpdateOperators) {
-      // Convert to $set if no operators
-      update = { $set: update }
+  try {
+    const collection = currentDb.collection(collectionName)
+    const hasUpdateOperators = Object.keys(update).some(key => key.startsWith('$'))
+    
+    let result
+    if (options.multi === true || options.many === true) {
+      if (!hasUpdateOperators) {
+        update = { $set: update }
+      }
+      result = await collection.updateMany(filter, update, options)
+    } else {
+      if (!hasUpdateOperators) {
+        update = { $set: update }
+      }
+      result = await collection.updateOne(filter, update, options)
     }
-    result = await collection.updateMany(filter, update, options)
-  } else {
-    if (!hasUpdateOperators) {
-      // Convert to $set if no operators
-      update = { $set: update }
+    
+    if (!result || !result.acknowledged) {
+      const errorMsg = "Update operation was not acknowledged by MongoDB"
+      log(`DB Operation: Document update failed: ${errorMsg}`)
+      throw new Error(errorMsg)
     }
-    result = await collection.updateOne(filter, update, options)
+    
+    log(`DB Operation: Document(s) updated successfully.`)
+    return result
+  } catch (error) {
+    log(`DB Operation: Document update failed: ${error.message}`)
+    throw error
   }
-  
-  log(`DB Operation: Document(s) updated successfully.`)
-  return result
 }
 
 const deleteDocument = async (collectionName, filter, options = {}) => {
   log(`DB Operation: Deleting document(s) from collection '${collectionName}'…`)
-  const collection = currentDb.collection(collectionName)
-  
-  let result
-  if (options.many === true) {
-    result = await collection.deleteMany(filter, options)
-  } else {
-    result = await collection.deleteOne(filter, options)
+  try {
+    const collection = currentDb.collection(collectionName)
+    
+    let result
+    if (options.many === true) {
+      result = await collection.deleteMany(filter, options)
+    } else {
+      result = await collection.deleteOne(filter, options)
+    }
+    
+    if (!result || !result.acknowledged) {
+      const errorMsg = "Delete operation was not acknowledged by MongoDB"
+      log(`DB Operation: Document deletion failed: ${errorMsg}`)
+      throw new Error(errorMsg)
+    }
+    
+    log(`DB Operation: Document(s) deleted successfully.`)
+    return result
+  } catch (error) {
+    log(`DB Operation: Document deletion failed: ${error.message}`)
+    throw error
   }
-  
-  log(`DB Operation: Document(s) deleted successfully.`)
-  return result
 }
 
 const formatExport = async (documents, format, fields = null) => {
   log(`DB Operation: Formatting ${documents.length} documents for export in ${format} format…`)
-  
-  if (format === 'json') {
-    return JSON.stringify(documents, (key, value) => serializeForExport(value), 2)
-  } else if (format === 'csv') {
-    // If no fields specified, use all fields from the first document
-    if (!fields || !fields.length) {
-      if (documents.length > 0) {
-        fields = Object.keys(documents[0])
-      } else {
-        return 'No documents found for export'
+  try {
+    if (format === 'json') {
+      return JSON.stringify(documents, (key, value) => serializeForExport(value), 2)
+    } else if (format === 'csv') {
+      if (!fields || !fields.length) {
+        if (documents.length > 0) {
+          fields = Object.keys(documents[0])
+        } else {
+          return 'No documents found for export'
+        }
       }
+      
+      let csv = fields.join(',') + '\n'
+      
+      for (const doc of documents) {
+        const row = fields.map(field => {
+          const value = getNestedValue(doc, field)
+          return formatCsvValue(value)
+        })
+        csv += row.join(',') + '\n'
+      }
+      
+      return csv
     }
     
-    // Create CSV header
-    let csv = fields.join(',') + '\n'
-    
-    // Add rows
-    for (const doc of documents) {
-      const row = fields.map(field => {
-        const value = getNestedValue(doc, field)
-        return formatCsvValue(value)
-      })
-      csv += row.join(',') + '\n'
-    }
-    
-    return csv
+    throw new Error(`Unsupported export format: ${format}`)
+  } catch (error) {
+    log(`DB Operation: Export formatting failed: ${error.message}`)
+    throw error
   }
-  
-  throw new Error(`Unsupported export format: ${format}`)
 }
 
 const runMapReduce = async (collectionName, map, reduce, options = {}) => {
   log(`DB Operation: Running MapReduce on collection '${collectionName}'…`)
-  const collection = currentDb.collection(collectionName)
-  const results = await collection.mapReduce(map, reduce, options)
-  log(`DB Operation: MapReduce operation complete.`)
-  return results.toArray()
+  try {
+    const collection = currentDb.collection(collectionName)
+    const results = await collection.mapReduce(map, reduce, options)
+    log(`DB Operation: MapReduce operation complete.`)
+    return results.toArray()
+  } catch (error) {
+    log(`DB Operation: MapReduce operation failed: ${error.message}`)
+    throw error
+  }
 }
 
 const bulkOperations = async (collectionName, operations, ordered = true) => {
   log(`DB Operation: Performing bulk operations on collection '${collectionName}'…`)
-  const collection = currentDb.collection(collectionName)
-  const bulk = ordered ? collection.initializeOrderedBulkOp() : collection.initializeUnorderedBulkOp()
-  
-  for (const op of operations) {
-    if (op.insertOne) {
-      bulk.insert(op.insertOne.document)
-    } else if (op.updateOne) {
-      bulk.find(op.updateOne.filter).updateOne(op.updateOne.update)
-    } else if (op.updateMany) {
-      bulk.find(op.updateMany.filter).update(op.updateMany.update)
-    } else if (op.deleteOne) {
-      bulk.find(op.deleteOne.filter).deleteOne()
-    } else if (op.deleteMany) {
-      bulk.find(op.deleteMany.filter).delete()
-    } else if (op.replaceOne) {
-      bulk.find(op.replaceOne.filter).replaceOne(op.replaceOne.replacement)
+  try {
+    const collection = currentDb.collection(collectionName)
+    const bulk = ordered ? collection.initializeOrderedBulkOp() : collection.initializeUnorderedBulkOp()
+    
+    for (const op of operations) {
+      if (op.insertOne) {
+        bulk.insert(op.insertOne.document)
+      } else if (op.updateOne) {
+        bulk.find(op.updateOne.filter).updateOne(op.updateOne.update)
+      } else if (op.updateMany) {
+        bulk.find(op.updateMany.filter).update(op.updateMany.update)
+      } else if (op.deleteOne) {
+        bulk.find(op.deleteOne.filter).deleteOne()
+      } else if (op.deleteMany) {
+        bulk.find(op.deleteMany.filter).delete()
+      } else if (op.replaceOne) {
+        bulk.find(op.replaceOne.filter).replaceOne(op.replaceOne.replacement)
+      }
     }
+
+    const result = await bulk.execute()
+
+    if (!result || !result.acknowledged) {
+      const errorMsg = "Bulk operations were not acknowledged by MongoDB"
+      log(`DB Operation: Bulk operations failed: ${errorMsg}`)
+      throw new Error(errorMsg)
+    }
+    
+    log(`DB Operation: Bulk operations complete.`)
+    return result
+  } catch (error) {
+    log(`DB Operation: Bulk operations failed: ${error.message}`)
+    throw error
   }
-  
-  const result = await bulk.execute()
-  log(`DB Operation: Bulk operations complete.`)
-  return result
 }
 
 const formatDatabasesList = (databases) => {
@@ -2072,31 +2173,27 @@ const formatServerStatus = (status) => {
   if (status.error) {
     result += `Note: Limited information available. ${status.error}\n\n`
   }
-  
-  // Basic server info
+
   result += '## Server Information\n'
   result += `- Host: ${status.host || 'Unknown'}\n`
   result += `- Version: ${status.version || 'Unknown'}\n`
   result += `- Process: ${status.process || 'Unknown'}\n`
   result += `- Uptime: ${formatUptime(status.uptime)}\n`
-  
-  // Connection info if available
+
   if (status.connections) {
     result += '\n## Connections\n'
     result += `- Current: ${status.connections.current}\n`
     result += `- Available: ${status.connections.available}\n`
     result += `- Total Created: ${status.connections.totalCreated}\n`
   }
-  
-  // Memory info if available
+
   if (status.mem) {
     result += '\n## Memory Usage\n'
     result += `- Resident: ${formatSize(status.mem.resident * 1024 * 1024)}\n`
     result += `- Virtual: ${formatSize(status.mem.virtual * 1024 * 1024)}\n`
     result += `- Page Faults: ${status.extra_info?.page_faults || 'N/A'}\n`
   }
-  
-  // Operation counters if available
+
   if (status.opcounters) {
     result += '\n## Operation Counters\n'
     result += `- Insert: ${status.opcounters.insert}\n`
@@ -2106,7 +2203,7 @@ const formatServerStatus = (status) => {
     result += `- Getmore: ${status.opcounters.getmore}\n`
     result += `- Command: ${status.opcounters.command}\n`
   }
-  
+
   return result
 }
 
@@ -2217,7 +2314,6 @@ const formatDistinctValues = (field, values) => {
   
   let result = `Distinct values for field '${field}' (${values.length}):\n`
   
-  // For large result sets, limit the output
   const maxDisplay = 100
   const displayValues = values.length > maxDisplay ? values.slice(0, maxDisplay) : values
   
@@ -2302,7 +2398,6 @@ const formatMapReduceResults = (results) => {
   
   let output = `MapReduce Results (${results.length} entries):\n`
   
-  // Limit output for large result sets
   const maxDisplay = 50
   const displayResults = results.length > maxDisplay ? results.slice(0, maxDisplay) : results
   
@@ -2387,7 +2482,6 @@ const formatCsvValue = (value) => {
   
   const stringValue = typeof value === 'object' ? JSON.stringify(value) : String(value)
   
-  // Escape quotes and wrap in quotes if contains comma, newline, or quote
   if (stringValue.includes(',') || stringValue.includes('\n') || stringValue.includes('"')) {
     return `"${stringValue.replace(/"/g, '""')}"`
   }
@@ -2449,8 +2543,4 @@ const log = (message, forceLog = false) => {
   if (forceLog || VERBOSE_LOGGING) console.error(message)
 }
 
-if (process.argv.length > 2) {
-  main(process.argv[2])
-} else {
-  main()
-}
+main(process.argv[2])

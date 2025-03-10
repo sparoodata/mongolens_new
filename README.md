@@ -14,7 +14,7 @@
 
 - Clone repository
 - [Install](#installation) dependencies
-- [Configure](#configuration) your MCP Client (e.g. [Claude Desktop](#usage-with-claude-desktop))
+- [Configure](#client-setup) your MCP Client (e.g. [Claude Desktop](#usage-with-claude-desktop))
 - Start exploring your MongoDB databases with natural language queries
 
 ## Features
@@ -175,54 +175,53 @@ docker run --rm -i --network=host -e VERBOSE_LOGGING='true' mongodb-lens mongodb
 To use MongoDB Lens with Claude Desktop:
 
 1. Install [Claude Desktop](https://claude.ai/download)
-1. Configure Claude Desktop to use MongoDB Lens:<br>
-    - Create or edit the Claude Desktop configuration file:
-      - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-      - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-      - Add the MongoDB Lens server configuration
-        - Docker:<br>
-          ```json
-          {
-            "mcpServers": {
-              "mongodb-lens": {
-                "command": "docker",
-                "args": [
-                  "run",
-                  "--rm",
-                  "-i",
-                  "--network=host",
-                  "mongodb-lens",
-                  "mongodb://your-connection-string"
-                ],
-                "env": {
-                  "VERBOSE_LOGGING": "<true|false>"
-                }
+1. Create and/or open `claude_desktop_config.json`:
+    - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+    - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+1. Add the MongoDB Lens server configuration:
+    - Example Docker configuration:<br>
+        ```json
+        {
+          "mcpServers": {
+            "mongodb-lens": {
+              "command": "docker",
+              "args": [
+                "run",
+                "--rm",
+                "-i",
+                "--network=host",
+                "mongodb-lens",
+                "mongodb://your-connection-string"
+              ],
+              "env": {
+                "VERBOSE_LOGGING": "<true|false>"
               }
             }
           }
-          ```
-          - Replace `mongodb://your-connection-string` with your MongoDB connection string
-        - Node.js:<br>
-          ```json
-          {
-            "mcpServers": {
-              "mongodb-lens": {
-                "command": "/absolute/path/to/node",
-                "args": [
-                  "/absolute/path/to/mongodb-lens.js",
-                  "mongodb://your-connection-string"
-                ],
-                "env": {
-                  "VERBOSE_LOGGING": "<true|false>"
-                }
+        }
+        ```
+      - Replace `mongodb://your-connection-string` with your MongoDB connection string
+    - Example Node.js configuration:<br>
+        ```json
+        {
+          "mcpServers": {
+            "mongodb-lens": {
+              "command": "/absolute/path/to/node",
+              "args": [
+                "/absolute/path/to/mongodb-lens.js",
+                "mongodb://your-connection-string"
+              ],
+              "env": {
+                "VERBOSE_LOGGING": "<true|false>"
               }
             }
           }
-          ```
-          - Replace `/absolute/path/to/node` with the full path to `node`
-          - Replace `/absolute/path/to/mongodb-lens.js` with the full file path to the repository `mongodb-lens.js` file
-          - Replace `mongodb://your-connection-string` with your MongoDB connection string
-          - Set `VERBOSE_LOGGING` to `true` for verbose Claude MCP Server logs
+        }
+        ```
+      - Replace `/absolute/path/to/node` with the full path to `node`
+      - Replace `/absolute/path/to/mongodb-lens.js` with the full file path [`mongodb-lens.js`](./mongodb-lens.js)
+      - Replace `mongodb://your-connection-string` with your MongoDB connection string
+      - Set `VERBOSE_LOGGING` to `true` for verbose Claude MCP Server logs
 1. Restart Claude Desktop
 1. Start a conversation with Claude and ask about your MongoDB data
     - Claude will show a hammer icon indicating available tools
@@ -250,70 +249,64 @@ To use MongoDB Lens with MCP Inspector:
     ```
 1. The Inspector supports the full range of MongoDB Lens capabilities, including autocompletion for collection names and query fields.
 
-For more, see: [MCP Inspector documentation](https://modelcontextprotocol.io/docs/tools/inspector)
+For more, see: [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector)
 
 ### Usage with Other MCP Clients
 
-MongoDB Lens can be used with any MCP-compatible client:
+MongoDB Lens can be used with any MCP-compatible client.
 
-- **Claude CLI**: Add as a custom server in the settings
-- **Cursor**: Configure as an MCP server in settings
-- **Windsurf**: Add as a custom server in the settings
-- **Continue**: Add MongoDB Lens as a custom MCP server
-- **Cline**: Add via the `/mcp add` command
-- **Zed**: Configure in MCP server settings
-
-See the [MCP documentation](https://modelcontextprotocol.io/clients) for client-specific integration details.
+For more, see: [MCP Documentation: Example Clients](https://modelcontextprotocol.io/clients)
 
 ## Example Prompts
 
-Here are some example LLM prompts for inspiration:
+Database and collection management:
 
-### Basic Operations
+- *"List all databases"*
+- *"Switch to the sales database"*
+- *"Show me all collections in the current database"*
+- *"Rename the 'old_products' collection to 'archive_products'"*
+- *"Create a new capped collection called 'logs' with a 5MB size limit"*
 
-- _"List all databases"_
-- _"Switch to the sales database"_
-- _"What's the schema of the users collection?"_
-- _"Show me the indexes on the products collection"_
-- _"Show me all collections in the current database"_
-- _"How many documents are in the orders collection?"_
-- _"Find the 5 most recent orders for customer with ID 12345"_
-- _"Show me distinct values for the 'status' field in the orders collection"_
+Querying and data retrieval:
 
-### Admin & Diagnostics
+- *"How many documents are in the orders collection?"*
+- *"Find all users who haven't logged in for over a year"*
+- *"Find the 5 most recent orders for customer with ID 12345"*
+- *"Show me distinct values for the 'status' field in the orders collection"*
 
-- _"Show me current server status and metrics"_
-- _"Get information about my replica set configuration"_
-- _"Validate the customers collection for inconsistencies"_
-- _"What users and roles exist in this database?"_
-- _"Create a new capped collection called 'logs' with a 5MB size limit"_
-- _"Rename the 'old_products' collection to 'archive_products'"_
+Aggregation and data analysis:
 
-### Analytics & Optimization
+- *"Sum sales by month"*
+- *"Calculate the average order value by product category"*
+- *"Create an aggregation pipeline to group sales by region and calculate totals"*
 
-- _"Create an index on the email field in the users collection"_
-- _"Analyze the schema of my customers collection and suggest improvements"_
-- _"Run an aggregation to calculate the average order value by product category"_
-- _"Create an aggregation pipeline to group sales by region and calculate totals"_
-- _"Help me optimize this slow query: { status: 'completed', date: { $gt: new Date('2023-01-01') } }"_
-- _"Export the last 1000 transactions to CSV format with just date, amount, and status fields"_
+Indexing and performance optimization:
 
-### Data Management
+- *"Create an index on the email field in the users collection"*
+- *"Analyze the schema of my customers collection and suggest improvements"*
+- *"Suggest indexes for queries that frequently filter by status and sort by creation date"*
+- *"Why is this query slow: { status: 'completed', date: { $gt: new Date('2023-01-01') } }?"*
 
-- _"Insert a new user document with name 'John Doe' and email 'john@example.com'"_
-- _"Update all products where stock is less than 5 to add a 'low_stock' flag"_
-- _"Delete inactive users who haven't logged in for over a year"_
-- _"Run a bulk operation to update prices for multiple products at once"_
+Data modification and management:
 
-### Advanced
+- *"Delete inactive users who haven't logged in for over a year"*
+- *"Update all products where stock is less than 5 to add a 'low_stock' flag"*
+- *"Insert a new user document with name 'John Doe' and email 'john@example.com'"*
+- *"Export the last 1000 transactions to CSV format with just date, amount, and status fields"*
 
-- _"Generate an interactive summary of my database"_
-- _"Design a data model for a blog application with users, posts, and comments"_
-- _"What's the best backup strategy for my 50GB database with 99.9% uptime requirements?"_
-- _"Audit my database security settings and recommend improvements"_
-- _"Generate a migration plan from MongoDB 3.6 to 4.4"_
-- _"Help me build a MongoDB query to find active users who haven't logged in for 30 days"_
-- _"What indexes should I create for queries that frequently filter by status and sort by date?"_
+Security and administration:
+
+- *"Who has access to this database?"*
+- *"Generate a migration plan from MongoDB 3.6 to 4.4"*
+- *"Audit my database security settings and recommend improvements"*
+- *"Plan a backup strategy for my 50GB database with 99.9% uptime requirements"*
+
+And whatever else you can think of:
+
+- *"Generate an interactive tour of my database"*
+- *"What’s the best way to shard my growing 'events' collection?"*
+- *"Optimize this query for me: { region: 'west', status: 'pending' }"*
+- *"Design a data model for a blog application with users, posts, and comments"*
 
 ## Disclaimer
 

@@ -219,7 +219,7 @@ To use MongoDB Lens with Claude Desktop:
         }
         ```
       - Replace `/absolute/path/to/node` with the full path to `node`
-      - Replace `/absolute/path/to/mongodb-lens.js` with the full file path to the repository `mongodb-lens.js` file
+      - Replace `/absolute/path/to/mongodb-lens.js` with the full file path [`mongodb-lens.js`](./mongodb-lens.js)
       - Replace `mongodb://your-connection-string` with your MongoDB connection string
       - Set `VERBOSE_LOGGING` to `true` for verbose Claude MCP Server logs
 1. Restart Claude Desktop

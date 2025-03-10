@@ -176,52 +176,52 @@ To use MongoDB Lens with Claude Desktop:
 
 1. Install [Claude Desktop](https://claude.ai/download)
 1. Create and/or open `claude_desktop_config.json`:
-  - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-  - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+    - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+    - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 1. Add the MongoDB Lens server configuration:
-  - Example Docker configuration:<br>
-      ```json
-      {
-        "mcpServers": {
-          "mongodb-lens": {
-            "command": "docker",
-            "args": [
-              "run",
-              "--rm",
-              "-i",
-              "--network=host",
-              "mongodb-lens",
-              "mongodb://your-connection-string"
-            ],
-            "env": {
-              "VERBOSE_LOGGING": "<true|false>"
+    - Example Docker configuration:<br>
+        ```json
+        {
+          "mcpServers": {
+            "mongodb-lens": {
+              "command": "docker",
+              "args": [
+                "run",
+                "--rm",
+                "-i",
+                "--network=host",
+                "mongodb-lens",
+                "mongodb://your-connection-string"
+              ],
+              "env": {
+                "VERBOSE_LOGGING": "<true|false>"
+              }
             }
           }
         }
-      }
-      ```
-    - Replace `mongodb://your-connection-string` with your MongoDB connection string
-  - Example Node.js configuration:<br>
-      ```json
-      {
-        "mcpServers": {
-          "mongodb-lens": {
-            "command": "/absolute/path/to/node",
-            "args": [
-              "/absolute/path/to/mongodb-lens.js",
-              "mongodb://your-connection-string"
-            ],
-            "env": {
-              "VERBOSE_LOGGING": "<true|false>"
+        ```
+      - Replace `mongodb://your-connection-string` with your MongoDB connection string
+    - Example Node.js configuration:<br>
+        ```json
+        {
+          "mcpServers": {
+            "mongodb-lens": {
+              "command": "/absolute/path/to/node",
+              "args": [
+                "/absolute/path/to/mongodb-lens.js",
+                "mongodb://your-connection-string"
+              ],
+              "env": {
+                "VERBOSE_LOGGING": "<true|false>"
+              }
             }
           }
         }
-      }
-      ```
-    - Replace `/absolute/path/to/node` with the full path to `node`
-    - Replace `/absolute/path/to/mongodb-lens.js` with the full file path to the repository `mongodb-lens.js` file
-    - Replace `mongodb://your-connection-string` with your MongoDB connection string
-    - Set `VERBOSE_LOGGING` to `true` for verbose Claude MCP Server logs
+        ```
+      - Replace `/absolute/path/to/node` with the full path to `node`
+      - Replace `/absolute/path/to/mongodb-lens.js` with the full file path to the repository `mongodb-lens.js` file
+      - Replace `mongodb://your-connection-string` with your MongoDB connection string
+      - Set `VERBOSE_LOGGING` to `true` for verbose Claude MCP Server logs
 1. Restart Claude Desktop
 1. Start a conversation with Claude and ask about your MongoDB data
     - Claude will show a hammer icon indicating available tools

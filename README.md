@@ -14,7 +14,7 @@
 
 - Clone repository
 - [Install](#installation) dependencies
-- [Configure](#configuration) your MCP Client (e.g. [Claude Desktop](#usage-with-claude-desktop))
+- [Configure](#client-setup) your MCP Client (e.g. [Claude Desktop](#usage-with-claude-desktop))
 - Start exploring your MongoDB databases with natural language queries
 
 ## Features

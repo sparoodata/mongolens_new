@@ -1,11 +1,16 @@
 {
   "name": "mongodb-lens",
-  "version": "2.0.0",
-  "description": "MongoDB Lens",
+  "version": "3.0.0",
+  "author": "James Furey (https://about.me/jamesfurey)",
+  "description": "MongoDB Lens: Full Featured MCP Server for MongoDB Database Analysis",
+  "license": "MIT",
   "type": "module",
   "main": "mongodb-lens.js",
   "scripts": {
-    "start": "node mongodb-lens.js"
+    "start": "node mongodb-lens.js",
+    "docker:build": "docker build -t mongodb-lens .",
+    "claude:mcp:add": "claude mcp add mongodb-lens $(which node) $(pwd)/mongodb-lens.js",
+    "claude:mcp:remove": "claude mcp remove mongodb-lens"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

@@ -79,10 +79,10 @@ This server provides access to your MongoDB database through MCP. You can:
 
 const connect = async (uri = 'mongodb://localhost:27017') => {
   try {
-    log(`Connecting to MongoDB at ${uri}…`)
+    log(`Connecting to MongoDB at: ${uri}`)
     client = new MongoClient(uri, { useUnifiedTopology: true })
     await client.connect()
-    currentDbName = uri.split('/').pop().split('?')[0] || 'admin'
+    currentDbName = extractDbNameFromConnectionString(uri)
     currentDb = client.db(currentDbName)
     log(`Connected to MongoDB successfully, using database: ${currentDbName}`)
     return true
@@ -90,6 +90,13 @@ const connect = async (uri = 'mongodb://localhost:27017') => {
     console.error(`MongoDB connection error: ${error.message}`)
     return false
   }
+}
+
+const extractDbNameFromConnectionString = (uri) => {
+  const pathParts = uri.split('/').filter(part => part)
+  const lastPart = pathParts[pathParts.length - 1]?.split('?')[0]
+  currentDbName = (lastPart && !lastPart.includes(':')) ? lastPart : 'admin'
+  return currentDbName
 }
 
 const registerResources = (server) => {

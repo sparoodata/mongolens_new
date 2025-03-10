@@ -1,29 +1,20 @@
 # MongoDB Lens
 
-**MongoDB Lens** is a Model Context Protocol (MCP) server with full featured access to MongoDB databases using natural language via LLMs to perform queries, run aggregations, optimize performance, and more.
+**MongoDB Lens** is a local Model Context Protocol (MCP) server with full featured access to MongoDB databases using natural language via LLMs to perform queries, run aggregations, optimize performance, and more.
 
 ## Contents
 
 - [Quick Start](#quick-start)
 - [Features](#features)
 - [Configuration](#configuration)
-- [Usage](#usage)
 - [Example Prompts](#example-prompts)
-- [Smithery](#smithery)
 - [Disclaimer](#disclaimer)
 
 ## Quick Start
 
 - Clone repository
-- Install dependencies:<br>
-    ```console
-    npm install
-    ```
-- Either run the server with your MongoDB connection string…<br>
-    ```console
-    node mongodb-lens.js mongodb://your-connection-string
-    ```
-  …or configure your MCP Client to start the server (e.g. [Claude Desktop](#usage-with-claude-desktop))
+- [Install](#installation) dependencies
+- [Configure](#configuration) your MCP Client (e.g. [Claude Desktop](#usage-with-claude-desktop))
 - Start exploring your MongoDB databases with natural language queries
 
 ## Features
@@ -86,75 +77,154 @@ MongoDB Lens exposes the following capabilities through MCP:
 
 ## Configuration
 
-- [Connection String](#connection-string)
+- [Installation](#installation)
+- [MongoDB Connection String](#mongodb-connection-string)
+- [Verbose Logging](#verbose-logging)
+- [Client Setup](#client-setup)
 
-### Connection String
+### Installation
 
-The server accepts a standard MongoDB connection URI:
+Depending on whether you want to run with Node.js or Docker, follow the appropriate instructions below:
+
+- [Docker Installation](#docker-installation)
+- [Node.js Installation](#nodejs-installation)
+
+#### Docker Installation
+
+1. Navigate to the cloned repository directory:<br>
+    ```console
+    cd /path/to/mongodb-lens
+    ```
+1. Build the Docker image:<br>
+    ```console
+    docker build -t mongodb-lens .
+    ```
+1. Check the installation runs (tip: press <kbd>Ctrl</kbd>+<kbd>C</kbd> to exit):<br>
+    ```console
+    docker run --rm -i --network=host mongodb-lens
+    ```
+
+#### Node.js Installation
+
+1. Navigate to the cloned repository directory:<br>
+    ```console
+    cd /path/to/mongodb-lens
+    ```
+1. Ensure [Node](https://nodejs.org/en/download) running (tip: use [Volta](https://volta.sh)):<br>`$ node -v` >= `22.*`
+1. Install Node.js dependencies:<br>
+    ```console
+    npm ci
+    ```
+1. Check the installation runs (tip: press <kbd>Ctrl</kbd>+<kbd>C</kbd> to exit):<br>
+    ```console
+    node mongodb-lens.js
+    ```
+
+### MongoDB Connection String
+
+The server accepts a MongoDB connection string as its only argument:
 
 ```txt
 mongodb://[username:password@]host[:port][/database][?options]
 ```
 
-Examples:
+Example URIs:
 
 - Local connection: `mongodb://localhost:27017`
 - Connection with credentials: `mongodb://username:password@hostname:27017/mydatabase`
 - Connection with options: `mongodb://hostname:27017/mydatabase?retryWrites=true&w=majority`
 
-The connection string can be passed as a command-line argument (e.g. when running your own server) or set in the MCP client configuration (e.g. via Claude Desktop's config file).
+Example Node.js usage:
 
-If no connection string is provided, the server will attempt to connect to a local MongoDB instance on the default port (27017) i.e. `mongodb://localhost:27017`.
+```console
+node mongodb-lens.js mongodb://your-connection-string
+```
 
-## Usage
+Example Docker usage:
 
-- [Usage with Docker](#usage-with-docker)
+```console
+docker run --rm -i --network=host mongodb-lens mongodb://your-connection-string
+```
+
+If no connection string is provided, the server will attempt to connect to a local MongoDB instance on the default port i.e. `mongodb://localhost:27017`.
+
+## Verbose Logging
+
+To enable verbose logging for debugging purposes, set the environment variable `VERBOSE_LOGGING` to `true`.
+
+Example Node.js usage:
+
+```console
+VERBOSE_LOGGING=true node mongodb-lens.js mongodb://your-connection-string
+```
+
+Example Docker usage:
+
+```console
+docker run --rm -i --network=host -e VERBOSE_LOGGING='true' mongodb-lens mongodb://your-connection-string
+```
+
+## Client Setup
+
 - [Usage with Claude Desktop](#usage-with-claude-desktop)
 - [Usage with MCP Inspector](#usage-with-mcp-inspector)
 - [Usage with Other MCP Clients](#usage-with-other-mcp-clients)
-
-### Usage with Docker
-
-To run MongoDB Lens in a Docker container:
-
-1. Build the Docker image:<br>
-    ```console
-    docker build -t mongodb-lens .
-    ```
-2. Run the Docker container with your MongoDB connection string:<br>
-    ```console
-    $ docker run -p 3000:3000 mongodb-lens mongodb://your-connection-string
-    ```
-3. The server will be accessible at http://localhost:3000 (or the host/port you specified)
 
 ### Usage with Claude Desktop
 
 To use MongoDB Lens with Claude Desktop:
 
 1. Install [Claude Desktop](https://claude.ai/download)
-2. Configure Claude Desktop to use MongoDB Lens:<br>
+1. Configure Claude Desktop to use MongoDB Lens:<br>
     - Create or edit the Claude Desktop configuration file:
       - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
       - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-    - Add the MongoDB Lens server configuration:<br>
-      ```json
-      {
-        "mcpServers": {
-          "mongodb-lens": {
-            "command": "/absolute/path/to/node",
-            "args": [
-              "/absolute/path/to/mongodb-lens.js",
-              "mongodb://your-connection-string"
-            ]
+      - Add the MongoDB Lens server configuration
+        - Docker:<br>
+          ```json
+          {
+            "mcpServers": {
+              "mongodb-lens": {
+                "command": "docker",
+                "args": [
+                  "run",
+                  "--rm",
+                  "-i",
+                  "--network=host",
+                  "mongodb-lens",
+                  "mongodb://your-connection-string"
+                ],
+                "env": {
+                  "VERBOSE_LOGGING": "<true|false>"
+                }
+              }
+            }
           }
-        }
-      }
-      ```
-      - Replace `/absolute/path/to/node` with the actual file path
-      - Replace `/absolute/path/to/mongodb-lens.js` with the actual file path
-      - Replace `mongodb://your-connection-string` with your MongoDB connection string
-3. Restart Claude Desktop
-4. Start a conversation with Claude and ask about your MongoDB data
+          ```
+          - Replace `mongodb://your-connection-string` with your MongoDB connection string
+        - Node.js:<br>
+          ```json
+          {
+            "mcpServers": {
+              "mongodb-lens": {
+                "command": "/absolute/path/to/node",
+                "args": [
+                  "/absolute/path/to/mongodb-lens.js",
+                  "mongodb://your-connection-string"
+                ],
+                "env": {
+                  "VERBOSE_LOGGING": "<true|false>"
+                }
+              }
+            }
+          }
+          ```
+          - Replace `/absolute/path/to/node` with the full path to `node`
+          - Replace `/absolute/path/to/mongodb-lens.js` with the full file path to the repository `mongodb-lens.js` file
+          - Replace `mongodb://your-connection-string` with your MongoDB connection string
+          - Set `VERBOSE_LOGGING` to `true` for verbose Claude MCP Server logs
+1. Restart Claude Desktop
+1. Start a conversation with Claude and ask about your MongoDB data
     - Claude will show a hammer icon indicating available tools
     - Ask questions like "What databases do I have?" or "Show me the schema for the users collection"
 
@@ -164,32 +234,31 @@ The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is a deve
 
 To use MongoDB Lens with MCP Inspector:
 
+1. Navigate to the cloned repository directory:<br>
+    ```console
+    cd /path/to/mongodb-lens
+    ```
 1. Run Inspector via `npx`:<br>
     ```console
     npx @modelcontextprotocol/inspector node mongodb-lens.js mongodb://your-connection-string
     ```
-2. The Inspector will start both a server (default port 3000) and a web UI (default port 5173)
-3. Open your browser to http://localhost:5173 to access the Inspector interface
-4. The interface provides several tabs:
-    - **Resources**: View available resources like database listings and collection schemas
-    - **Tools**: Execute MongoDB operations directly and see results
-    - **Prompts**: Access guided templates for common MongoDB tasks
-    - **Debug**: See the full message exchange between the client and server
-
-5. You can customize the ports if needed:<br>
+1. The Inspector will start both a proxy server (default port 3000) and a web UI (default port 5173)
+1. Open your browser to http://localhost:5173 to access the Inspector interface
+1. You can customize the ports if needed:<br>
     ```console
     CLIENT_PORT=8080 SERVER_PORT=9000 npx @modelcontextprotocol/inspector node mongodb-lens.js
     ```
+1. The Inspector supports the full range of MongoDB Lens capabilities, including autocompletion for collection names and query fields.
 
-6. The Inspector supports the full range of MongoDB Lens capabilities, including autocompletion for collection names and query fields.
-
-For more detailed information about using the Inspector, refer to the [MCP Inspector documentation](https://modelcontextprotocol.io/docs/tools/inspector).
+For more, see: [MCP Inspector documentation](https://modelcontextprotocol.io/docs/tools/inspector)
 
 ### Usage with Other MCP Clients
 
 MongoDB Lens can be used with any MCP-compatible client:
 
+- **Claude CLI**: Add as a custom server in the settings
 - **Cursor**: Configure as an MCP server in settings
+- **Windsurf**: Add as a custom server in the settings
 - **Continue**: Add MongoDB Lens as a custom MCP server
 - **Cline**: Add via the `/mcp add` command
 - **Zed**: Configure in MCP server settings
@@ -245,14 +314,6 @@ Here are some example LLM prompts for inspiration:
 - _"Generate a migration plan from MongoDB 3.6 to 4.4"_
 - _"Help me build a MongoDB query to find active users who haven't logged in for 30 days"_
 - _"What indexes should I create for queries that frequently filter by status and sort by date?"_
-
-## Smithery
-
-[Smithery](https://smithery.ai) is a platform for discovering, sharing, and deploying MCP servers. 
-
-This repository includes a [`smithery.yaml`](./smithery.yaml) configuration file for deployment to Smithery.
-
-For more, see: https://smithery.ai/server/@furey/mongodb-lens
 
 ## Disclaimer
 

@@ -7,14 +7,14 @@
 - [Quick Start](#quick-start)
 - [Features](#features)
 - [Configuration](#configuration)
-- [Example Prompts](#example-prompts)
+- [Tutorial](#tutorial)
 - [Disclaimer](#disclaimer)
 
 ## Quick Start
 
 - Clone repository
 - [Install](#installation) dependencies
-- [Configure](#client-setup) your MCP Client (e.g. [Claude Desktop](#usage-with-claude-desktop))
+- [Configure](#mcp-client-setup) your MCP Client (e.g. [Claude Desktop](#usage-with-claude-desktop))
 - Start exploring your MongoDB databases with natural language queries
 
 ## Features
@@ -79,15 +79,12 @@ MongoDB Lens exposes the following capabilities through MCP:
 
 - [Installation](#installation)
 - [MongoDB Connection String](#mongodb-connection-string)
-- [Verbose Logging](#verbose-logging)
-- [Client Setup](#client-setup)
+- [MCP Server Logging](#mcp-server-logging)
+- [MCP Client Setup](#mcp-client-setup)
 
 ### Installation
 
-Depending on whether you want to run with Node.js or Docker, follow the appropriate instructions below:
-
-- [Docker Installation](#docker-installation)
-- [Node.js Installation](#nodejs-installation)
+Depending on whether you want to run with Node.js or Docker, follow the appropriate instructions below.
 
 #### Docker Installation
 
@@ -131,26 +128,26 @@ mongodb://[username:password@]host[:port][/database][?options]
 Example URIs:
 
 - Local connection: `mongodb://localhost:27017`
-- Connection with credentials: `mongodb://username:password@hostname:27017/mydatabase`
-- Connection with options: `mongodb://hostname:27017/mydatabase?retryWrites=true&w=majority`
+- Connection with credentials and DB name: `mongodb://username:password@hostname:27017/mydatabase`
+- Connection with DB name and options: `mongodb://hostname:27017/mydatabase?retryWrites=true&w=majority`
 
-Example Node.js usage:
-
-```console
-node mongodb-lens.js mongodb://your-connection-string
-```
-
-Example Docker usage:
+Example Docker connection string usage:
 
 ```console
 docker run --rm -i --network=host mongodb-lens mongodb://your-connection-string
 ```
 
+Example Node.js connection string usage:
+
+```console
+node mongodb-lens.js mongodb://your-connection-string
+```
+
 If no connection string is provided, the server will attempt to connect to a local MongoDB instance on the default port i.e. `mongodb://localhost:27017`.
 
-## Verbose Logging
+### MCP Server Logging
 
-To enable verbose logging for debugging purposes, set the environment variable `VERBOSE_LOGGING` to `true`.
+To enable verbose MCP Server logging for debugging purposes, set the environment variable `VERBOSE_LOGGING` to `true`.
 
 Example Node.js usage:
 
@@ -164,13 +161,13 @@ Example Docker usage:
 docker run --rm -i --network=host -e VERBOSE_LOGGING='true' mongodb-lens mongodb://your-connection-string
 ```
 
-## Client Setup
+### MCP Client Setup
 
 - [Usage with Claude Desktop](#usage-with-claude-desktop)
 - [Usage with MCP Inspector](#usage-with-mcp-inspector)
 - [Usage with Other MCP Clients](#usage-with-other-mcp-clients)
 
-### Usage with Claude Desktop
+#### Usage with Claude Desktop
 
 To use MongoDB Lens with Claude Desktop:
 
@@ -194,13 +191,14 @@ To use MongoDB Lens with Claude Desktop:
                 "mongodb://your-connection-string"
               ],
               "env": {
-                "VERBOSE_LOGGING": "<true|false>"
+                "VERBOSE_LOGGING": "[true|false]"
               }
             }
           }
         }
         ```
       - Replace `mongodb://your-connection-string` with your MongoDB connection string
+      - Set `VERBOSE_LOGGING` to `true` for verbose MCP Server logs
     - Example Node.js configuration:<br>
         ```json
         {
@@ -221,13 +219,13 @@ To use MongoDB Lens with Claude Desktop:
       - Replace `/absolute/path/to/node` with the full path to `node`
       - Replace `/absolute/path/to/mongodb-lens.js` with the full file path [`mongodb-lens.js`](./mongodb-lens.js)
       - Replace `mongodb://your-connection-string` with your MongoDB connection string
-      - Set `VERBOSE_LOGGING` to `true` for verbose Claude MCP Server logs
+      - Set `VERBOSE_LOGGING` to `true` for verbose MCP Server logs
 1. Restart Claude Desktop
 1. Start a conversation with Claude and ask about your MongoDB data
     - Claude will show a hammer icon indicating available tools
     - Ask questions like "What databases do I have?" or "Show me the schema for the users collection"
 
-### Usage with MCP Inspector
+#### Usage with MCP Inspector
 
 The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is a development tool specifically designed for testing and debugging MCP servers. It provides a visual interface to explore resources, run tools, and via MongoDB Lens understand your MongoDB database.
 
@@ -251,66 +249,116 @@ To use MongoDB Lens with MCP Inspector:
 
 For more, see: [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector)
 
-### Usage with Other MCP Clients
+#### Usage with Other MCP Clients
 
 MongoDB Lens can be used with any MCP-compatible client.
 
 For more, see: [MCP Documentation: Example Clients](https://modelcontextprotocol.io/clients)
 
-## Example Prompts
+## Tutorial
 
-Database and collection management:
+This tutorial will guide you through setting up a MongoDB instance with sample data and using MongoDB Lens to interact with it through natural language queries.
 
-- *"List all databases"*
-- *"Switch to the sales database"*
-- *"Show me all collections in the current database"*
-- *"Rename the 'old_products' collection to 'archive_products'"*
-- *"Create a new capped collection called 'logs' with a 5MB size limit"*
+- [Setting Up MongoDB Container](#setting-up-mongodb-container)
+- [Importing Sample Data](#importing-sample-data)
+- [Example Queries for Sample Data](#example-queries-for-sample-data)
 
-Querying and data retrieval:
+### Setting Up MongoDB Container
 
-- *"How many documents are in the orders collection?"*
-- *"Find all users who haven't logged in for over a year"*
-- *"Find the 5 most recent orders for customer with ID 12345"*
-- *"Show me distinct values for the 'status' field in the orders collection"*
+1. Run MongoDB Docker container:<br>
+   ```console
+   docker run --name mongodb-sampledata -d -p 27017:27017 mongo:6
+   ```
+1. Verify the container is running:
+   ```console
+   docker ps | grep mongodb-sampledata
+   ```
 
-Aggregation and data analysis:
+### Importing Sample Data
 
-- *"Sum sales by month"*
-- *"Calculate the average order value by product category"*
-- *"Create an aggregation pipeline to group sales by region and calculate totals"*
+MongoDB provides several sample datasets, which we'll use to explore MongoDB Lens.
 
-Indexing and performance optimization:
+1. Download the sample dataset:
+   ```console<br>
+   curl -LO https://atlas-education.s3.amazonaws.com/sampledata.archive
+   ```
+2. Copy the sample data into your MongoDB container:<br>
+   ```console
+   docker cp sampledata.archive mongodb-sampledata:/tmp/
+   ```
+3. Restore the sample data:<br>
+   ```console
+   docker exec -it mongodb-sampledata mongorestore --archive=/tmp/sampledata.archive
+   ```
 
-- *"Create an index on the email field in the users collection"*
-- *"Analyze the schema of my customers collection and suggest improvements"*
-- *"Suggest indexes for queries that frequently filter by status and sort by creation date"*
-- *"Why is this query slow: { status: 'completed', date: { $gt: new Date('2023-01-01') } }?"*
+This will import several sample databases including:
 
-Data modification and management:
+- `sample_airbnb` - Airbnb listings and reviews
+- `sample_analytics` - Customer and account data
+- `sample_geospatial` - Geographic data
+- `sample_mflix` - Movie data
+- `sample_restaurants` - Restaurant data
+- `sample_supplies` - Supply chain data
+- `sample_training` - Training data for various applications
+- `sample_weatherdata` - Weather measurements
 
-- *"Delete inactive users who haven't logged in for over a year"*
-- *"Update all products where stock is less than 5 to add a 'low_stock' flag"*
-- *"Insert a new user document with name 'John Doe' and email 'john@example.com'"*
-- *"Export the last 1000 transactions to CSV format with just date, amount, and status fields"*
+### Connecting MongoDB Lens
 
-Security and administration:
+Set your [MCP Client](#mcp-client-setup) to connect to MongoDB Lens with the connection string:
 
-- *"Who has access to this database?"*
-- *"Generate a migration plan from MongoDB 3.6 to 4.4"*
-- *"Audit my database security settings and recommend improvements"*
-- *"Plan a backup strategy for my 50GB database with 99.9% uptime requirements"*
+```txt
+mongodb://localhost:27017/mongodb-sampledata
+```
 
-And whatever else you can think of:
+### Example Queries for Sample Data
 
-- *"Generate an interactive tour of my database"*
-- *"What’s the best way to shard my growing 'events' collection?"*
-- *"Optimize this query for me: { region: 'west', status: 'pending' }"*
-- *"Design a data model for a blog application with users, posts, and comments"*
+With your MCP Client running and connected to MongoDB Lens, try these example queries based on the sample datasets:
+
+#### Exploring Databases and Collections
+
+- "List all available databases"
+- "What's in the sample_mflix database? Switch to it"
+- "Show me all collections in the current database"
+- "How many documents are in the movies collection?"
+
+#### Movie Data Queries (sample_mflix)
+
+- "Find the top 5 movies by IMDB rating"
+- "What are the most common movie genres?"
+- "Show me movies directed by Christopher Nolan"
+- "Find movies released in the 1990s with a rating above 8.5"
+- "What's the average runtime of action movies?"
+- "Who are the top 10 most prolific actors in the database?"
+
+#### Airbnb Data Analysis (sample_airbnb)
+
+- "Switch to sample_airbnb database"
+- "What types of properties are listed on Airbnb?"
+- "What's the average price of listings in Brooklyn?"
+- "Find the top 5 most reviewed listings"
+- "What neighborhoods have the most listings?"
+- "Analyze the distribution of prices across different property types"
+
+#### Weather Data Queries (sample_weatherdata)
+
+- "Switch to sample_weatherdata database"
+- "What's the schema of the data collection?"
+- "Find the highest temperature recorded in the dataset"
+- "What's the average pressure reading across all measurements?"
+- "Show me readings where callLetters is 'SHIP'"
+
+#### Advanced Operations
+
+- "Switch back to the sample_mflix database"
+- "Create an index on the title field in the movies collection"
+- "Analyze the schema of the movies collection and suggest improvements"
+- "Build an aggregation pipeline to show the count of movies by year and genre"
+- "Find distinct countries where movies were produced"
+- "Export a CSV with the top 50 rated movies including title, year, and rating"
 
 ## Disclaimer
 
-This project:
+MongoDB Lens:
 
 - is licensed under the [MIT License](./LICENSE).
 - is not affiliated with or endorsed by MongoDB, Inc.

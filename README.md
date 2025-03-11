@@ -172,7 +172,7 @@ mongodb://localhost:27017
 
 ### Configuration: Logging
 
-To enable verbose MCP Server logging, set environment variable `VERBOSE_LOGGING` to `true`.
+To enable verbose server logging, set environment variable `VERBOSE_LOGGING` to `true`.
 
 Example Node.js usage:
 
@@ -245,9 +245,9 @@ To use MongoDB Lens with Claude Desktop:
       - Replace `mongodb://your-connection-string` with your MongoDB connection string
       - Set `VERBOSE_LOGGING` to `true` for verbose MCP Server logs
 1. Restart Claude Desktop
-1. Start a conversation with Claude and ask about your MongoDB data
+1. Start a conversation with Claude about your MongoDB data
     - Claude will show a hammer icon indicating available tools
-    - Ask questions like "What databases do I have?" or "Show me the schema for the users collection"
+    - See [example queries](#tutorial-example-queries) for inspiration
 
 ### Client Setup: MCP Inspector
 

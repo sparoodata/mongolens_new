@@ -80,7 +80,9 @@ MongoDB Lens exposes the following capabilities through MCP:
 
 ## Installation
 
-Depending on whether you want to run with Node.js or Docker, follow the appropriate instructions below.
+MongoDB Lens can run via Docker or Node.js.
+
+Depending on your preference, follow the installation instructions below:
 
 - [Docker Installation](#docker-installation)
 - [Node.js Installation](#node.js-installation)

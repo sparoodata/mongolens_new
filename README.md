@@ -30,60 +30,62 @@ MongoDB Lens exposes the following capabilities through MCP:
 
 ### Resources
 
-- Database listings
 - Collection metadata
 - Collection statistics
-- Schema inference
-- Index information
-- Server status and metrics
-- Replica set configuration
 - Collection validation rules
+- Database listings
 - Database users and roles
+- Index information
+- Replica set configuration
+- Schema inference
+- Server status and metrics
 - Stored JavaScript functions
 
 ### Tools
 
-- **list-databases**: View all accessible MongoDB databases
-- **current-database**: Show the current database context
-- **use-database**: Switch to a specific database context
-- **list-collections**: Explore collections in the current database
-- **find-documents**: Run queries with filters, projections, and sorting
-- **count-documents**: Count documents matching specified criteria
-- **aggregate-data**: Execute aggregation pipelines
-- **get-stats**: Retrieve database or collection statistics
-- **analyze-schema**: Automatically infer collection schemas
-- **create-index**: Create new indexes for performance optimization
-- **explain-query**: Analyze query execution plans
-- **distinct-values**: Extract unique values for any field
-- **validate-collection**: Check for data inconsistencies
-- **create-collection**: Create new collections with custom options
-- **drop-collection**: Remove collections from the database
-- **rename-collection**: Rename existing collections
-- **modify-document**: Insert, update, or delete specific documents
-- **export-data**: Export query results in JSON or CSV format
-- **map-reduce**: Run MapReduce operations for complex data processing
-- **bulk-operations**: Perform multiple operations efficiently
+- `aggregate-data`: Execute aggregation pipelines
+- `analyze-schema`: Automatically infer collection schemas
+- `bulk-operations`: Perform multiple operations efficiently
+- `count-documents`: Count documents matching specified criteria
+- `create-collection`: Create new collections with custom options
+- `create-index`: Create new indexes for performance optimization
+- `current-database`: Show the current database context
+- `distinct-values`: Extract unique values for any field
+- `drop-collection`: Remove collections from the database
+- `explain-query`: Analyze query execution plans
+- `export-data`: Export query results in JSON or CSV format
+- `find-documents`: Run queries with filters, projections, and sorting
+- `get-stats`: Retrieve database or collection statistics
+- `list-collections`: Explore collections in the current database
+- `list-databases`: View all accessible MongoDB databases
+- `map-reduce`: Run MapReduce operations for complex data processing
+- `modify-document`: Insert, update, or delete specific documents
+- `rename-collection`: Rename existing collections
+- `use-database`: Switch to a specific database context
+- `validate-collection`: Check for data inconsistencies
 
 ### Prompts
 
-- **query-builder**: Interactive guidance for constructing MongoDB queries
-- **aggregation-builder**: Step-by-step creation of aggregation pipelines
-- **schema-analysis**: Detailed collection schema analysis with recommendations
-- **index-recommendation**: Get personalized index suggestions based on query patterns
-- **mongo-shell**: Generate MongoDB shell commands with explanations
-- **inspector-guide**: Get help using MongoDB Lens with MCP Inspector
-- **data-modeling**: Expert advice on MongoDB schema design for specific use cases
-- **query-optimizer**: Optimization recommendations for slow queries
-- **security-audit**: Database security analysis and improvement recommendations
-- **backup-strategy**: Customized backup and recovery recommendations
-- **migration-guide**: Step-by-step MongoDB version migration plans
+- `aggregation-builder`: Step-by-step creation of aggregation pipelines
+- `backup-strategy`: Customized backup and recovery recommendations
+- `data-modeling`: Expert advice on MongoDB schema design for specific use cases
+- `index-recommendation`: Get personalized index suggestions based on query patterns
+- `inspector-guide`: Get help using MongoDB Lens with MCP Inspector
+- `migration-guide`: Step-by-step MongoDB version migration plans
+- `mongo-shell`: Generate MongoDB shell commands with explanations
+- `query-builder`: Interactive guidance for constructing MongoDB queries
+- `query-optimizer`: Optimization recommendations for slow queries
+- `schema-analysis`: Detailed collection schema analysis with recommendations
+- `security-audit`: Database security analysis and improvement recommendations
 
 ## Installation
 
-Depending on whether you want to run with Node.js or Docker, follow the appropriate instructions below.
+MongoDB Lens can run via Docker or Node.js.
+
+Depending on your preference, follow the installation instructions below:
 
 - [Docker Installation](#docker-installation)
-- [Node.js Installation](#node.js-installation)
+- [Node.js Installation](#nodejs-installation)
 - [Installation Verification](#installation-verification)
 
 ### Docker Installation
@@ -145,10 +147,10 @@ MongoDB Lens is now installed and ready to accept MCP requests.
 
 ## Configuration
 
-- [MongoDB Connection String](#mongodb-connection-string)
-- [Logging Configuration](#logging-configuration)
+- [MongoDB Connection String](#configuration-mongodb-connection-string)
+- [Logging](#configuration-logging)
 
-### MongoDB Connection String
+### Configuration: MongoDB Connection String
 
 The server accepts a MongoDB connection string as its only argument:
 
@@ -162,11 +164,15 @@ Example URIs:
 - Connection with credentials and DB name: `mongodb://username:password@hostname:27017/mydatabase`
 - Connection with DB name and options: `mongodb://hostname:27017/mydatabase?retryWrites=true&w=majority`
 
-If no connection string is provided, the server will attempt to connect to a local MongoDB instance on the default port i.e. `mongodb://localhost:27017`.
+If no connection string is provided, the server will attempt to connect to MongoDB via local connection:
 
-### Logging Configuration
+```txt
+mongodb://localhost:27017
+```
 
-To enable verbose MCP Server logging, set environment variable `VERBOSE_LOGGING` to `true`.
+### Configuration: Logging
+
+To enable verbose server logging, set environment variable `VERBOSE_LOGGING` to `true`.
 
 Example Node.js usage:
 
@@ -235,17 +241,17 @@ To use MongoDB Lens with Claude Desktop:
         }
         ```
       - Replace `/absolute/path/to/node` with the full path to `node`
-      - Replace `/absolute/path/to/mongodb-lens.js` with the full file path [`mongodb-lens.js`](./mongodb-lens.js)
+      - Replace `/absolute/path/to/mongodb-lens.js` with the full file path to [`mongodb-lens.js`](./mongodb-lens.js)
       - Replace `mongodb://your-connection-string` with your MongoDB connection string
       - Set `VERBOSE_LOGGING` to `true` for verbose MCP Server logs
 1. Restart Claude Desktop
-1. Start a conversation with Claude and ask about your MongoDB data
+1. Start a conversation with Claude about your MongoDB data
     - Claude will show a hammer icon indicating available tools
-    - Ask questions like "What databases do I have?" or "Show me the schema for the users collection"
+    - See [example queries](#tutorial-example-queries) for conversation inspiration
 
 ### Client Setup: MCP Inspector
 
-The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is a development tool specifically designed for testing and debugging MCP servers. It provides a visual interface to explore resources, run tools, and via MongoDB Lens understand your MongoDB database.
+[MCP Inspector](https://github.com/modelcontextprotocol/inspector) is a tool designed for testing and debugging MCP servers.
 
 To use MongoDB Lens with MCP Inspector:
 
@@ -257,13 +263,13 @@ To use MongoDB Lens with MCP Inspector:
     ```console
     npx @modelcontextprotocol/inspector node mongodb-lens.js mongodb://your-connection-string
     ```
-1. The Inspector will start both a proxy server (default port 3000) and a web UI (default port 5173)
-1. Open your browser to http://localhost:5173 to access the Inspector interface
-1. You can customize the ports if needed:<br>
-    ```console
-    CLIENT_PORT=8080 SERVER_PORT=9000 npx @modelcontextprotocol/inspector node mongodb-lens.js
-    ```
-1. The Inspector supports the full range of MongoDB Lens capabilities, including autocompletion for collection names and query fields.
+1. Inspector starts a proxy server (default port: 3000) and web UI (default port: 5173)
+    - To change the default ports:<br>
+      ```console
+      CLIENT_PORT=8080 SERVER_PORT=9000 npx @modelcontextprotocol/inspector node mongodb-lens.js
+      ```
+1. Opten the Inspector web UI: http://localhost:5173
+1. Inspector should supports the full range of MongoDB Lens capabilities, including autocompletion for collection names and query fields.
 
 For more, see: [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector)
 
@@ -275,7 +281,7 @@ For more, see: [MCP Documentation: Example Clients](https://modelcontextprotocol
 
 ## Tutorial
 
-This tutorial will guide you through setting up a MongoDB instance with sample data and using MongoDB Lens to interact with it through natural language queries.
+This following tutorial guides you through setting up a MongoDB container with sample data, then using MongoDB Lens to interact with it through natural language queries:
 
 - [Setting Up Sample Data Container](#tutorial-setting-up-sample-data-container)
 - [Importing Sample Data](#tutorial-importing-sample-data)
@@ -284,24 +290,27 @@ This tutorial will guide you through setting up a MongoDB instance with sample d
 
 ### Tutorial: Setting Up Sample Data Container
 
-1. Run MongoDB Docker container:<br>
+> [!IMPORTANT]<br>
+> If you already have a Docker container running on port 27017, stop it before proceeding.
+
+1. Initialise sample data container (requires [Docker](https://docs.docker.com/get-started/get-docker/)):<br>
    ```console
    docker run --name mongodb-sampledata -d -p 27017:27017 mongo:6
    ```
-1. Verify the container is running:
+1. Verify the container is running without issue:<br>
    ```console
    docker ps | grep mongodb-sampledata
    ```
 
 ### Tutorial: Importing Sample Data
 
-MongoDB provides several sample datasets, which we'll use to explore MongoDB Lens.
+MongoDB provides several [sample datasets](https://www.mongodb.com/docs/atlas/sample-data/#available-sample-datasets), which we'll use to explore MongoDB Lens.
 
-1. Download the sample dataset:
+1. Download the sample datasets:
    ```console<br>
    curl -LO https://atlas-education.s3.amazonaws.com/sampledata.archive
    ```
-2. Copy the sample data into your MongoDB container:<br>
+2. Copy the sample datasets into your sample data container:<br>
    ```console
    docker cp sampledata.archive mongodb-sampledata:/tmp/
    ```
@@ -312,14 +321,14 @@ MongoDB provides several sample datasets, which we'll use to explore MongoDB Len
 
 This will import several sample databases including:
 
-- `sample_airbnb` - Airbnb listings and reviews
-- `sample_analytics` - Customer and account data
-- `sample_geospatial` - Geographic data
-- `sample_mflix` - Movie data
-- `sample_restaurants` - Restaurant data
-- `sample_supplies` - Supply chain data
-- `sample_training` - Training data for various applications
-- `sample_weatherdata` - Weather measurements
+- `sample_airbnb`: Airbnb listings and reviews
+- `sample_analytics`: Customer and account data
+- `sample_geospatial`: Geographic data
+- `sample_mflix`: Movie data
+- `sample_restaurants`: Restaurant data
+- `sample_supplies`: Supply chain data
+- `sample_training`: Training data for various applications
+- `sample_weatherdata`: Weather measurements
 
 ### Tutorial: Connecting MongoDB Lens
 
@@ -330,6 +339,9 @@ Set your [MCP Client](#client-setup) to connect to MongoDB Lens with the connect
 ```txt
 mongodb://localhost:27017
 ```
+
+> [!TIP]<br>
+> As the default connection string is `mongodb://localhost:27017`, simply omit it from the client configuration.
 
 For example, if using Claude Desktop set `claude_desktop_config.json` to:
 
@@ -345,8 +357,7 @@ For example, if using Claude Desktop set `claude_desktop_config.json` to:
         "--network=host",
         "-e",
         "VERBOSE_LOGGING=true",
-        "mongodb-lens",
-        "mongodb://localhost:27017"
+        "mongodb-lens"
       ]
     }
   }

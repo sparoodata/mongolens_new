@@ -368,7 +368,14 @@ For example, if using Claude Desktop set `claude_desktop_config.json` to:
 
 With your MCP Client running and connected to MongoDB Lens, try these example queries that demonstrate the capabilities of the various tools, resources, and prompts available through MongoDB Lens:
 
-#### Basic Database Operations
+- [Example Queries: Basic Database Operations](#example-queries-basic-database-operations)
+- [Example Queries: Movie Data Analysis](#example-queries-movie-data-analysis)
+- [Example Queries: Airbnb Data Exploration](#example-queries-airbnb-data-exploration)
+- [Example Queries: Weather Data Operations](#example-queries-weather-data-operations)
+- [Example Queries: Bulk Operations & Data Modeling](#example-queries-bulk-operations--data-modeling)
+- [Example Queries: Administrative Operations](#example-queries-administrative-operations)
+
+#### Example Queries: Basic Database Operations
 
 - _"List all available databases"_<br>
   <sup>➥ Uses `list-databases` tool</sup>
@@ -383,7 +390,7 @@ With your MCP Client running and connected to MongoDB Lens, try these example qu
 - _"Create the temp_collection collection, then drop it"_<br>
   <sup>➥ Uses `drop-collection` tool</sup>
 
-#### Movie Data Analysis (using `sample_mflix`)
+#### Example Queries: Movie Data Analysis
 
 - _"Count how many movies are in the movies collection"_<br>
   <sup>➥ Uses `count-documents` tool</sup>
@@ -406,7 +413,7 @@ With your MCP Client running and connected to MongoDB Lens, try these example qu
 - _"Update all movies from 1994 to add a 'classic' field set to true"_<br>
   <sup>➥ Uses `smallify-document` tool with update operation</sup>
 
-#### Airbnb Data Exploration (using `sample_airbnb`)
+#### Example Queries: Airbnb Data Exploration
 
 - _"Switch to sample_airbnb database"_<br>
   <sup>➥ Uses `use-database` tool</sup>
@@ -429,7 +436,7 @@ With your MCP Client running and connected to MongoDB Lens, try these example qu
 - _"Rename the reviews collection to guest_reviews"_<br>
   <sup>➥ Uses `rename-collection` tool</sup>
 
-#### Weather Data Operations (using `sample_weatherdata`)
+#### Example Queries: Weather Data Operations
 
 - _"Switch to sample_weatherdata database"_<br>
   <sup>➥ Uses `use-database` tool</sup>
@@ -452,7 +459,22 @@ With your MCP Client running and connected to MongoDB Lens, try these example qu
 - _"Delete all weather readings below -50 degrees"_<br>
   <sup>➥ Uses `smallify-document` tool with delete operation</sup>
 
-#### Administrative Operations
+#### Example Queries: Bulk Operations & Data Modeling
+
+- _"Switch to sample_training database"_<br>
+  <sup>➥ Uses `use-database` tool</sup>
+- _"Execute a bulk operation to update multiple post documents to add 'edited' flags"_<br>
+  <sup>➥ Uses `bulk-operations` tool</sup>
+- _"How should I model a social media application in MongoDB?"_<br>
+  <sup>➥ Uses `data-modeling` prompt</sup>
+- _"Perform a bulk insertion of new product records in the supplies database"_<br>
+  <sup>➥ Uses `bulk-operations` tool</sup>
+- _"Show me how to use MongoDB Lens with the MCP Inspector"_<br>
+  <sup>➥ Uses `inspector-guide` prompt</sup>
+- _"What's the optimal data model for a multi-tenant SaaS application with heavy analytical queries?"_<br>
+  <sup>➥ Uses `data-modeling` prompt</sup>
+
+#### Example Queries: Administrative Operations
 
 - _"Switch to the admin database"_<br>
   <sup>➥ Uses `use-database` tool</sup>
@@ -470,21 +492,6 @@ With your MCP Client running and connected to MongoDB Lens, try these example qu
   <sup>➥ Uses `backup-strategy` prompt</sup>
 - _"How would I migrate from MongoDB 4.4 to 6.0?"_<br>
   <sup>➥ Uses `migration-guide` prompt</sup>
-
-#### Bulk Operations & Data Modeling
-
-- _"Switch to sample_training database"_<br>
-  <sup>➥ Uses `use-database` tool</sup>
-- _"Execute a bulk operation to update multiple post documents to add 'edited' flags"_<br>
-  <sup>➥ Uses `bulk-operations` tool</sup>
-- _"How should I model a social media application in MongoDB?"_<br>
-  <sup>➥ Uses `data-modeling` prompt</sup>
-- _"Perform a bulk insertion of new product records in the supplies database"_<br>
-  <sup>➥ Uses `bulk-operations` tool</sup>
-- _"Show me how to use MongoDB Lens with the MCP Inspector"_<br>
-  <sup>➥ Uses `inspector-guide` prompt</sup>
-- _"What's the optimal data model for a multi-tenant SaaS application with heavy analytical queries?"_<br>
-  <sup>➥ Uses `data-modeling` prompt</sup>
 
 ## Disclaimer
 

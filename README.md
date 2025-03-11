@@ -386,7 +386,7 @@ With your MCP Client running and connected to MongoDB Lens, try these example qu
 - _"What collections are available in this database?"_<br>
   <sup>➥ Uses `list-collections` tool</sup>
 - _"Get statistics for the sample_mflix database"_<br>
-  <sup>➥ Uses smallget-stats` tool with database target</sup>
+  <sup>➥ Uses `get-stats` tool with database target</sup>
 - _"Create the temp_collection collection, then drop it"_<br>
   <sup>➥ Uses `drop-collection` tool</sup>
 
@@ -395,7 +395,7 @@ With your MCP Client running and connected to MongoDB Lens, try these example qu
 - _"Count how many movies are in the movies collection"_<br>
   <sup>➥ Uses `count-documents` tool</sup>
 - _"Find the top 5 movies by IMDB rating with a runtime over 120 minutes"_<br>
-  <sup>➥ Uses `smallnd-documents` tool with sort and filter</sup>
+  <sup>➥ Uses `find-documents` tool with sort and filter</sup>
 - _"What's the schema of the movies collection?"_<br>
   <sup>➥ Uses `analyze-schema` tool</sup>
 - _"Find distinct countries where movies were produced"_<br>
@@ -411,14 +411,14 @@ With your MCP Client running and connected to MongoDB Lens, try these example qu
 - _"Execute this aggregation pipeline: [{$group: {_id: {$floor: {$divide: ['$year', 10]}}, count: {$sum: 1}}}]"_<br>
   <sup>➥ Uses `aggregate-data` tool</sup>
 - _"Update all movies from 1994 to add a 'classic' field set to true"_<br>
-  <sup>➥ Uses `smallify-document` tool with update operation</sup>
+  <sup>➥ Uses `modify-document` tool with update operation</sup>
 
 #### Example Queries: Airbnb Data Exploration
 
 - _"Switch to sample_airbnb database"_<br>
   <sup>➥ Uses `use-database` tool</sup>
 - _"Get collection statistics for the listingsAndReviews collection"_<br>
-  <sup>➥ Uses smallget-stats` tool with collection target</sup>
+  <sup>➥ Uses `get-stats` tool with collection target</sup>
 - _"What's the validation rules for the listingsAndReviews collection?"_<br>
   <sup>➥ Uses `collection-validation` resource</sup>
 - _"Show me the indexes on the listingsAndReviews collection"_<br>
@@ -447,7 +447,7 @@ With your MCP Client running and connected to MongoDB Lens, try these example qu
 - _"Validate the data collection for inconsistencies"_<br>
   <sup>➥ Uses `validate-collection` tool</sup>
 - _"Insert a new weather record for today"_<br>
-  <sup>➥ Uses `smallify-document` tool with insert operation</sup>
+  <sup>➥ Uses `modify-document` tool with insert operation</sup>
 - _"Create a new collection called weather_summary"_<br>
   <sup>➥ Uses `create-collection` tool</sup>
 - _"Create index recommendation for queries that filter by callLetters and sort by date"_<br>
@@ -457,7 +457,7 @@ With your MCP Client running and connected to MongoDB Lens, try these example qu
 - _"Run this MapReduce to calculate average pressure by location"_<br>
   <sup>➥ Uses `map-reduce` tool</sup>
 - _"Delete all weather readings below -50 degrees"_<br>
-  <sup>➥ Uses `smallify-document` tool with delete operation</sup>
+  <sup>➥ Uses `modify-document` tool with delete operation</sup>
 
 #### Example Queries: Bulk Operations & Data Modeling
 

@@ -277,7 +277,7 @@ For more, see: [MCP Documentation: Example Clients](https://modelcontextprotocol
 
 ## Tutorial
 
-This tutorial will guide you through setting up a MongoDB instance with sample data and using MongoDB Lens to interact with it through natural language queries.
+This tutorial will guide you through setting up a MongoDB container with sample data, then using MongoDB Lens to interact with it through natural language queries:
 
 - [Setting Up Sample Data Container](#tutorial-setting-up-sample-data-container)
 - [Importing Sample Data](#tutorial-importing-sample-data)

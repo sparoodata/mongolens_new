@@ -164,7 +164,11 @@ Example URIs:
 - Connection with credentials and DB name: `mongodb://username:password@hostname:27017/mydatabase`
 - Connection with DB name and options: `mongodb://hostname:27017/mydatabase?retryWrites=true&w=majority`
 
-If no connection string is provided, the server will attempt to connect to a local MongoDB instance on the default port i.e. `mongodb://localhost:27017`.
+If no connection string is provided, the server will attempt to connect to MongoDB via local connection:
+
+```txt
+mongodb://localhost:27017
+```
 
 ### Configuration: Logging
 

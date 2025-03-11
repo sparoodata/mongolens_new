@@ -241,17 +241,17 @@ To use MongoDB Lens with Claude Desktop:
         }
         ```
       - Replace `/absolute/path/to/node` with the full path to `node`
-      - Replace `/absolute/path/to/mongodb-lens.js` with the full file path [`mongodb-lens.js`](./mongodb-lens.js)
+      - Replace `/absolute/path/to/mongodb-lens.js` with the full file path to [`mongodb-lens.js`](./mongodb-lens.js)
       - Replace `mongodb://your-connection-string` with your MongoDB connection string
       - Set `VERBOSE_LOGGING` to `true` for verbose MCP Server logs
 1. Restart Claude Desktop
 1. Start a conversation with Claude about your MongoDB data
     - Claude will show a hammer icon indicating available tools
-    - See [example queries](#tutorial-example-queries) for inspiration
+    - See [example queries](#tutorial-example-queries) for conversation inspiration
 
 ### Client Setup: MCP Inspector
 
-The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is a development tool specifically designed for testing and debugging MCP servers. It provides a visual interface to explore resources, run tools, and via MongoDB Lens understand your MongoDB database.
+[MCP Inspector](https://github.com/modelcontextprotocol/inspector) is a tool designed for testing and debugging MCP servers.
 
 To use MongoDB Lens with MCP Inspector:
 
@@ -263,13 +263,13 @@ To use MongoDB Lens with MCP Inspector:
     ```console
     npx @modelcontextprotocol/inspector node mongodb-lens.js mongodb://your-connection-string
     ```
-1. The Inspector will start both a proxy server (default port 3000) and a web UI (default port 5173)
-1. Open your browser to http://localhost:5173 to access the Inspector interface
-1. You can customize the ports if needed:<br>
-    ```console
-    CLIENT_PORT=8080 SERVER_PORT=9000 npx @modelcontextprotocol/inspector node mongodb-lens.js
-    ```
-1. The Inspector supports the full range of MongoDB Lens capabilities, including autocompletion for collection names and query fields.
+1. Inspector starts a proxy server (default port: 3000) and web UI (default port: 5173)
+    - To change the default ports:<br>
+      ```console
+      CLIENT_PORT=8080 SERVER_PORT=9000 npx @modelcontextprotocol/inspector node mongodb-lens.js
+      ```
+1. Opten the Inspector web UI: http://localhost:5173
+1. Inspector should supports the full range of MongoDB Lens capabilities, including autocompletion for collection names and query fields.
 
 For more, see: [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector)
 
@@ -281,7 +281,7 @@ For more, see: [MCP Documentation: Example Clients](https://modelcontextprotocol
 
 ## Tutorial
 
-This tutorial will guide you through setting up a MongoDB container with sample data, then using MongoDB Lens to interact with it through natural language queries:
+This following tutorial guides you through setting up a MongoDB container with sample data, then using MongoDB Lens to interact with it through natural language queries:
 
 - [Setting Up Sample Data Container](#tutorial-setting-up-sample-data-container)
 - [Importing Sample Data](#tutorial-importing-sample-data)
@@ -290,24 +290,27 @@ This tutorial will guide you through setting up a MongoDB container with sample 
 
 ### Tutorial: Setting Up Sample Data Container
 
-1. Run MongoDB Docker container:<br>
+> [!IMPORTANT]<br>
+> If you already have a Docker container running on port 27017, stop it before proceeding.
+
+1. Initialise sample data container (requires [Docker](https://docs.docker.com/get-started/get-docker/)):<br>
    ```console
    docker run --name mongodb-sampledata -d -p 27017:27017 mongo:6
    ```
-1. Verify the container is running:
+1. Verify the container is running without issue:<br>
    ```console
    docker ps | grep mongodb-sampledata
    ```
 
 ### Tutorial: Importing Sample Data
 
-MongoDB provides several sample datasets, which we'll use to explore MongoDB Lens.
+MongoDB provides several [sample datasets](https://www.mongodb.com/docs/atlas/sample-data/#available-sample-datasets), which we'll use to explore MongoDB Lens.
 
-1. Download the sample dataset:
+1. Download the sample datasets:
    ```console<br>
    curl -LO https://atlas-education.s3.amazonaws.com/sampledata.archive
    ```
-2. Copy the sample data into your MongoDB container:<br>
+2. Copy the sample datasets into your sample data container:<br>
    ```console
    docker cp sampledata.archive mongodb-sampledata:/tmp/
    ```
@@ -318,14 +321,14 @@ MongoDB provides several sample datasets, which we'll use to explore MongoDB Len
 
 This will import several sample databases including:
 
-- `sample_airbnb` - Airbnb listings and reviews
-- `sample_analytics` - Customer and account data
-- `sample_geospatial` - Geographic data
-- `sample_mflix` - Movie data
-- `sample_restaurants` - Restaurant data
-- `sample_supplies` - Supply chain data
-- `sample_training` - Training data for various applications
-- `sample_weatherdata` - Weather measurements
+- `sample_airbnb`: Airbnb listings and reviews
+- `sample_analytics`: Customer and account data
+- `sample_geospatial`: Geographic data
+- `sample_mflix`: Movie data
+- `sample_restaurants`: Restaurant data
+- `sample_supplies`: Supply chain data
+- `sample_training`: Training data for various applications
+- `sample_weatherdata`: Weather measurements
 
 ### Tutorial: Connecting MongoDB Lens
 
@@ -336,6 +339,9 @@ Set your [MCP Client](#client-setup) to connect to MongoDB Lens with the connect
 ```txt
 mongodb://localhost:27017
 ```
+
+> [!TIP]<br>
+> As the default connection string is `mongodb://localhost:27017`, simply omit it from the client configuration.
 
 For example, if using Claude Desktop set `claude_desktop_config.json` to:
 
@@ -351,8 +357,7 @@ For example, if using Claude Desktop set `claude_desktop_config.json` to:
         "--network=host",
         "-e",
         "VERBOSE_LOGGING=true",
-        "mongodb-lens",
-        "mongodb://localhost:27017"
+        "mongodb-lens"
       ]
     }
   }

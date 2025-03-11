@@ -263,12 +263,12 @@ To use MongoDB Lens with MCP Inspector:
     ```console
     npx @modelcontextprotocol/inspector node mongodb-lens.js mongodb://your-connection-string
     ```
-1. Inspector starts a proxy server (default port: 3000) and web UI (default port: 5173)
+1. Inspector starts a proxy server (default port: 3000) and web app (default port: 5173)
     - To change the default ports:<br>
       ```console
       CLIENT_PORT=8080 SERVER_PORT=9000 npx @modelcontextprotocol/inspector node mongodb-lens.js
       ```
-1. Opten the Inspector web UI: http://localhost:5173
+1. Open Inspector web app: http://localhost:5173
 1. Inspector should supports the full range of MongoDB Lens capabilities, including autocompletion for collection names and query fields.
 
 For more, see: [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector)
@@ -388,7 +388,7 @@ With your MCP Client running and connected to MongoDB Lens, try these example qu
 - _"Get statistics for the sample_mflix database"_<br>
   <sup>➥ Uses `get-stats` tool with database target</sup>
 - _"Create the temp_collection collection, then drop it"_<br>
-  <sup>➥ Uses `drop-collection` tool</sup>
+  <sup>➥ Uses `create-collection` & `drop-collection` tool</sup>
 
 #### Example Queries: Movie Data Analysis
 

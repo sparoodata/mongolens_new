@@ -18,6 +18,65 @@ let client = null
 let currentDb = null
 let currentDbName = null
 
+const instructions = `
+# MongoDB Lens MCP Server
+
+**MongoDB Lens** provides full featured access to MongoDB databases to perform queries, run aggregations, optimize performance, and more.
+
+## Core Capabilities
+
+1. **Database Exploration**
+
+  - List all databases: Use the \`mongodb://databases\` resource or \`list-databases\` tool
+  - Switch databases: e.g. \`use-database {"database": "myDb"}\`
+  - View collections: \`list-collections\` or \`mongodb://collections\`
+
+2. **Data Querying**
+
+  - Find documents: e.g. \`find-documents {"collection": "users", "filter": "{\"age\": {\"$gt\": 30}}", "limit": 5}\`
+  - Count documents: e.g. \`count-documents {"collection": "users", "filter": "{\"active\": true}"}\`
+  - Aggregate data: e.g. \`aggregate-data {"collection": "orders", "pipeline": "[{\"$group\": {\"_id\": \"$status\", \"total\": {\"$sum\": 1}}}]"}\`
+
+3. **Schema and Performance**  
+
+  - Analyze schemas: e.g. \`analyze-schema {"collection": "products"}\` or \`mongodb://collection/products/schema\`
+  - Create indexes: e.g. \`create-index {"collection": "users", "keys": "{\"email\": 1}", "options": "{\"unique\": true}"}\`
+  - Explain queries: e.g. \`explain-query {"collection": "orders", "filter": "{\"total\": {\"$gt\": 100}}}"}\`
+
+4. **Data Management**
+
+  - Modify documents: e.g. \`modify-document {"collection": "users", "operation": "insert", "document": "{\"name\": \"Alice\", \"age\": 25}"}\`
+  - Bulk operations: e.g. \`bulk-operations {"collection": "users", "operations": "[{\"insertOne\": {\"document\": {\"name\": \"Bob\"}}}]"}\`
+  - Export data: e.g. \`export-data {"collection": "users", "format": "csv", "fields": "name,age"}\`
+
+5. **Server Insights**
+
+  - Check status: \`mongodb://server/status\` or \`get-stats {"target": "database"}\`
+  - View replica info: \`mongodb://server/replica\`
+  - List users: \`mongodb://database/users\`
+
+6. **Advanced Assistance**
+
+  - Build queries: Use the \`query-builder\` prompt: e.g. \`{"collection": "users", "condition": "age over 30"}\`
+  - Optimize queries: e.g. \`query-optimizer {"collection": "orders", "query": "{\"total\": {\"$gt\": 100}}}"}\`
+  - Audit security: \`security-audit {}\`
+
+## Getting Started
+
+1. Connect to the server and run \`list-databases\` to see available databases.
+2. Select a database e.g. \`use-database {"database": "yourDb"}\`.
+3. Explore collections via \`list-collections\` or fetch schemas with \`mongodb://collection/{name}/schema\`.
+4. Query data using \`find-documents\` or analyze with prompts like \`schema-analysis\`.
+5. Manage data with tools like \`modify-document\` or \`create-index\`.
+
+## Tips
+
+- Use templated resources (e.g. \`mongodb://collection/{name}/stats\`) with autocompletion support.
+- Leverage prompts like \`aggregation-builder\` for complex pipelines.
+- Check logs with \`VERBOSE_LOGGING=true\` for debugging.
+- Combine tools and resources for workflows, e.g. schema analysis → index creation.
+`
+
 const main = async (mongoUri) => {
   log(`MongoDB Lens v${PACKAGE_VERSION} starting…`, true)
   
@@ -31,33 +90,9 @@ const main = async (mongoUri) => {
   const server = new McpServer({
     name: 'MongoDB Lens',
     version: PACKAGE_VERSION,
-    instructions: `
-# MongoDB Lens MCP Server
-
-This server provides access to your MongoDB database through MCP. You can:
-
-1. Browse databases and collections
-2. Query and count documents
-3. Analyze schemas and indexes
-4. Run aggregation pipelines
-5. Get assistance with queries and database operations
-6. Manage collections and perform document operations
-7. Extract unique values and validate collections
-8. Access server status and replication information
-9. Export data and analyze query performance
-10. Get advice on data modeling, security, and optimization
-
-## Getting Started
-
-1. Use \`listDatabases\` to see available databases
-2. Use \`useDatabase\` to select a database to work with
-3. Use \`listCollections\` to view collections in the current database
-4. Explore schemas with \`mongodb://collection/{name}/schema\` resources
-5. Query data with the \`findDocuments\` tool
-6. Try prompts like \`queryBuilder\` for help building queries
-7. Use \`distinctValues\` to find unique values in a collection
-8. Check system status with \`mongodb://server/status\` resource
-`
+  },
+  {
+    instructions
   })
   
   log('Registering MCP resources…')
@@ -412,7 +447,7 @@ const registerPrompts = (server) => {
     'Help construct MongoDB query filters',
     {
       collection: z.string().min(1).describe('Collection name to query'),
-      condition: z.string().describe('Describe the condition in natural language (e.g., "users older than 30")')
+      condition: z.string().describe('Describe the condition in natural language (e.g. "users older than 30")')
     },
     ({ collection, condition }) => {
       log(`Prompt: Initializing queryBuilder for collection '${collection}' with condition: "${condition}".`)
@@ -722,7 +757,7 @@ Please provide:
     'Get advice on MongoDB backup and recovery approaches',
     {
       databaseSize: z.string().optional().describe('Optional: database size information'),
-      uptime: z.string().optional().describe('Optional: uptime requirements (e.g., "99.9%")'),
+      uptime: z.string().optional().describe('Optional: uptime requirements (e.g. "99.9%")'),
       rpo: z.string().optional().describe('Optional: recovery point objective'),
       rto: z.string().optional().describe('Optional: recovery time objective')
     },
@@ -959,7 +994,7 @@ const registerTools = (server) => {
       collection: z.string().min(1).describe('Collection name'),
       filter: z.string().default('{}').describe('MongoDB query filter (JSON string)'),
       projection: z.string().optional().describe('Fields to include/exclude (JSON string)'),
-      limit: z.number().int().min(1).max(100).default(10).describe('Maximum number of documents to return'),
+      limit: z.number().int().min(1).default(10).describe('Maximum number of documents to return'),
       skip: z.number().int().min(0).default(0).describe('Number of documents to skip'),
       sort: z.string().optional().describe('Sort specification (JSON string)')
     },
@@ -1109,7 +1144,7 @@ const registerTools = (server) => {
     'Automatically infer schema from collection',
     {
       collection: z.string().min(1).describe('Collection name'),
-      sampleSize: z.number().int().min(1).max(1000).default(100).describe('Number of documents to sample')
+      sampleSize: z.number().int().min(1).default(100).describe('Number of documents to sample')
     },
     async ({ collection, sampleSize }) => {
       try {
@@ -1440,8 +1475,8 @@ const registerTools = (server) => {
       filter: z.string().default('{}').describe('Filter as JSON string'),
       format: z.enum(['json', 'csv']).default('json').describe('Export format'),
       fields: z.string().optional().describe('Comma-separated list of fields to include (for CSV)'),
-      limit: z.number().int().min(1).max(10000).default(1000).describe('Maximum documents to export'),
-      sort: z.string().optional().describe('Sort specification as JSON string (e.g., {"date": -1} for descending)')
+      limit: z.number().int().min(1).default(1000).describe('Maximum documents to export'),
+      sort: z.string().optional().describe('Sort specification as JSON string (e.g. {"date": -1} for descending)')
     },
     async ({ collection, filter, format, fields, limit, sort }) => {
       try {
@@ -1565,49 +1600,81 @@ const listDatabases = async () => {
 
 const switchDatabase = async (dbName) => {
   log(`DB Operation: Switching to database '${dbName}'…`)
-  currentDbName = dbName
-  currentDb = client.db(dbName)
-  log(`DB Operation: Successfully switched to database '${dbName}'.`)
-  return currentDb
+  try {
+    const dbs = await listDatabases()
+    const dbExists = dbs.some(db => db.name === dbName)
+    if (!dbExists) throw new Error(`Database '${dbName}' does not exist`)
+    currentDbName = dbName
+    currentDb = client.db(dbName)
+    log(`DB Operation: Successfully switched to database '${dbName}'.`)
+    return currentDb
+  } catch (error) {
+    log(`DB Operation: Failed to switch to database '${dbName}': ${error.message}`)
+    throw error
+  }
 }
 
 const listCollections = async () => {
   log(`DB Operation: Listing collections in database '${currentDbName}'…`)
-  const collections = await currentDb.listCollections().toArray()
-  log(`DB Operation: Found ${collections.length} collections.`)
-  return collections
+  try {
+    if (!currentDb) throw new Error("No database selected")
+    const collections = await currentDb.listCollections().toArray()
+    log(`DB Operation: Found ${collections.length} collections.`)
+    return collections
+  } catch (error) {
+    log(`DB Operation: Failed to list collections: ${error.message}`)
+    throw error
+  }
 }
 
 const findDocuments = async (collectionName, filter = {}, projection = null, limit = 10, skip = 0, sort = null) => {
   log(`DB Operation: Finding documents in collection '${collectionName}'…`)
-  const collection = currentDb.collection(collectionName)
-  let query = collection.find(filter)
-  
-  if (projection) query = query.project(projection)
-  if (skip) query = query.skip(skip)
-  if (limit) query = query.limit(limit)
-  if (sort) query = query.sort(sort)
-  
-  const results = await query.toArray()
-  log(`DB Operation: Found ${results.length} documents.`)
-  return results
+  try {
+    await throwIfCollectionNotExists(collectionName)
+    const collection = currentDb.collection(collectionName)
+    let query = collection.find(filter)
+    
+    if (projection) query = query.project(projection)
+    if (skip) query = query.skip(skip)
+    if (limit) query = query.limit(limit)
+    if (sort) query = query.sort(sort)
+    
+    const results = await query.toArray()
+    log(`DB Operation: Found ${results.length} documents.`)
+    return results
+  } catch (error) {
+    log(`DB Operation: Failed to find documents: ${error.message}`)
+    throw error
+  }
 }
 
 const countDocuments = async (collectionName, filter = {}) => {
   log(`DB Operation: Counting documents in collection '${collectionName}'…`)
-  const collection = currentDb.collection(collectionName)
-  const count = await collection.countDocuments(filter)
-  log(`DB Operation: Count result: ${count} documents.`)
-  return count
+  try {
+    await throwIfCollectionNotExists(collectionName)
+    const collection = currentDb.collection(collectionName)
+    const count = await collection.countDocuments(filter)
+    log(`DB Operation: Count result: ${count} documents.`)
+    return count
+  } catch (error) {
+    log(`DB Operation: Failed to count documents: ${error.message}`)
+    throw error
+  }
 }
 
 const aggregateData = async (collectionName, pipeline) => {
   log(`DB Operation: Running aggregation on collection '${collectionName}'…`)
-  log(`DB Operation: Pipeline has ${pipeline.length} stages.`)
-  const collection = currentDb.collection(collectionName)
-  const results = await collection.aggregate(pipeline).toArray()
-  log(`DB Operation: Aggregation returned ${results.length} results.`)
-  return results
+  try {
+    await throwIfCollectionNotExists(collectionName)
+    log(`DB Operation: Pipeline has ${pipeline.length} stages.`)
+    const collection = currentDb.collection(collectionName)
+    const results = await collection.aggregate(pipeline).toArray()
+    log(`DB Operation: Aggregation returned ${results.length} results.`)
+    return results
+  } catch (error) {
+    log(`DB Operation: Failed to run aggregation: ${error.message}`)
+    throw error
+  }
 }
 
 const getDatabaseStats = async () => {
@@ -1619,49 +1686,69 @@ const getDatabaseStats = async () => {
 
 const getCollectionStats = async (collectionName) => {
   log(`DB Operation: Getting statistics for collection '${collectionName}'…`)
-  const stats = await currentDb.collection(collectionName).stats()
-  log(`DB Operation: Retrieved statistics for collection '${collectionName}'.`)
-  return stats
+  try {
+    await throwIfCollectionNotExists(collectionName)
+    const stats = await currentDb.collection(collectionName).stats()
+    log(`DB Operation: Retrieved statistics for collection '${collectionName}'.`)
+    return stats
+  } catch (error) {
+    log(`DB Operation: Failed to get statistics for collection '${collectionName}': ${error.message}`)
+    throw error
+  }
 }
 
 const getCollectionIndexes = async (collectionName) => {
   log(`DB Operation: Getting indexes for collection '${collectionName}'…`)
-  const indexes = await currentDb.collection(collectionName).indexes()
-  log(`DB Operation: Retrieved ${indexes.length} indexes for collection '${collectionName}'.`)
-  return indexes
+  try {
+    await throwIfCollectionNotExists(collectionName)
+    const indexes = await currentDb.collection(collectionName).indexes()
+    log(`DB Operation: Retrieved ${indexes.length} indexes for collection '${collectionName}'.`)
+    return indexes
+  } catch (error) {
+    log(`DB Operation: Failed to get indexes for collection '${collectionName}': ${error.message}`)
+    throw error
+  }
 }
 
 const inferSchema = async (collectionName, sampleSize = 100) => {
   log(`DB Operation: Inferring schema for collection '${collectionName}' with sample size ${sampleSize}…`)
-  const collection = currentDb.collection(collectionName)
-  const documents = await collection.find({}).limit(sampleSize).toArray()
-  log(`DB Operation: Retrieved ${documents.length} sample documents for schema inference.`)
-  
-  const schema = {}
-  documents.forEach(doc => {
-    Object.keys(doc).forEach(key => {
-      if (!schema[key]) {
-        schema[key] = {
-          types: new Set(),
-          count: 0,
-          sample: doc[key]
+  try {
+    await throwIfCollectionNotExists(collectionName)
+    const collection = currentDb.collection(collectionName)
+    const documents = await collection.find({}).limit(sampleSize).toArray()
+    log(`DB Operation: Retrieved ${documents.length} sample documents for schema inference.`)
+    
+    if (documents.length === 0) throw new Error(`Collection '${collectionName}' is empty`)
+    
+    const schema = {}
+    documents.forEach(doc => {
+      Object.keys(doc).forEach(key => {
+        if (!schema[key]) {
+          schema[key] = {
+            types: new Set(),
+            count: 0,
+            sample: doc[key]
+          }
         }
-      }
-      
-      schema[key].types.add(getTypeName(doc[key]))
-      schema[key].count++
+        
+        schema[key].types.add(getTypeName(doc[key]))
+        schema[key].count++
+      })
     })
-  })
 
-  for (const key in schema) {
-    schema[key].types = Array.from(schema[key].types)
-  }
-  
-  log(`DB Operation: Schema inference complete, identified ${Object.keys(schema).length} fields.`)
-  return { 
-    collectionName,
-    sampleSize: documents.length,
-    fields: schema
+    for (const key in schema) {
+      schema[key].types = Array.from(schema[key].types)
+    }
+    
+    log(`DB Operation: Schema inference complete, identified ${Object.keys(schema).length} fields.`)
+    return { 
+      collectionName,
+      sampleSize: documents.length,
+      fields: schema
+    }
+  } catch (error) {
+    log(`DB Operation: Failed to infer schema: ${error.message}`)
+    throw error
   }
 }
 
@@ -1691,8 +1778,10 @@ const createIndex = async (collectionName, keys, options = {}) => {
 const explainQuery = async (collectionName, filter, verbosity = 'executionStats') => {
   log(`DB Operation: Explaining query on collection '${collectionName}'…`)
   try {
+    await throwIfCollectionNotExists(collectionName)
     const collection = currentDb.collection(collectionName)
     const explanation = await collection.find(filter).explain(verbosity)
+    if (!explanation) throw new Error(`Explain operation returned no result`)
     log(`DB Operation: Query explanation generated.`)
     return explanation
   } catch (error) {
@@ -1739,13 +1828,10 @@ const getReplicaSetStatus = async () => {
 const getCollectionValidation = async (collectionName) => {
   log(`DB Operation: Getting validation rules for collection '${collectionName}'…`)
   try {
+    await throwIfCollectionNotExists(collectionName)
     const collections = await currentDb.listCollections({ name: collectionName }, { validator: 1 }).toArray()
     log(`DB Operation: Retrieved validation information for collection '${collectionName}'.`)
-    
-    if (collections.length === 0) {
-      return { hasValidation: false }
-    }
-    
+    if (collections.length === 0) return { hasValidation: false }
     return {
       hasValidation: !!collections[0].options?.validator,
       validator: collections[0].options?.validator || {},
@@ -1754,7 +1840,7 @@ const getCollectionValidation = async (collectionName) => {
     }
   } catch (error) {
     log(`DB Operation: Error getting validation for ${collectionName}: ${error.message}`)
-    return { hasValidation: false, error: error.message }
+    throw error
   }
 }
 
@@ -1790,6 +1876,8 @@ const getStoredFunctions = async () => {
 const getDistinctValues = async (collectionName, field, filter = {}) => {
   log(`DB Operation: Getting distinct values for field '${field}' in collection '${collectionName}'…`)
   try {
+    await throwIfCollectionNotExists(collectionName)
+    if (!isValidFieldName(field)) throw new Error(`Invalid field name: ${field}`)
     const collection = currentDb.collection(collectionName)
     const values = await collection.distinct(field, filter)
     log(`DB Operation: Found ${values.length} distinct values.`)
@@ -1803,7 +1891,9 @@ const getDistinctValues = async (collectionName, field, filter = {}) => {
 const validateCollection = async (collectionName, full = false) => {
   log(`DB Operation: Validating collection '${collectionName}'…`)
   try {
+    await throwIfCollectionNotExists(collectionName)    
     const result = await currentDb.command({ validate: collectionName, full })
+    if (!result) throw new Error(`Validation returned no result`)
     log(`DB Operation: Collection validation complete.`)
     return result
   } catch (error) {
@@ -1985,8 +2075,10 @@ const formatExport = async (documents, format, fields = null) => {
 const runMapReduce = async (collectionName, map, reduce, options = {}) => {
   log(`DB Operation: Running MapReduce on collection '${collectionName}'…`)
   try {
+    await throwIfCollectionNotExists(collectionName)
     const collection = currentDb.collection(collectionName)
     const results = await collection.mapReduce(map, reduce, options)
+    if (!results) throw new Error(`MapReduce operation returned no result`)
     log(`DB Operation: MapReduce operation complete.`)
     return results.toArray()
   } catch (error) {
@@ -1998,6 +2090,7 @@ const runMapReduce = async (collectionName, map, reduce, options = {}) => {
 const bulkOperations = async (collectionName, operations, ordered = true) => {
   log(`DB Operation: Performing bulk operations on collection '${collectionName}'…`)
   try {
+    await throwIfCollectionNotExists(collectionName)
     const collection = currentDb.collection(collectionName)
     const bulk = ordered ? collection.initializeOrderedBulkOp() : collection.initializeUnorderedBulkOp()
     
@@ -2020,9 +2113,7 @@ const bulkOperations = async (collectionName, operations, ordered = true) => {
     const result = await bulk.execute()
 
     if (!result || !result.acknowledged) {
-      const errorMsg = "Bulk operations were not acknowledged by MongoDB"
-      log(`DB Operation: Bulk operations failed: ${errorMsg}`)
-      throw new Error(errorMsg)
+      throw new Error("Bulk operations were not acknowledged by MongoDB")
     }
     
     log(`DB Operation: Bulk operations complete.`)
@@ -2031,6 +2122,18 @@ const bulkOperations = async (collectionName, operations, ordered = true) => {
     log(`DB Operation: Bulk operations failed: ${error.message}`)
     throw error
   }
+}
+
+const throwIfCollectionNotExists = async (collectionName) => {
+  if (!await collectionExists(collectionName)) {
+    throw new Error(`Collection '${collectionName}' does not exist`)
+  }
+}
+
+const collectionExists = async (collectionName) => {
+  if (!currentDb) throw new Error('No database selected')
+  const collections = await currentDb.listCollections().toArray()
+  return collections.some(coll => coll.name === collectionName)
 }
 
 const formatDatabasesList = (databases) => {
@@ -2308,23 +2411,9 @@ const formatStoredFunctions = (functions) => {
 }
 
 const formatDistinctValues = (field, values) => {
-  if (!values || !Array.isArray(values)) {
-    return `No distinct values found for field '${field}'`
-  }
-  
+  if (!values || !Array.isArray(values)) return `No distinct values found for field '${field}'`
   let result = `Distinct values for field '${field}' (${values.length}):\n`
-  
-  const maxDisplay = 100
-  const displayValues = values.length > maxDisplay ? values.slice(0, maxDisplay) : values
-  
-  for (const value of displayValues) {
-    result += `- ${formatValue(value)}\n`
-  }
-  
-  if (values.length > maxDisplay) {
-    result += `... and ${values.length - maxDisplay} more values\n`
-  }
-  
+  for (const value of values) result += `- ${formatValue(value)}\n`
   return result
 }
 
@@ -2392,24 +2481,12 @@ const formatModifyResult = (operation, result) => {
 }
 
 const formatMapReduceResults = (results) => {
-  if (!results || !Array.isArray(results)) {
-    return 'MapReduce results not available'
-  }
-  
+  if (!results || !Array.isArray(results)) return 'MapReduce results not available'
   let output = `MapReduce Results (${results.length} entries):\n`
-  
-  const maxDisplay = 50
-  const displayResults = results.length > maxDisplay ? results.slice(0, maxDisplay) : results
-  
-  for (const result of displayResults) {
+  for (const result of results) {
     output += `- Key: ${formatValue(result._id)}\n`
     output += `  Value: ${formatValue(result.value)}\n`
   }
-  
-  if (results.length > maxDisplay) {
-    output += `... and ${results.length - maxDisplay} more results\n`
-  }
-  
   return output
 }
 

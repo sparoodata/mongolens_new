@@ -366,60 +366,125 @@ For example, if using Claude Desktop set `claude_desktop_config.json` to:
 
 ### Tutorial: Example Queries
 
-With your MCP Client running and connected to MongoDB Lens, try these queries on the sample dataset.
+With your MCP Client running and connected to MongoDB Lens, try these example queries that demonstrate the capabilities of the various tools, resources, and prompts available through MongoDB Lens.
 
-- [Movie Data Queries (sample_mflix)](#movie-data-queries-sample_mflix)
-- [Airbnb Data Analysis (sample_airbnb)](#airbnb-data-analysis-sample_airbnb)
-- [Weather Data Queries (sample_weatherdata)](#weather-data-queries-sample_weatherdata)
-- [Advanced Operations](#advanced-operations)
+#### Basic Database Operations
 
-#### Movie Data Queries (sample_mflix)
+- _"List all available databases"_<br>
+  &nbsp;&nbsp;↳ Uses `list-databases` tool
+- _"What's the current database I'm connected to?"_<br>
+  &nbsp;&nbsp;↳ Uses `current-database` tool
+- _"Switch to the sample_mflix database"_<br>
+  &nbsp;&nbsp;↳ Uses `use-database` tool
+- _"What collections are available in this database?"_<br>
+  &nbsp;&nbsp;↳ Uses `list-collections` tool
+- _"Get statistics for the sample_mflix database"_<br>
+  &nbsp;&nbsp;↳ Uses `get-stats` tool with database target
+- _"Create the temp_collection collection, then drop it"_<br>
+  &nbsp;&nbsp;↳ Uses `drop-collection` tool
 
-- "List all available databases"
-- "What's in the sample_mflix database? Switch to it"
-- "How many documents are in the movies collection?
-- "Find the top 5 movies by IMDB rating"
-- "What are the most common movie genres?"
-- "Show me movies directed by Christopher Nolan"
-- "Find movies released in the 1990s with a rating above 8.5"
-- "What's the average runtime of action movies?"
-- "Who are the top 10 most prolific actors in the database?"
+#### Movie Data Analysis (using `sample_mflix`)
 
-#### Airbnb Data Analysis (sample_airbnb)
+- _"Count how many movies are in the movies collection"_<br>
+  &nbsp;&nbsp;↳ Uses `count-documents` tool
+- _"Find the top 5 movies by IMDB rating with a runtime over 120 minutes"_<br>
+  &nbsp;&nbsp;↳ Uses `find-documents` tool with sort and filter
+- _"What's the schema of the movies collection?"_<br>
+  &nbsp;&nbsp;↳ Uses `analyze-schema` tool
+- _"Find distinct countries where movies were produced"_<br>
+  &nbsp;&nbsp;↳ Uses `distinct-values` tool
+- _"Create an index on the title field in the movies collection"_<br>
+  &nbsp;&nbsp;↳ Uses `create-index` tool
+- _"Why is my query for movies with over 1000 votes slow? Help me optimize it"_<br>
+  &nbsp;&nbsp;↳ Uses `query-optimizer` prompt
+- _"Run an explain on the query {year: 1995}"_<br>
+  &nbsp;&nbsp;↳ Uses `explain-query` tool
+- _"Build an aggregation pipeline to show the count of movies by decade and genre"_<br>
+  &nbsp;&nbsp;↳ Uses `aggregation-builder` prompt
+- _"Execute this aggregation pipeline: [{$group: {_id: {$floor: {$divide: ['$year', 10]}}, count: {$sum: 1}}}]"_<br>
+  &nbsp;&nbsp;↳ Uses `aggregate-data` tool
+- _"Update all movies from 1994 to add a 'classic' field set to true"_<br>
+  &nbsp;&nbsp;↳ Uses `modify-document` tool with update operation
 
-- "Switch to sample_airbnb database"
-- "What types of properties are listed on Airbnb?"
-- "What's the average price of listings in Brooklyn?"
-- "Find the top 5 most reviewed listings"
-- "What neighborhoods have the most listings?"
-- "Analyze the distribution of prices across different property types"
+#### Airbnb Data Exploration (using `sample_airbnb`)
 
-#### Weather Data Queries (sample_weatherdata)
+- _"Switch to sample_airbnb database"_<br>
+  &nbsp;&nbsp;↳ Uses `use-database` tool
+- _"Get collection statistics for the listingsAndReviews collection"_<br>
+  &nbsp;&nbsp;↳ Uses `get-stats` tool with collection target
+- _"What's the validation rules for the listingsAndReviews collection?"_<br>
+  &nbsp;&nbsp;↳ Uses `collection-validation` resource
+- _"Show me the indexes on the listingsAndReviews collection"_<br>
+  &nbsp;&nbsp;↳ Uses `collection-indexes` resource
+- _"Find listings with more than 5 bedrooms in Manhattan, limited to 10 results"_<br>
+  &nbsp;&nbsp;↳ Uses `find-documents` tool
+- _"Get distinct property types in the listings"_<br>
+  &nbsp;&nbsp;↳ Uses `distinct-values` tool
+- _"Help me create a query filter to find superhosts with pool amenities"_<br>
+  &nbsp;&nbsp;↳ Uses `query-builder` prompt
+- _"Export the top 20 highest-rated listings in Brooklyn as CSV with name, price, and rating"_<br>
+  &nbsp;&nbsp;↳ Uses `export-data` tool
+- _"Is my schema optimized for querying by neighborhood? Analyze and give recommendations"_<br>
+  &nbsp;&nbsp;↳ Uses `schema-analysis` prompt
+- _"Rename the reviews collection to guest_reviews"_<br>
+  &nbsp;&nbsp;↳ Uses `rename-collection` tool
 
-- "Switch to sample_weatherdata database"
-- "What's the schema of the data collection?"
-- "Find the highest temperature recorded in the dataset"
-- "What's the average pressure reading across all measurements?"
-- "Show me readings where callLetters is 'SHIP'"
+#### Weather Data Operations (using `sample_weatherdata`)
 
-#### Advanced Operations
+- _"Switch to sample_weatherdata database"_<br>
+  &nbsp;&nbsp;↳ Uses `use-database` tool
+- _"What's in the schema of the data collection?"_<br>
+  &nbsp;&nbsp;↳ Uses `collection-schema` resource
+- _"Find the highest recorded temperatures with a callLetters of 'SHIP'"_<br>
+  &nbsp;&nbsp;↳ Uses `find-documents` tool
+- _"Validate the data collection for inconsistencies"_<br>
+  &nbsp;&nbsp;↳ Uses `validate-collection` tool
+- _"Insert a new weather record for today"_<br>
+  &nbsp;&nbsp;↳ Uses `modify-document` tool with insert operation
+- _"Create a new collection called weather_summary"_<br>
+  &nbsp;&nbsp;↳ Uses `create-collection` tool
+- _"Create index recommendation for queries that filter by callLetters and sort by date"_<br>
+  &nbsp;&nbsp;↳ Uses `index-recommendation` prompt
+- _"Show me how to write a MapReduce operation to get average temperatures by day"_<br>
+  &nbsp;&nbsp;↳ Uses `mongo-shell` prompt
+- _"Run this MapReduce to calculate average pressure by location"_<br>
+  &nbsp;&nbsp;↳ Uses `map-reduce` tool
+- _"Delete all weather readings below -50 degrees"_<br>
+  &nbsp;&nbsp;↳ Uses `modify-document` tool with delete operation
 
-- "Switch back to the sample_mflix database"
-- "Create an index on the title field in the movies collection"
-- "Analyze the schema of the movies collection and suggest improvements"
-- "Build an aggregation pipeline to show the count of movies by year and genre"
-- "Find distinct countries where movies were produced"
-- "Export a CSV with the top 50 rated movies including title, year, and rating"
+#### Administrative Operations
 
-#### Admin Queries
+- _"Switch to the admin database"_<br>
+  &nbsp;&nbsp;↳ Uses `use-database` tool
+- _"Show me the server status"_<br>
+  &nbsp;&nbsp;↳ Uses `server-status` resource
+- _"Display the replica set configuration"_<br>
+  &nbsp;&nbsp;↳ Uses `replica-status` resource
+- _"List all users in the database"_<br>
+  &nbsp;&nbsp;↳ Uses `database-users` resource
+- _"Get any stored JavaScript functions"_<br>
+  &nbsp;&nbsp;↳ Uses `stored-functions` resource
+- _"Perform a security audit on my MongoDB deployment"_<br>
+  &nbsp;&nbsp;↳ Uses `security-audit` prompt
+- _"What's a good backup strategy for my MongoDB instance?"_<br>
+  &nbsp;&nbsp;↳ Uses `backup-strategy` prompt
+- _"How would I migrate from MongoDB 4.4 to 6.0?"_<br>
+  &nbsp;&nbsp;↳ Uses `migration-guide` prompt
 
-- "Switch to the admin database, and show me the server status"
-- "Show me the users defined in this database"
-- "Switch to the config database"
-- "Report on anything interesting about the collections in this database"
-- "Switch to the local database"
-- "Analyze the startup log entries"
+#### Bulk Operations & Data Modeling
 
+- _"Switch to sample_training database"_<br>
+  &nbsp;&nbsp;↳ Uses `use-database` tool
+- _"Execute a bulk operation to update multiple post documents to add 'edited' flags"_<br>
+  &nbsp;&nbsp;↳ Uses `bulk-operations` tool
+- _"How should I model a social media application in MongoDB?"_<br>
+  &nbsp;&nbsp;↳ Uses `data-modeling` prompt
+- _"Perform a bulk insertion of new product records in the supplies database"_<br>
+  &nbsp;&nbsp;↳ Uses `bulk-operations` tool
+- _"Show me how to use MongoDB Lens with the MCP Inspector"_<br>
+  &nbsp;&nbsp;↳ Uses `inspector-guide` prompt
+- _"What's the optimal data model for a multi-tenant SaaS application with heavy analytical queries?"_<br>
+  &nbsp;&nbsp;↳ Uses `data-modeling` prompt
 ## Disclaimer
 
 MongoDB Lens:

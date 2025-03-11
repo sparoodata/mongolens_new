@@ -147,10 +147,10 @@ MongoDB Lens is now installed and ready to accept MCP requests.
 
 ## Configuration
 
-- [MongoDB Connection String](#mongodb-connection-string)
-- [Logging Configuration](#logging-configuration)
+- [MongoDB Connection String](#configuration-mongodb-connection-string)
+- [Logging](#configuration-logging)
 
-### MongoDB Connection String
+### Configuration: MongoDB Connection String
 
 The server accepts a MongoDB connection string as its only argument:
 
@@ -166,7 +166,7 @@ Example URIs:
 
 If no connection string is provided, the server will attempt to connect to a local MongoDB instance on the default port i.e. `mongodb://localhost:27017`.
 
-### Logging Configuration
+### Configuration: Logging
 
 To enable verbose MCP Server logging, set environment variable `VERBOSE_LOGGING` to `true`.
 

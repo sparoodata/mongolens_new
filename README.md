@@ -30,53 +30,53 @@ MongoDB Lens exposes the following capabilities through MCP:
 
 ### Resources
 
-- Database listings
 - Collection metadata
 - Collection statistics
-- Schema inference
-- Index information
-- Server status and metrics
-- Replica set configuration
 - Collection validation rules
+- Database listings
 - Database users and roles
+- Index information
+- Replica set configuration
+- Schema inference
+- Server status and metrics
 - Stored JavaScript functions
 
 ### Tools
 
-- **list-databases**: View all accessible MongoDB databases
-- **current-database**: Show the current database context
-- **use-database**: Switch to a specific database context
-- **list-collections**: Explore collections in the current database
-- **find-documents**: Run queries with filters, projections, and sorting
-- **count-documents**: Count documents matching specified criteria
-- **aggregate-data**: Execute aggregation pipelines
-- **get-stats**: Retrieve database or collection statistics
-- **analyze-schema**: Automatically infer collection schemas
-- **create-index**: Create new indexes for performance optimization
-- **explain-query**: Analyze query execution plans
-- **distinct-values**: Extract unique values for any field
-- **validate-collection**: Check for data inconsistencies
-- **create-collection**: Create new collections with custom options
-- **drop-collection**: Remove collections from the database
-- **rename-collection**: Rename existing collections
-- **modify-document**: Insert, update, or delete specific documents
-- **export-data**: Export query results in JSON or CSV format
-- **map-reduce**: Run MapReduce operations for complex data processing
-- **bulk-operations**: Perform multiple operations efficiently
+- `aggregate-data`: Execute aggregation pipelines
+- `analyze-schema`: Automatically infer collection schemas
+- `bulk-operations`: Perform multiple operations efficiently
+- `count-documents`: Count documents matching specified criteria
+- `create-collection`: Create new collections with custom options
+- `create-index`: Create new indexes for performance optimization
+- `current-database`: Show the current database context
+- `distinct-values`: Extract unique values for any field
+- `drop-collection`: Remove collections from the database
+- `explain-query`: Analyze query execution plans
+- `export-data`: Export query results in JSON or CSV format
+- `find-documents`: Run queries with filters, projections, and sorting
+- `get-stats`: Retrieve database or collection statistics
+- `list-collections`: Explore collections in the current database
+- `list-databases`: View all accessible MongoDB databases
+- `map-reduce`: Run MapReduce operations for complex data processing
+- `modify-document`: Insert, update, or delete specific documents
+- `rename-collection`: Rename existing collections
+- `use-database`: Switch to a specific database context
+- `validate-collection`: Check for data inconsistencies
 
 ### Prompts
 
-- **query-builder**: Interactive guidance for constructing MongoDB queries
-- **aggregation-builder**: Step-by-step creation of aggregation pipelines
-- **schema-analysis**: Detailed collection schema analysis with recommendations
-- **index-recommendation**: Get personalized index suggestions based on query patterns
-- **mongo-shell**: Generate MongoDB shell commands with explanations
-- **inspector-guide**: Get help using MongoDB Lens with MCP Inspector
-- **data-modeling**: Expert advice on MongoDB schema design for specific use cases
-- **query-optimizer**: Optimization recommendations for slow queries
-- **security-audit**: Database security analysis and improvement recommendations
-- **backup-strategy**: Customized backup and recovery recommendations
-- **migration-guide**: Step-by-step MongoDB version migration plans
+- `aggregation-builder`: Step-by-step creation of aggregation pipelines
+- `backup-strategy`: Customized backup and recovery recommendations
+- `data-modeling`: Expert advice on MongoDB schema design for specific use cases
+- `index-recommendation`: Get personalized index suggestions based on query patterns
+- `inspector-guide`: Get help using MongoDB Lens with MCP Inspector
+- `migration-guide`: Step-by-step MongoDB version migration plans
+- `mongo-shell`: Generate MongoDB shell commands with explanations
+- `query-builder`: Interactive guidance for constructing MongoDB queries
+- `query-optimizer`: Optimization recommendations for slow queries
+- `schema-analysis`: Detailed collection schema analysis with recommendations
+- `security-audit`: Database security analysis and improvement recommendations
 
 ## Installation
 

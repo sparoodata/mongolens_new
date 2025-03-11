@@ -85,7 +85,7 @@ MongoDB Lens can run via Docker or Node.js.
 Depending on your preference, follow the installation instructions below:
 
 - [Docker Installation](#docker-installation)
-- [Node.js Installation](#node.js-installation)
+- [Node.js Installation](#nodejs-installation)
 - [Installation Verification](#installation-verification)
 
 ### Docker Installation

@@ -227,8 +227,8 @@ To use MongoDB Lens with Claude Desktop:
 
 #### Claude Desktop Configuration Options
 
-- [Option 1: Use NPX (Recommended)](#option-1-use-npx-recommended)
-- [Option 2: Use Docker Hub Image](#option-2-use-docker-hub-image)
+- [Option 1: NPX (Recommended)](#option-1-npx-recommended)
+- [Option 2: Docker Hub Image](#option-2-docker-hub-image)
 - [Option 3: Local Node.js Installation](#option-3-local-nodejs-installation)
 - [Option 4: Local Docker Image](#option-4-local-docker-image)
 
@@ -237,7 +237,7 @@ For each option:
 - Replace `mongodb://your-connection-string` with your MongoDB connection string or omit it to use the default `mongodb://localhost:27017`.
 - For `VERBOSE_LOGGING`, set to `true` to enable verbose logging or `false` to disable it.
 
-##### Option 1: Use NPX (Recommended)
+##### Option 1: NPX (Recommended)
 
 ```json
 {
@@ -257,7 +257,7 @@ For each option:
 }
 ```
 
-#### Option 2: Use Docker Hub Image
+#### Option 2: Docker Hub Image
 
 ```json
 {

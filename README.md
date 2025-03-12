@@ -96,10 +96,10 @@ The easiest way to run MongoDB Lens is using `npx` without installing anything:
 
 ```console
 # Using default connection string mongodb://localhost:27017
-npx mongodb-lens
+npx -y mongodb-lens
 
 # Using custom connection string
-npx mongodb-lens mongodb://your-connection-string
+npx -y mongodb-lens mongodb://your-connection-string
 ```
 
 ### Installation: Docker Hub
@@ -245,6 +245,7 @@ For each option:
     "mongodb-lens": {
       "command": "npx",
       "args": [
+        "-y",
         "mongodb-lens",
         "mongodb://your-connection-string"
       ],
@@ -323,7 +324,7 @@ For each option:
 
 [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is a tool designed for testing and debugging MCP servers.
 
-To use MongoDB Lens with MCP Inspector:
+To use MongoDB Lens with MCP Inspector with Node.js from source:
 
 1. Navigate to the cloned repository directory:<br>
     ```console
@@ -331,12 +332,12 @@ To use MongoDB Lens with MCP Inspector:
     ```
 1. Run Inspector via `npx`:<br>
     ```console
-    npx @modelcontextprotocol/inspector node mongodb-lens.js mongodb://your-connection-string
+    npx -y @modelcontextprotocol/inspector node mongodb-lens.js mongodb://your-connection-string
     ```
 1. Inspector starts a proxy server (default port: 3000) and web app (default port: 5173)
     - To change the default ports:<br>
       ```console
-      CLIENT_PORT=8080 SERVER_PORT=9000 npx @modelcontextprotocol/inspector node mongodb-lens.js
+      CLIENT_PORT=8080 SERVER_PORT=9000 npx -y @modelcontextprotocol/inspector node mongodb-lens.js
       ```
 1. Open Inspector web app: http://localhost:5173
 1. Inspector should supports the full range of MongoDB Lens capabilities, including autocompletion for collection names and query fields.

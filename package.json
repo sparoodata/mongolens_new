@@ -7,7 +7,7 @@
   "type": "module",
   "main": "mongodb-lens.js",
   "bin": {
-    "mongodb-lens": "./mongodb-lens.js"
+    "mongodb-lens": "mongodb-lens.js"
   },
   "files": [
     "mongodb-lens.js",
@@ -38,7 +38,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/furey/mongodb-lens"
+    "url": "git+https://github.com/furey/mongodb-lens.git"
   },
   "engines": {
     "node": ">=22.0.0"

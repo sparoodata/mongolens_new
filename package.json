@@ -17,7 +17,10 @@
   ],
   "scripts": {
     "start": "node mongodb-lens.js",
-    "docker:build": "docker build -t mongodb-lens ."
+    "start:ws": "USE_WEBSOCKET=true node mongodb-lens.js",
+    "start:memory": "node --expose-gc mongodb-lens.js",
+    "docker:build": "docker build -t mongodb-lens .",
+    "docker:run": "docker run --rm -i --network=host mongodb-lens"
   },
   "keywords": [
     "ai",
@@ -29,7 +32,7 @@
     "mongodb"
   ],
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.1.0",
     "mongodb": "^3.7.4",
     "zod": "^3.24.2"
   },

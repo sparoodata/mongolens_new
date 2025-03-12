@@ -2,39 +2,45 @@
 
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import { WebSocketServerTransport } from '@modelcontextprotocol/sdk/server/websocket.js'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
-import { readFileSync } from 'fs'
+import { readFileSync, existsSync } from 'fs'
 import mongodb from 'mongodb'
 import { z } from 'zod'
+import { Transform } from 'stream'
 
-const { MongoClient, ObjectId } = mongodb
+const { MongoClient, ObjectId, GridFSBucket } = mongodb
 
-// Cache configuration
 const CACHE_TTL = {
-  SCHEMAS: 60 * 1000, // 1 minute for schemas
-  COLLECTIONS: 30 * 1000, // 30 seconds for collection lists
-  STATS: 15 * 1000 // 15 seconds for stats
+  SCHEMAS: 60 * 1000,
+  COLLECTIONS: 30 * 1000,
+  STATS: 15 * 1000,
+  INDEXES: 120 * 1000,
+  SERVER_STATUS: 20 * 1000
 }
 
-// In-memory cache
 const memoryCache = {
   schemas: new Map(),
   collections: new Map(),
   stats: new Map(),
-  indexes: new Map()
+  indexes: new Map(),
+  serverStatus: new Map(),
+  fields: new Map()
 }
 
-// Connection management
 const connectionOptions = {
   useUnifiedTopology: true,
-  poolSize: 10,            // Connection pool size
-  connectTimeoutMS: 30000, // Connection timeout
-  socketTimeoutMS: 360000, // Socket timeout
+  poolSize: 20,
+  connectTimeoutMS: 30000,
+  socketTimeoutMS: 360000,
   serverSelectionTimeoutMS: 30000,
   heartbeatFrequencyMS: 10000,
-  retryWrites: false,      // Disable retry writes for 3.6 compatibility
-  useNewUrlParser: true    // Required for MongoDB 3.6
+  retryWrites: false,
+  useNewUrlParser: true,
+  autoReconnect: true,
+  reconnectTries: 60,
+  reconnectInterval: 1000
 }
 
 const __filename = fileURLToPath(import.meta.url)
@@ -42,12 +48,26 @@ const __dirname = dirname(__filename)
 const packageJson = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'))
 const PACKAGE_VERSION = packageJson.version
 const VERBOSE_LOGGING = process.env.VERBOSE_LOGGING === 'true'
+const USE_WEBSOCKET = process.env.USE_WEBSOCKET === 'true'
+const WEBSOCKET_PORT = parseInt(process.env.WEBSOCKET_PORT || '3456', 10)
+const CONFIG_PATH = process.env.CONFIG_PATH || join(process.env.HOME || __dirname, '.mongodb-lens.json')
 
 let server = null
 let transport = null
 let currentDb = null
 let mongoClient = null
 let currentDbName = null
+let connectionRetries = 0
+let watchdog = null
+let configFile = null
+
+if (existsSync(CONFIG_PATH)) {
+  try {
+    configFile = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'))
+  } catch (error) {
+    console.error(`Error loading config file: ${error.message}`)
+  }
+}
 
 const instructions = `
 # MongoDB Lens
@@ -63,8 +83,10 @@ const instructions = `
 2. **Data Querying**
 
   - Find documents: e.g. \`find-documents {"collection": "users", "filter": "{\"age\": {\"$gt\": 30}}", "limit": 5}\`
+  - Stream large results: e.g. \`find-documents {"collection": "users", "streaming": true, "limit": 1000}\`
   - Count documents: e.g. \`count-documents {"collection": "users", "filter": "{\"active\": true}"}\`
   - Aggregate data: e.g. \`aggregate-data {"collection": "orders", "pipeline": "[{\"$group\": {\"_id\": \"$status\", \"total\": {\"$sum\": 1}}}]"}\`
+  - Stream large aggregations: e.g. \`aggregate-data {"collection": "orders", "pipeline": "[...]", "streaming": true}\`
   - Full-text search: e.g. \`text-search {"collection": "articles", "searchText": "mongodb performance"}\`
   - Collation queries: e.g. \`collation-query {"collection": "users", "filter": "{\"name\": \"müller\"}", "locale": "de"}\`
 
@@ -125,6 +147,9 @@ const instructions = `
 ## Tips
 
 - Use templated resources (e.g. \`mongodb://collection/{name}/stats\`) with autocompletion support.
+- Enable streaming for large result sets with the \`streaming: true\` parameter.
+- Use WebSocket transport with \`USE_WEBSOCKET=true\` for better client compatibility.
+- Create a config file at \`~/.mongodb-lens.json\` for custom configurations.
 - Leverage prompts like \`aggregation-builder\` for complex pipelines.
 - Check logs with \`VERBOSE_LOGGING=true\` for debugging.
 - Combine tools and resources for workflows, e.g. schema analysis → index creation.
@@ -136,6 +161,69 @@ const instructions = `
 - Design schema evolution strategies with \`schema-versioning\` for zero-downtime updates.
 `
 
+const startWatchdog = () => {
+  if (watchdog) clearInterval(watchdog)
+  
+  watchdog = setInterval(() => {
+    const memoryUsage = process.memoryUsage()
+    const heapUsedMB = Math.round(memoryUsage.heapUsed / 1024 / 1024)
+    const heapTotalMB = Math.round(memoryUsage.heapTotal / 1024 / 1024)
+    
+    if (heapUsedMB > 1500) {
+      log(`High memory usage: ${heapUsedMB}MB used of ${heapTotalMB}MB heap`, true)
+      
+      if (heapUsedMB > 2000) {
+        log('Critical memory pressure. Clearing caches...', true)
+        memoryCache.schemas.clear()
+        memoryCache.collections.clear()
+        memoryCache.stats.clear()
+        memoryCache.indexes.clear()
+        memoryCache.serverStatus.clear()
+        memoryCache.fields.clear()
+        global.gc && global.gc()
+      }
+    }
+    
+    if (!mongoClient || !mongoClient.isConnected()) {
+      log('Detected MongoDB disconnection. Attempting reconnect...', true)
+      reconnect()
+    }
+    
+  }, 30000)
+}
+
+const reconnect = async () => {
+  if (connectionRetries > 10) {
+    log('Maximum reconnection attempts reached. Giving up.', true)
+    return false
+  }
+  
+  connectionRetries++
+  log(`Reconnection attempt ${connectionRetries}...`, true)
+  
+  try {
+    await mongoClient.connect()
+    log('Reconnected to MongoDB successfully', true)
+    connectionRetries = 0
+    return true
+  } catch (error) {
+    log(`Reconnection failed: ${error.message}`, true)
+    return false
+  }
+}
+
+const createTransport = async () => {
+  if (USE_WEBSOCKET) {
+    log(`Starting WebSocket transport on port ${WEBSOCKET_PORT}...`, true)
+    transport = new WebSocketServerTransport({ port: WEBSOCKET_PORT })
+  } else {
+    log('Starting stdio transport...', true)
+    transport = new StdioServerTransport()
+  }
+  
+  return transport
+}
+
 const main = async (mongoUri) => {
   log(`MongoDB Lens v${PACKAGE_VERSION} starting…`, true)
   
@@ -145,13 +233,75 @@ const main = async (mongoUri) => {
     return false
   }
   
+  startWatchdog()
+  
   log('Initializing MCP server…')
   server = new McpServer({
     name: 'MongoDB Lens',
     version: PACKAGE_VERSION,
-  }, 
-  {
+    description: 'MongoDB MCP server for natural language database interaction',
+    homepage: 'https://github.com/furey/mongodb-lens',
+    license: 'MIT',
+    vendor: {
+      name: 'James Furey',
+      url: 'https://about.me/jamesfurey'
+    }
+  }, {
     instructions
+  })
+  
+  server.setErrorHandler((error, request) => {
+    log(`Error handling request ${request?.id}: ${error.message}`, true)
+    
+    const JSONRPC_ERROR_CODES = {
+      PARSE_ERROR: -32700,
+      INVALID_REQUEST: -32600,
+      METHOD_NOT_FOUND: -32601,
+      INVALID_PARAMS: -32602,
+      INTERNAL_ERROR: -32603,
+      SERVER_ERROR_START: -32000,
+      SERVER_ERROR_END: -32099,
+      MONGODB_CONNECTION_ERROR: -32050,
+      MONGODB_QUERY_ERROR: -32051,
+      MONGODB_SCHEMA_ERROR: -32052,
+      RESOURCE_NOT_FOUND: -32040,
+      RESOURCE_ACCESS_DENIED: -32041
+    }
+    
+    let errorCode = JSONRPC_ERROR_CODES.INTERNAL_ERROR
+    
+    if (error.name === 'SyntaxError' || error.message.includes('JSON')) {
+      errorCode = JSONRPC_ERROR_CODES.PARSE_ERROR
+    } else if (error.name === 'TypeError' && error.message.includes('params')) {
+      errorCode = JSONRPC_ERROR_CODES.INVALID_PARAMS
+    } else if (error.message.includes('not found') || error.message.includes('does not exist')) {
+      errorCode = JSONRPC_ERROR_CODES.RESOURCE_NOT_FOUND
+    } else if (error.message.includes('connection') || error.message.includes('connect')) {
+      errorCode = JSONRPC_ERROR_CODES.MONGODB_CONNECTION_ERROR
+    } else if (error.message.includes('query') || error.message.includes('aggregation')) {
+      errorCode = JSONRPC_ERROR_CODES.MONGODB_QUERY_ERROR
+    } else if (error.message.includes('schema') || error.message.includes('validation')) {
+      errorCode = JSONRPC_ERROR_CODES.MONGODB_SCHEMA_ERROR
+    } else if (error.code && error.code >= JSONRPC_ERROR_CODES.SERVER_ERROR_START && 
+               error.code <= JSONRPC_ERROR_CODES.SERVER_ERROR_END) {
+      errorCode = error.code
+    }
+    
+    const errorResponse = {
+      jsonrpc: '2.0',
+      id: request?.id,
+      error: {
+        code: errorCode,
+        message: error.message || 'Unknown error',
+        data: { 
+          type: error.name,
+          method: request?.method,
+          details: VERBOSE_LOGGING ? error.stack : undefined
+        }
+      }
+    }
+    
+    return errorResponse
   })
   
   log('Registering MCP resources…')
@@ -163,8 +313,10 @@ const main = async (mongoUri) => {
   log('Registering MCP prompts…')
   registerPrompts(server)
   
+  log('Creating transport…')
+  transport = await createTransport()
+  
   log('Connecting MCP server transport…')
-  transport = new StdioServerTransport()
   await server.connect(transport)
   
   log('MongoDB Lens server running.', true)
@@ -175,38 +327,69 @@ const connect = async (uri = 'mongodb://localhost:27017') => {
   try {
     log(`Connecting to MongoDB at: ${uri}`)
     
-    // Create a new client with enhanced connection options
-    mongoClient = new MongoClient(uri, connectionOptions)
+    const finalUri = configFile?.mongoUri || uri
+    const finalOptions = {
+      ...connectionOptions,
+      ...(configFile?.connectionOptions || {})
+    }
     
-    // Attempt connection with timeouts and retries
-    let retryCount = 0;
-    const maxRetries = 3;
+    mongoClient = new MongoClient(finalUri, finalOptions)
+    
+    let retryCount = 0
+    const maxRetries = 5
     
     while (retryCount < maxRetries) {
       try {
         await mongoClient.connect()
-        break;
+        break
       } catch (connectionError) {
-        retryCount++;
+        retryCount++
         if (retryCount >= maxRetries) {
-          throw connectionError; // Rethrow if max retries reached
+          throw connectionError
         }
-        log(`Connection attempt ${retryCount} failed, retrying in 2 seconds...`)
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 30000)
+        log(`Connection attempt ${retryCount} failed, retrying in ${delay/1000} seconds...`)
+        await new Promise(resolve => setTimeout(resolve, delay))
       }
     }
     
-    // Get server info to confirm connection and version
-    const adminDb = mongoClient.db('admin');
-    const serverInfo = await adminDb.command({ buildInfo: 1 });
-    log(`Connected to MongoDB server version: ${serverInfo.version}`);
+    const adminDb = mongoClient.db('admin')
+    let serverInfo
     
-    // Extract and set current database name
-    currentDbName = extractDbNameFromConnectionString(uri)
+    try {
+      serverInfo = await adminDb.command({ buildInfo: 1 })
+      log(`Connected to MongoDB server version: ${serverInfo.version}`)
+      
+      const cacheKey = 'server_info'
+      memoryCache.serverStatus.set(cacheKey, {
+        data: serverInfo,
+        timestamp: Date.now()
+      })
+    } catch (infoError) {
+      log(`Warning: Unable to get server info: ${infoError.message}`)
+    }
+    
+    currentDbName = extractDbNameFromConnectionString(finalUri)
     currentDb = mongoClient.db(currentDbName)
     
-    // Verify database access by fetching stats
-    await currentDb.stats();
+    try {
+      await currentDb.stats()
+    } catch (statsError) {
+      log(`Warning: Unable to get database stats: ${statsError.message}`)
+    }
+    
+    mongoClient.on('timeout', () => {
+      log('MongoDB connection timeout. Will attempt to reconnect.', true)
+    })
+    
+    mongoClient.on('close', () => {
+      log('MongoDB connection closed. Will attempt to reconnect.', true)
+    })
+    
+    mongoClient.on('reconnect', () => {
+      log('MongoDB connection reestablished.', true)
+      connectionRetries = 0
+    })
     
     log(`Connected to MongoDB successfully, using database: ${currentDbName}`)
     return true
@@ -1233,13 +1416,32 @@ const registerTools = (server) => {
       const formattedError = `${errorMessage}: ${error.message}`;
       console.error(formattedError);
       log(formattedError);
-      return {
+      
+      let errorCode = -32000;
+      
+      if (error.name === 'MongoError' || error.name === 'MongoServerError') {
+        if (error.code === 13) errorCode = -32041; // Authentication failed
+        else if (error.code === 59 || error.code === 61) errorCode = -32050; // Connection issues
+        else if (error.code === 121) errorCode = -32052; // Document validation
+        else errorCode = -32051; // Other MongoDB errors
+      } else if (error.message.includes('not found') || error.message.includes('does not exist')) {
+        errorCode = -32040;
+      }
+      
+      const errorResponse = {
         content: [{
           type: 'text',
           text: formattedError
         }],
-        isError: true
+        isError: true,
+        error: {
+          code: errorCode,
+          message: error.message,
+          data: { type: error.name }
+        }
       };
+      
+      return errorResponse;
     }
   };
 
@@ -1406,27 +1608,54 @@ const registerTools = (server) => {
       projection: z.string().optional().describe('Fields to include/exclude (JSON string)'),
       limit: z.number().int().min(1).default(10).describe('Maximum number of documents to return'),
       skip: z.number().int().min(0).default(0).describe('Number of documents to skip'),
-      sort: z.string().optional().describe('Sort specification (JSON string)')
+      sort: z.string().optional().describe('Sort specification (JSON string)'),
+      streaming: z.boolean().default(false).describe('Enable streaming for large result sets')
     },
-    async ({ collection, filter, projection, limit, skip, sort }) => {
+    async ({ collection, filter, projection, limit, skip, sort, streaming }) => {
       try {
         log(`Tool: Finding documents in collection '${collection}'…`)
         log(`Tool: Using filter: ${filter}`)
         if (projection) log(`Tool: Using projection: ${projection}`)
         if (sort) log(`Tool: Using sort: ${sort}`)
-        log(`Tool: Using limit: ${limit}, skip: ${skip}`)
+        log(`Tool: Using limit: ${limit}, skip: ${skip}, streaming: ${streaming}`)
         
         const parsedFilter = filter ? JSON.parse(filter) : {}
         const parsedProjection = projection ? JSON.parse(projection) : null
         const parsedSort = sort ? JSON.parse(sort) : null
         
-        const documents = await findDocuments(collection, parsedFilter, parsedProjection, limit, skip, parsedSort)
-        log(`Tool: Found ${documents.length} documents in collection '${collection}'.`)
-        return {
-          content: [{
-            type: 'text',
-            text: formatDocuments(documents, limit)
-          }]
+        if (streaming) {
+          await throwIfCollectionNotExists(collection)
+          const coll = currentDb.collection(collection)
+          
+          let query = coll.find(parsedFilter)
+          if (parsedProjection) query = query.project(parsedProjection)
+          if (skip) query = query.skip(skip)
+          if (parsedSort) query = query.sort(parsedSort)
+          query = query.limit(limit).batchSize(20)
+          
+          const resourceUri = `mongodb://find/${collection}`
+          const count = await streamResultsToMcp(
+            query, 
+            doc => JSON.stringify(serializeDocument(doc), null, 2),
+            resourceUri,
+            limit
+          )
+          
+          return {
+            content: [{
+              type: 'text',
+              text: `Streaming ${count} document${count === 1 ? '' : 's'} from collection '${collection}'.`
+            }]
+          }
+        } else {
+          const documents = await findDocuments(collection, parsedFilter, parsedProjection, limit, skip, parsedSort)
+          log(`Tool: Found ${documents.length} documents in collection '${collection}'.`)
+          return {
+            content: [{
+              type: 'text',
+              text: formatDocuments(documents, limit)
+            }]
+          }
         }
       } catch (error) {
         console.error('Error finding documents:', error)
@@ -1435,7 +1664,12 @@ const registerTools = (server) => {
             type: 'text',
             text: `Error finding documents: ${error.message}`
           }],
-          isError: true
+          isError: true,
+          error: {
+            code: -32051,
+            message: error.message,
+            data: { type: error.name }
+          }
         }
       }
     }
@@ -1480,21 +1714,50 @@ const registerTools = (server) => {
     'Run aggregation pipelines',
     {
       collection: z.string().min(1).describe('Collection name'),
-      pipeline: z.string().describe('Aggregation pipeline as JSON string array')
+      pipeline: z.string().describe('Aggregation pipeline as JSON string array'),
+      streaming: z.boolean().default(false).describe('Enable streaming results for large datasets'),
+      limit: z.number().int().min(1).default(1000).describe('Maximum number of results to return when streaming')
     },
-    async ({ collection, pipeline }) => {
+    async ({ collection, pipeline, streaming, limit }) => {
       try {
         log(`Tool: Running aggregation on collection '${collection}'…`)
         log(`Tool: Using pipeline: ${pipeline}`)
+        log(`Tool: Streaming: ${streaming}, Limit: ${limit}`)
         
         const parsedPipeline = JSON.parse(pipeline)
-        const results = await aggregateData(collection, parsedPipeline)
-        log(`Tool: Aggregation returned ${results.length} results.`)
-        return {
-          content: [{
-            type: 'text',
-            text: formatDocuments(results, 100)
-          }]
+        const processedPipeline = processAggregationPipeline(parsedPipeline)
+        
+        if (streaming) {
+          await throwIfCollectionNotExists(collection)
+          const coll = currentDb.collection(collection)
+          const cursor = coll.aggregate(processedPipeline, { 
+            allowDiskUse: true,
+            cursor: { batchSize: 20 }
+          })
+          
+          const resourceUri = `mongodb://aggregation/${collection}`
+          const count = await streamResultsToMcp(
+            cursor, 
+            doc => JSON.stringify(serializeDocument(doc), null, 2),
+            resourceUri,
+            limit
+          )
+          
+          return {
+            content: [{
+              type: 'text',
+              text: `Streaming ${count} aggregation results from collection '${collection}'.${count === limit ? " Results limited to first " + limit + " documents." : ""}`
+            }]
+          }
+        } else {
+          const results = await aggregateData(collection, processedPipeline)
+          log(`Tool: Aggregation returned ${results.length} results.`)
+          return {
+            content: [{
+              type: 'text',
+              text: formatDocuments(results, 100)
+            }]
+          }
         }
       } catch (error) {
         console.error('Error running aggregation:', error)
@@ -1503,7 +1766,12 @@ const registerTools = (server) => {
             type: 'text',
             text: `Error running aggregation: ${error.message}`
           }],
-          isError: true
+          isError: true,
+          error: {
+            code: -32051,
+            message: error.message,
+            data: { type: error.name }
+          }
         }
       }
     }
@@ -2787,38 +3055,45 @@ const inferSchema = async (collectionName, sampleSize = 100) => {
   try {
     await throwIfCollectionNotExists(collectionName)
     
-    // Check cache first
-    const cacheKey = `${currentDbName}.${collectionName}.${sampleSize}`;
-    const cachedSchema = memoryCache.schemas.get(cacheKey);
+    const cacheKey = `${currentDbName}.${collectionName}.${sampleSize}`
+    const cachedSchema = memoryCache.schemas.get(cacheKey)
     
     if (cachedSchema && 
         (Date.now() - cachedSchema.timestamp) < CACHE_TTL.SCHEMAS) {
-      log(`DB Operation: Using cached schema for '${collectionName}'`);
-      return cachedSchema.data;
+      log(`DB Operation: Using cached schema for '${collectionName}'`)
+      return cachedSchema.data
     }
     
-    // Not in cache, perform inference
     const collection = currentDb.collection(collectionName)
     
-    // Use an aggregation pipeline for better performance with sampling
-    const documents = await collection.aggregate([
-      { $sample: { size: sampleSize } },  // Random sampling for more representative results
-      { $limit: sampleSize }
-    ]).toArray();
+    const pipeline = [
+      { $sample: { size: sampleSize } }
+    ]
+    
+    const cursor = collection.aggregate(pipeline, { 
+      allowDiskUse: true,
+      cursor: { batchSize: 50 }
+    })
+    
+    const documents = []
+    const fieldPaths = new Set()
+    const schema = {}
+    let processed = 0
+    
+    for await (const doc of cursor) {
+      documents.push(doc)
+      collectFieldPaths(doc, '', fieldPaths)
+      processed++
+      
+      if (processed % 50 === 0) {
+        log(`DB Operation: Processed ${processed} documents for schema inference...`)
+      }
+    }
     
     log(`DB Operation: Retrieved ${documents.length} sample documents for schema inference.`)
     
     if (documents.length === 0) throw new Error(`Collection '${collectionName}' is empty`)
     
-    const schema = {}
-    const fieldPaths = new Set(); // Track all field paths including nested ones
-    
-    // First pass: collect all fields including nested ones
-    documents.forEach(doc => {
-      collectFieldPaths(doc, '', fieldPaths);
-    });
-    
-    // Initialize schema object with all discovered paths
     fieldPaths.forEach(path => {
       schema[path] = {
         types: new Set(),
@@ -2826,28 +3101,24 @@ const inferSchema = async (collectionName, sampleSize = 100) => {
         sample: null,
         path: path
       }
-    });
+    })
     
-    // Second pass: analyze types and collect samples
     documents.forEach(doc => {
       fieldPaths.forEach(path => {
-        const value = getNestedValue(doc, path);
+        const value = getNestedValue(doc, path)
         if (value !== undefined) {
           if (!schema[path].sample) {
-            schema[path].sample = value;
+            schema[path].sample = value
           }
-          schema[path].types.add(getTypeName(value));
-          schema[path].count++;
+          schema[path].types.add(getTypeName(value))
+          schema[path].count++
         }
-      });
-    });
+      })
+    })
 
-    // Convert Sets to Arrays for serialization
     for (const key in schema) {
-      schema[key].types = Array.from(schema[key].types);
-      
-      // Calculate coverage percentage
-      schema[key].coverage = Math.round((schema[key].count / documents.length) * 100);
+      schema[key].types = Array.from(schema[key].types)
+      schema[key].coverage = Math.round((schema[key].count / documents.length) * 100)
     }
     
     const result = { 
@@ -2855,16 +3126,22 @@ const inferSchema = async (collectionName, sampleSize = 100) => {
       sampleSize: documents.length,
       fields: schema,
       timestamp: new Date().toISOString()
-    };
+    }
     
-    // Update cache
     memoryCache.schemas.set(cacheKey, {
       data: result,
       timestamp: Date.now()
-    });
+    })
     
-    log(`DB Operation: Schema inference complete, identified ${Object.keys(schema).length} fields.`)
-    return result;
+    const fieldsArray = Object.keys(schema)
+    log(`DB Operation: Schema inference complete, identified ${fieldsArray.length} fields.`)
+    
+    memoryCache.fields.set(`${currentDbName}.${collectionName}`, {
+      data: fieldsArray,
+      timestamp: Date.now()
+    })
+    
+    return result
   } catch (error) {
     log(`DB Operation: Failed to infer schema: ${error.message}`)
     throw error
@@ -4573,7 +4850,90 @@ process.on('SIGINT', async () => {
   exit()
 })
 
+const createStreamingResultStream = () => {
+  return new Transform({
+    objectMode: true,
+    transform(chunk, encoding, callback) {
+      callback(null, chunk)
+    }
+  })
+}
+
+const streamResultsToMcp = async (resultStream, resultFormatter, resourceUri, streamingLimit = 10000) => {
+  let count = 0
+  const streamId = Math.random().toString(36).substring(2, 15)
+  
+  try {
+    const stream = server.createStreamingResource(`${resourceUri}?stream=${streamId}`)
+    
+    for await (const item of resultStream) {
+      count++
+      
+      if (count > streamingLimit) {
+        stream.write({
+          contents: [{
+            uri: resourceUri,
+            text: `Reached streaming limit of ${streamingLimit} items. Use a more specific query to reduce result size.`
+          }]
+        })
+        break
+      }
+      
+      const formattedItem = resultFormatter(item)
+      
+      stream.write({
+        contents: [{
+          uri: resourceUri,
+          text: formattedItem
+        }]
+      })
+    }
+    
+    stream.end()
+    return count
+  } catch (error) {
+    console.error('Error in streaming results:', error)
+    throw error
+  }
+}
+
+const processAggregationPipeline = (pipeline) => {
+  if (!pipeline || !Array.isArray(pipeline)) return pipeline
+  
+  return pipeline.map(stage => {
+    for (const operator in stage) {
+      const value = stage[operator]
+      if (typeof value === 'object' && value !== null) {
+        if (operator === '$match' && value.$text) {
+          if (value.$text.$search && typeof value.$text.$search === 'string') {
+            value.$text.$search = sanitizeTextSearch(value.$text.$search)
+          }
+        }
+      }
+    }
+    return stage
+  })
+}
+
+const sanitizeTextSearch = (searchText) => {
+  if (!searchText) return ''
+  return searchText.replace(/\$/g, '').replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
+}
+
+const monitorBinarySize = (size) => {
+  const mb = size / (1024 * 1024)
+  if (mb > 10) {
+    log(`Warning: Large binary data detected (${mb.toFixed(2)} MB)`, true)
+  }
+  return mb < 50
+}
+
 const cleanup = async () => {
+  if (watchdog) {
+    clearInterval(watchdog)
+    watchdog = null
+  }
+  
   if (server) {
     try {
       log('Closing MCP server…')
@@ -4603,6 +4963,13 @@ const cleanup = async () => {
       console.error('Error closing MongoDB client:', error)
     }
   }
+  
+  memoryCache.schemas.clear()
+  memoryCache.collections.clear()
+  memoryCache.stats.clear()
+  memoryCache.indexes.clear()
+  memoryCache.serverStatus.clear()
+  memoryCache.fields.clear()
 }
 
 const exit = (exitCode = 1) => {

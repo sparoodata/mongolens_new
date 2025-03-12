@@ -27,9 +27,9 @@
 ## Features
 
 - [Resources](#resources)
-- [Tools](#tools) - Now with new schema comparison and query analysis tools!
+- [Tools](#tools)
 - [Prompts](#prompts)
-- [Performance Optimizations](#performance-optimizations) - New caching and connection management!
+- [Performance Features](#performance-features)
 
 ### Resources
 
@@ -48,49 +48,36 @@
 
 ### Tools
 
-#### Core Database Tools
-- `list-databases`: View all accessible MongoDB databases
-- `list-collections`: Explore collections in the current database
-- `current-database`: Show the current database context
-- `use-database`: Switch to a specific database context
-- `get-stats`: Retrieve database or collection statistics
-
-#### Document Operations
-- `find-documents`: Run queries with filters, projections, and sorting
-- `count-documents`: Count documents matching specified criteria
-- `modify-document`: Insert, update, or delete specific documents
-- `distinct-values`: Extract unique values for any field
-- `bulk-operations`: Perform multiple operations efficiently
-- `transaction`: Execute multiple operations in a single ACID transaction
-
-#### Schema & Structure Analysis
+- `aggregate-data`: Execute aggregation pipelines (with streaming support for large result sets)
+- `analyze-query-patterns`: Analyze queries and suggest optimizations
 - `analyze-schema`: Automatically infer collection schemas
-- `compare-schemas`: Compare schemas between two collections *(NEW)*
-- `generate-schema-validator`: Generate JSON Schema validators *(NEW)*
-- `analyze-query-patterns`: Analyze queries and suggest optimizations *(NEW)*
-- `validate-collection`: Check for data inconsistencies
-
-#### Collection Management
-- `create-collection`: Create new collections with custom options
-- `drop-collection`: Remove collections from the database
-- `rename-collection`: Rename existing collections
-- `create-timeseries`: Create time series collections for temporal data
-
-#### Indexing & Performance
-- `create-index`: Create new indexes for performance optimization
-- `explain-query`: Analyze query execution plans
-
-#### Advanced Queries
-- `aggregate-data`: Execute aggregation pipelines
-- `text-search`: Perform full-text search across text-indexed fields
-- `geo-query`: Perform geospatial queries with various operators
+- `bulk-operations`: Perform multiple operations efficiently
 - `collation-query`: Find documents with language-specific collation rules
-- `map-reduce`: Run MapReduce operations for complex data processing
-
-#### Special Features
+- `compare-schemas`: Compare schemas between two collections
+- `count-documents`: Count documents matching specified criteria
+- `create-collection`: Create new collections with custom options
+- `create-index`: Create new indexes for performance optimization
+- `create-timeseries`: Create time series collections for temporal data
+- `current-database`: Show the current database context
+- `distinct-values`: Extract unique values for any field
+- `drop-collection`: Remove collections from the database
+- `explain-query`: Analyze query execution plans
 - `export-data`: Export query results in JSON or CSV format
+- `find-documents`: Run queries with filters, projections, and sorting (with streaming for large result sets)
+- `generate-schema-validator`: Generate JSON Schema validators
+- `geo-query`: Perform geospatial queries with various operators
+- `get-stats`: Retrieve database or collection statistics
 - `gridfs-operation`: Manage large files with GridFS buckets
+- `list-collections`: Explore collections in the current database
+- `list-databases`: View all accessible MongoDB databases
+- `map-reduce`: Run MapReduce operations for complex data processing
+- `modify-document`: Insert, update, or delete specific documents
+- `rename-collection`: Rename existing collections
 - `shard-status`: View sharding configuration for databases and collections
+- `text-search`: Perform full-text search across text-indexed fields
+- `transaction`: Execute multiple operations in a single ACID transaction
+- `use-database`: Switch to a specific database context
+- `validate-collection`: Check for data inconsistencies
 - `watch-changes`: Monitor real-time changes to collections
 
 ### Prompts
@@ -111,16 +98,16 @@
 - `security-audit`: Database security analysis and improvement recommendations
 - `sql-to-mongodb`: Convert SQL queries to MongoDB aggregation pipelines
 
-### Performance Optimizations
+### Performance Features
 
-MongoDB Lens 4.2+ includes significant performance enhancements:
-
-- **Intelligent Caching**: Caches schema, collection, and index information with smart invalidation
-- **Connection Pooling**: Manages MongoDB connections efficiently with automatic retries
-- **Enhanced Schema Inference**: More efficient and detailed schema analysis with nested documents support
-- **Streaming Support**: Better handling of large result sets
-- **Improved Error Handling**: Consistent error management across all operations
-- **MongoDB 3.6+ Compatibility**: Maintains compatibility with older MongoDB versions
+- **Sanitized Inputs**: Security enhancements for query processing
+- **Connection Resilience**: Automatic reconnection with exponential backoff
+- **Configuration File**: Support for custom configuration via `~/.mongodb-lens.json`
+- **JSONRPC Error Handling**: Comprehensive error handling with proper error codes
+- **Memory Management**: Automatic memory monitoring and cleanup for large operations
+- **Smart Caching**: Enhanced caching for schemas, collection lists, and server status
+- **WebSocket Transport**: Optional WebSocket support via `USE_WEBSOCKET=true` environment variable
+- **Streaming Support**: Stream large result sets for `find-documents` and `aggregate-data` operations
 
 ## Installation
 
@@ -212,6 +199,8 @@ MongoDB Lens is now installed and ready to accept MCP requests.
 
 - [MongoDB Connection String](#configuration-mongodb-connection-string)
 - [Logging](#configuration-logging)
+- [WebSocket Transport](#configuration-websocket-transport)
+- [Config File](#configuration-config-file)
 
 ### Configuration: MongoDB Connection String
 
@@ -247,6 +236,46 @@ Example Docker usage:
 
 ```console
 docker run --rm -i --network=host -e VERBOSE_LOGGING='true' mongodb-lens mongodb://your-connection-string
+```
+
+### Configuration: WebSocket Transport
+
+To use WebSocket transport instead of stdio, set environment variable `USE_WEBSOCKET` to `true`. You can also specify a custom port with `WEBSOCKET_PORT` (default is 3456).
+
+Example Node.js usage:
+
+```console
+USE_WEBSOCKET=true WEBSOCKET_PORT=8765 node mongodb-lens.js mongodb://your-connection-string
+```
+
+Example Docker usage:
+
+```console
+docker run --rm -i --network=host -e USE_WEBSOCKET='true' -e WEBSOCKET_PORT='8765' mongodb-lens mongodb://your-connection-string
+```
+
+### Configuration: Config File
+
+Create a JSON configuration file at `~/.mongodb-lens.json` to further customise MongoDB Lens.
+
+Alternatively, specify a custom path with `CONFIG_PATH` environment variable.
+
+Example configuration file:
+
+```json
+{
+  "mongoUri": "mongodb://username:password@hostname:27017/mydatabase",
+  "connectionOptions": {
+    "poolSize": 20,
+    "connectTimeoutMS": 30000
+  }
+}
+```
+
+Example Node.js usage:
+
+```console
+CONFIG_PATH='/path/to/config.json' node mongodb-lens.js
 ```
 
 ## Client Setup
@@ -327,9 +356,9 @@ For each option:
 {
   "mcpServers": {
     "mongodb-lens": {
-      "command": "/absolute/path/to/node",
+      "command": "/path/to/node",
       "args": [
-        "/absolute/path/to/mongodb-lens.js",
+        "/path/to/mongodb-lens.js",
         "mongodb://your-connection-string"
       ],
       "env": {
@@ -637,7 +666,7 @@ With your MCP Client running and connected to MongoDB Lens, try these example qu
 - _"How would I migrate from MongoDB 4.4 to 6.0?"_<br>
   <sup>➥ Uses `migration-guide` prompt</sup>
 
-#### Example Queries: Schema Management & Analysis *(NEW)*
+#### Example Queries: Schema Management & Analysis
 
 - _"Compare schemas between the users and customers collections"_<br>
   <sup>➥ Uses new `compare-schemas` tool to identify differences</sup>

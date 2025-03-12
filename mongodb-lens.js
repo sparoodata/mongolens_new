@@ -16,8 +16,10 @@ const packageJson = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'ut
 const PACKAGE_VERSION = packageJson.version
 const VERBOSE_LOGGING = process.env.VERBOSE_LOGGING === 'true'
 
-let client = null
+let server = null
+let transport = null
 let currentDb = null
+let mongoClient = null
 let currentDbName = null
 
 const instructions = `
@@ -89,10 +91,10 @@ const main = async (mongoUri) => {
   }
   
   log('Initializing MCP server…')
-  const server = new McpServer({
+  server = new McpServer({
     name: 'MongoDB Lens',
     version: PACKAGE_VERSION,
-  },
+  }, 
   {
     instructions
   })
@@ -107,7 +109,7 @@ const main = async (mongoUri) => {
   registerPrompts(server)
   
   log('Connecting MCP server transport…')
-  const transport = new StdioServerTransport()
+  transport = new StdioServerTransport()
   await server.connect(transport)
   
   log('MongoDB Lens server running.', true)
@@ -117,10 +119,10 @@ const main = async (mongoUri) => {
 const connect = async (uri = 'mongodb://localhost:27017') => {
   try {
     log(`Connecting to MongoDB at: ${uri}`)
-    client = new MongoClient(uri, { useUnifiedTopology: true })
-    await client.connect()
+    mongoClient = new MongoClient(uri, { useUnifiedTopology: true })
+    await mongoClient.connect()
     currentDbName = extractDbNameFromConnectionString(uri)
-    currentDb = client.db(currentDbName)
+    currentDb = mongoClient.db(currentDbName)
     log(`Connected to MongoDB successfully, using database: ${currentDbName}`)
     return true
   } catch (error) {
@@ -912,7 +914,7 @@ const registerTools = (server) => {
     'Get the name of the current database',
     async () => {
       try {
-        log('Tool: Getting current database name...')
+        log('Tool: Getting current database name…')
         return {
           content: [{
             type: 'text',
@@ -1594,7 +1596,7 @@ const registerTools = (server) => {
 
 const listDatabases = async () => {
   log('DB Operation: Listing databases…')
-  const adminDb = client.db('admin')
+  const adminDb = mongoClient.db('admin')
   const result = await adminDb.admin().listDatabases()
   log(`DB Operation: Found ${result.databases.length} databases.`)
   return result.databases
@@ -1607,7 +1609,7 @@ const switchDatabase = async (dbName) => {
     const dbExists = dbs.some(db => db.name === dbName)
     if (!dbExists) throw new Error(`Database '${dbName}' does not exist`)
     currentDbName = dbName
-    currentDb = client.db(dbName)
+    currentDb = mongoClient.db(dbName)
     log(`DB Operation: Successfully switched to database '${dbName}'.`)
     return currentDb
   } catch (error) {
@@ -1795,15 +1797,15 @@ const explainQuery = async (collectionName, filter, verbosity = 'executionStats'
 const getServerStatus = async () => {
   log('DB Operation: Getting server status…')
   try {
-    const adminDb = client.db('admin')
+    const adminDb = mongoClient.db('admin')
     const status = await adminDb.command({ serverStatus: 1 })
     log('DB Operation: Retrieved server status.')
     return status
   } catch (error) {
     log(`DB Operation: Error getting server status: ${error.message}`)
     return {
-      host: client.s.options.host || 'unknown',
-      port: client.s.options.port || 'unknown',
+      host: mongoClient.s.options.host || 'unknown',
+      port: mongoClient.s.options.port || 'unknown',
       version: 'Information unavailable',
       error: error.message
     }
@@ -1813,7 +1815,7 @@ const getServerStatus = async () => {
 const getReplicaSetStatus = async () => {
   log('DB Operation: Getting replica set status…')
   try {
-    const adminDb = client.db('admin')
+    const adminDb = mongoClient.db('admin')
     const status = await adminDb.command({ replSetGetStatus: 1 })
     log('DB Operation: Retrieved replica set status.')
     return status
@@ -2620,6 +2622,55 @@ const getNestedValue = (obj, path) => {
 
 const log = (message, forceLog = false) => {
   if (forceLog || VERBOSE_LOGGING) console.error(message)
+}
+
+process.on('SIGTERM', async () => {
+  log('Received SIGTERM, shutting down…')
+  await cleanup()
+  exit()
+})
+
+process.on('SIGINT', async () => {
+  log('Received SIGINT, shutting down…')
+  await cleanup()
+  exit()
+})
+
+const cleanup = async () => {
+  if (server) {
+    try {
+      log('Closing MCP server…')
+      await server.close()
+      log('MCP server closed.')
+    } catch (error) {
+      console.error('Error closing MCP server:', error)
+    }
+  }
+  
+  if (transport) {
+    try {
+      log('Closing transport…')
+      await transport.close()
+      log('Transport closed.')
+    } catch (error) {
+      console.error('Error closing transport:', error)
+    }
+  }
+  
+  if (mongoClient) {
+    try {
+      log('Closing MongoDB client…')
+      await mongoClient.close()
+      log('MongoDB client closed.')
+    } catch (error) {
+      console.error('Error closing MongoDB client:', error)
+    }
+  }
+}
+
+const exit = (exitCode = 1) => {
+  log('Exiting…', true)
+  process.exit(exitCode)
 }
 
 main(process.argv[2])

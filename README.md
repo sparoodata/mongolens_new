@@ -80,41 +80,46 @@ MongoDB Lens exposes the following capabilities through MCP:
 
 ## Installation
 
-MongoDB Lens can run via Docker or Node.js.
+MongoDB Lens can be installed and run in several ways:
 
-Depending on your preference, follow the installation instructions below:
-
-- [Docker Installation](#docker-installation)
-- [Node.js Installation](#nodejs-installation)
+- [NPX Installation](#npx-installation) (Easiest)
+- [Docker Hub Installation](#docker-hub-installation)
+- [Node.js Installation from Source](#nodejs-installation-from-source)
+- [Docker Installation from Source](#docker-installation-from-source)
 - [Installation Verification](#installation-verification)
 
-### Docker Installation
+### NPX Installation
+
+The easiest way to run MongoDB Lens is using `npx` without installing anything:
+
+```console
+# Using default connection string mongodb://localhost:27017
+npx mongodb-lens
+
+# Using custom connection string
+npx mongodb-lens mongodb://your-connection-string
+```
+
+### Docker Hub Installation
+
+Run MongoDB Lens directly from Docker Hub without building:
+
+```console
+# Using default connection string mongodb://localhost:27017
+docker run --rm -i --network=host furey/mongodb-lens
+
+# Using custom connection string
+docker run --rm -i --network=host furey/mongodb-lens mongodb://your-connection-string
+```
+
+### Node.js Installation from Source
 
 1. Navigate to the cloned repository directory:<br>
     ```console
     cd /path/to/mongodb-lens
     ```
-1. Build the Docker image:<br>
-    ```console
-    docker build -t mongodb-lens .
-    ```
-1. Check the installation runs (tip: press <kbd>Ctrl</kbd>+<kbd>C</kbd> to exit):<br>
-    ```console
-    # Using default connection string mongodb://localhost:27017
-    docker run --rm -i --network=host mongodb-lens
-
-    # Using custom connection string
-    docker run --rm -i --network=host mongodb-lens mongodb://your-connection-string
-    ```
-1. Verify the server installation by sending a [test message](#installation-verification).
-
-### Node.js Installation
-
-1. Navigate to the cloned repository directory:<br>
-    ```console
-    cd /path/to/mongodb-lens
-    ```
-1. Ensure [Node](https://nodejs.org/en/download) running (tip: use [Volta](https://volta.sh)):<br>`$ node -v` >= `22.*`
+1. Ensure [Node](https://nodejs.org/en/download) running (tip: use [Volta](https://volta.sh)):<br>
+    `$ node -v` >= `22.*`
 1. Install Node.js dependencies:<br>
     ```console
     npm ci
@@ -127,7 +132,25 @@ Depending on your preference, follow the installation instructions below:
     # Using custom connection string
     node mongodb-lens.js mongodb://your-connection-string
     ```
-1. Verify the server installation by sending a [test message](#installation-verification).
+
+### Docker Installation from Source
+
+1. Navigate to the cloned repository directory:<br>
+    ```console
+    cd /path/to/mongodb-lens
+    ```
+1. Build the Docker image:<br>
+    ```console
+    docker build -t mongodb-lens .
+    ```
+1. Run the container:<br>
+    ```console
+    # Using default connection string mongodb://localhost:27017
+    docker run --rm -i --network=host mongodb-lens
+
+    # Using custom connection string
+    docker run --rm -i --network=host mongodb-lens mongodb://your-connection-string
+    ```
 
 ### Installation Verification
 
@@ -137,11 +160,7 @@ To verify the installation, paste and run the following jsonrpc message into the
 {"jsonrpc":"2.0","id":1,"method":"resources/read","params":{"uri":"mongodb://databases"}}
 ```
 
-The server should respond with a list of databases in your MongoDB instance, e.g.:<br>
-
-```json
-{"jsonrpc":"2.0","id":1, "result":{"contents":[{"uri":"mongodb://databases","text":"Databases (12):\n- admin (40.00 KB)\n- config (108.00 KB)\n- local (40.00 KB)\n- sample_airbnb (51.88 MB)\n- sample_analytics (9.46 MB)\n- sample_geospatial (980.00 KB)\n- sample_guides (40.00 KB)\n- sample_mflix (108.90 MB)\n- sample_restaurants (5.92 MB)\n- sample_supplies (968.00 KB)\n- sample_training (40.85 MB)\n- sample_weatherdata (2.39 MB)"}]}}
-```
+The server should respond with a list of databases in your MongoDB instance.
 
 MongoDB Lens is now installed and ready to accept MCP requests.
 
@@ -197,57 +216,106 @@ docker run --rm -i --network=host -e VERBOSE_LOGGING='true' mongodb-lens mongodb
 To use MongoDB Lens with Claude Desktop:
 
 1. Install [Claude Desktop](https://claude.ai/download)
-1. Create and/or open `claude_desktop_config.json`:
+1. Open `claude_desktop_config.json` (create it if it doesn't exist):
     - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
     - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-1. Add the MongoDB Lens server configuration:
-    - Example Docker configuration:<br>
-        ```json
-        {
-          "mcpServers": {
-            "mongodb-lens": {
-              "command": "docker",
-              "args": [
-                "run",
-                "--rm",
-                "-i",
-                "--network=host",
-                "-e",
-                "VERBOSE_LOGGING=[true|false]",
-                "mongodb-lens",
-                "mongodb://your-connection-string"
-              ]
-            }
-          }
-        }
-        ```
-      - Replace `mongodb://your-connection-string` with your MongoDB connection string
-      - Set `VERBOSE_LOGGING` to `true` for verbose MCP Server logs
-    - Example Node.js configuration:<br>
-        ```json
-        {
-          "mcpServers": {
-            "mongodb-lens": {
-              "command": "/absolute/path/to/node",
-              "args": [
-                "/absolute/path/to/mongodb-lens.js",
-                "mongodb://your-connection-string"
-              ],
-              "env": {
-                "VERBOSE_LOGGING": "<true|false>"
-              }
-            }
-          }
-        }
-        ```
-      - Replace `/absolute/path/to/node` with the full path to `node`
-      - Replace `/absolute/path/to/mongodb-lens.js` with the full file path to [`mongodb-lens.js`](./mongodb-lens.js)
-      - Replace `mongodb://your-connection-string` with your MongoDB connection string
-      - Set `VERBOSE_LOGGING` to `true` for verbose MCP Server logs
+1. Add the MongoDB Lens server configuration as per [configuration options](#claude-desktop-configuration-options)
 1. Restart Claude Desktop
 1. Start a conversation with Claude about your MongoDB data
-    - Claude will show a hammer icon indicating available tools
-    - See [example queries](#tutorial-example-queries) for conversation inspiration
+
+#### Claude Desktop Configuration Options
+
+- [Option 1: Use NPX (Recommended)](#option-1-use-npx-recommended)
+- [Option 2: Use Docker Hub Image](#option-2-use-docker-hub-image)
+- [Option 3: Local Node.js Installation](#option-3-local-nodejs-installation)
+- [Option 4: Local Docker Image](#option-4-local-docker-image)
+
+For each option:
+
+- Replace `mongodb://your-connection-string` with your MongoDB connection string or omit it to use the default `mongodb://localhost:27017`.
+- For `VERBOSE_LOGGING`, set to `true` to enable verbose logging or `false` to disable it.
+
+##### Option 1: Use NPX (Recommended)
+
+```json
+{
+  "mcpServers": {
+    "mongodb-lens": {
+      "command": "npx",
+      "args": [
+        "mongodb-lens",
+        "mongodb://your-connection-string"
+      ],
+      "env": {
+        "VERBOSE_LOGGING": "[true|false]"
+      }
+    }
+  }
+}
+```
+
+#### Option 2: Use Docker Hub Image
+
+```json
+{
+  "mcpServers": {
+    "mongodb-lens": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "--network=host",
+        "-e",
+        "VERBOSE_LOGGING=[true|false]",
+        "furey/mongodb-lens",
+        "mongodb://your-connection-string"
+      ]
+    }
+  }
+}
+```
+
+#### Option 3: Local Node.js Installation
+
+```json
+{
+  "mcpServers": {
+    "mongodb-lens": {
+      "command": "/absolute/path/to/node",
+      "args": [
+        "/absolute/path/to/mongodb-lens.js",
+        "mongodb://your-connection-string"
+      ],
+      "env": {
+        "VERBOSE_LOGGING": "[true|false]"
+      }
+    }
+  }
+}
+```
+
+#### Option 4: Local Docker Image
+
+```json
+{
+  "mcpServers": {
+    "mongodb-lens": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "--network=host",
+        "-e",
+        "VERBOSE_LOGGING=[true|false]",
+        "mongodb-lens",
+        "mongodb://your-connection-string"
+      ]
+    }
+  }
+}
+```
 
 ### Client Setup: MCP Inspector
 
@@ -408,7 +476,7 @@ With your MCP Client running and connected to MongoDB Lens, try these example qu
   <sup>➥ Uses `explain-query` tool</sup>
 - _"Build an aggregation pipeline to show the count of movies by decade and genre"_<br>
   <sup>➥ Uses `aggregation-builder` prompt</sup>
-- _"Execute this aggregation pipeline: [{$group: {_id: {$floor: {$divide: ['$year', 10]}}, count: {$sum: 1}}}]"_<br>
+- _"Execute this aggregation pipeline: [{$group: {\_id: {$floor: {$divide: ['$year', 10]}}, count: {$sum: 1}}}]"_<br>
   <sup>➥ Uses `aggregate-data` tool</sup>
 - _"Update all movies from 1994 to add a 'classic' field set to true"_<br>
   <sup>➥ Uses `modify-document` tool with update operation</sup>

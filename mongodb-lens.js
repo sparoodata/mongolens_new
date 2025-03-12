@@ -30,15 +30,13 @@ const memoryCache = {
 
 const connectionOptions = {
   useUnifiedTopology: true, 
-  maxPoolSize: 20,        // renamed from poolSize
+  maxPoolSize: 20,
   connectTimeoutMS: 30000,
   socketTimeoutMS: 360000,
   serverSelectionTimeoutMS: 30000,
   heartbeatFrequencyMS: 10000,
   retryWrites: false,
   useNewUrlParser: true
-  // Removed deprecated options:
-  // autoReconnect, reconnectTries, reconnectInterval
 }
 
 const __filename = fileURLToPath(import.meta.url)
@@ -170,7 +168,7 @@ const startWatchdog = () => {
       log(`High memory usage: ${heapUsedMB}MB used of ${heapTotalMB}MB heap`, true)
       
       if (heapUsedMB > 2000) {
-        log('Critical memory pressure. Clearing caches...', true)
+        log('Critical memory pressure. Clearing caches…', true)
         memoryCache.schemas.clear()
         memoryCache.collections.clear()
         memoryCache.stats.clear()
@@ -180,11 +178,10 @@ const startWatchdog = () => {
         global.gc && global.gc()
       }
     }
-    
-    // Check connection status properly without using deprecated isConnected
-    const isClientConnected = mongoClient && mongoClient.topology && mongoClient.topology.isConnected();
+
+    const isClientConnected = mongoClient && mongoClient.topology && mongoClient.topology.isConnected()
     if (!isClientConnected) {
-      log('Detected MongoDB disconnection. Attempting reconnect...', true)
+      log('Detected MongoDB disconnection. Attempting reconnect…', true)
       reconnect()
     }
     
@@ -198,7 +195,7 @@ const reconnect = async () => {
   }
   
   connectionRetries++
-  log(`Reconnection attempt ${connectionRetries}...`, true)
+  log(`Reconnection attempt ${connectionRetries}…`, true)
   
   try {
     await mongoClient.connect()
@@ -212,7 +209,7 @@ const reconnect = async () => {
 }
 
 const createTransport = async () => {
-  log('Starting stdio transport...', true)
+  log('Starting stdio transport…', true)
   transport = new StdioServerTransport()
   
   return transport
@@ -243,8 +240,7 @@ const main = async (mongoUri) => {
   }, {
     instructions
   })
-  
-  // Define error codes that will be used throughout the application
+
   const JSONRPC_ERROR_CODES = {
     PARSE_ERROR: -32700,
     INVALID_REQUEST: -32600,
@@ -259,8 +255,7 @@ const main = async (mongoUri) => {
     RESOURCE_NOT_FOUND: -32040,
     RESOURCE_ACCESS_DENIED: -32041
   }
-  
-  // Set up custom fallback request handler for undefined methods
+
   server.fallbackRequestHandler = async (request) => {
     log(`Received request for undefined method: ${request.method}`, true)
     const error = new Error(`Method '${request.method}' not found`)
@@ -312,7 +307,7 @@ const connect = async (uri = 'mongodb://localhost:27017') => {
           throw connectionError
         }
         const delay = Math.min(1000 * Math.pow(2, retryCount), 30000)
-        log(`Connection attempt ${retryCount} failed, retrying in ${delay/1000} seconds...`)
+        log(`Connection attempt ${retryCount} failed, retrying in ${delay/1000} seconds…`)
         await new Promise(resolve => setTimeout(resolve, delay))
       }
     }
@@ -342,8 +337,6 @@ const connect = async (uri = 'mongodb://localhost:27017') => {
       log(`Warning: Unable to get database stats: ${statsError.message}`)
     }
     
-    // Handle connection events using modern approach
-    // The unified topology handles these events internally
     mongoClient.on('error', (err) => {
       log(`MongoDB connection error: ${err.message}. Will attempt to reconnect.`, true)
     })
@@ -1130,8 +1123,7 @@ Please provide:
     },
     async ({ includePerformance, includeSchema, includeSecurity }) => {
       log('Prompt: Initializing comprehensive database health check')
-      
-      // Gather data for health check
+
       const dbStats = await getDatabaseStats()
       const collections = await listCollections()
       
@@ -1141,8 +1133,7 @@ Please provide:
       
       if (includePerformance) {
         serverStatus = await getServerStatus()
-        
-        // Get indexes for up to 5 collections
+
         const collectionsToAnalyze = collections.slice(0, 5)
         for (const coll of collectionsToAnalyze) {
           indexes[coll.name] = await getCollectionIndexes(coll.name)
@@ -1150,7 +1141,7 @@ Please provide:
       }
       
       if (includeSchema) {
-        // Sample schema for up to 3 collections
+
         const collectionsToAnalyze = collections.slice(0, 3)
         for (const coll of collectionsToAnalyze) {
           schemaAnalysis[coll.name] = await inferSchema(coll.name, 10)
@@ -1271,9 +1262,8 @@ Please provide:
       migrationConstraints: z.string().optional().describe('Migration constraints (e.g., zero downtime)')
     },
     async ({ collection, currentSchema, plannedChanges, migrationConstraints }) => {
-      log(`Prompt: Initializing schemaVersioning for collection '${collection}'...`)
-      
-      // Get current schema information
+      log(`Prompt: Initializing schemaVersioning for collection '${collection}'…`)
+
       const schema = await inferSchema(collection)
       
       return {
@@ -1369,24 +1359,23 @@ function isValidFieldName(field) {
 }
 
 const registerTools = (server) => {
-  // Helper function for consistent error handling across tools
   const withErrorHandling = async (operation, errorMessage, defaultValue = null) => {
     try {
-      return await operation();
+      return await operation()
     } catch (error) {
-      const formattedError = `${errorMessage}: ${error.message}`;
-      console.error(formattedError);
-      log(formattedError);
+      const formattedError = `${errorMessage}: ${error.message}`
+      console.error(formattedError)
+      log(formattedError)
       
-      let errorCode = -32000;
+      let errorCode = -32000
       
       if (error.name === 'MongoError' || error.name === 'MongoServerError') {
-        if (error.code === 13) errorCode = -32041; // Authentication failed
-        else if (error.code === 59 || error.code === 61) errorCode = -32050; // Connection issues
-        else if (error.code === 121) errorCode = -32052; // Document validation
-        else errorCode = -32051; // Other MongoDB errors
+        if (error.code === 13) errorCode = -32041
+        else if (error.code === 59 || error.code === 61) errorCode = -32050
+        else if (error.code === 121) errorCode = -32052
+        else errorCode = -32051
       } else if (error.message.includes('not found') || error.message.includes('does not exist')) {
-        errorCode = -32040;
+        errorCode = -32040
       }
       
       const errorResponse = {
@@ -1400,11 +1389,11 @@ const registerTools = (server) => {
           message: error.message,
           data: { type: error.name }
         }
-      };
+      }
       
-      return errorResponse;
+      return errorResponse
     }
-  };
+  }
 
   server.tool(
     'list-databases',
@@ -1420,7 +1409,7 @@ const registerTools = (server) => {
             text: formatDatabasesList(dbs)
           }]
         }
-      }, 'Error listing databases');
+      }, 'Error listing databases')
     }
   )
 
@@ -1436,7 +1425,7 @@ const registerTools = (server) => {
             text: `Current database: ${currentDbName}`
           }]
         }
-      }, 'Error getting current database');
+      }, 'Error getting current database')
     }
   )
   
@@ -2272,7 +2261,7 @@ const registerTools = (server) => {
     },
     async ({ collection, operator, field, geometry, maxDistance, limit }) => {
       try {
-        log(`Tool: Running geospatial query on collection '${collection}'...`)
+        log(`Tool: Running geospatial query on collection '${collection}'…`)
         const geoJson = JSON.parse(geometry)
         let query = {}
         
@@ -2316,7 +2305,7 @@ const registerTools = (server) => {
     },
     async ({ name, timeField, metaField, granularity, expireAfterSeconds }) => {
       try {
-        log(`Tool: Creating time series collection '${name}'...`)
+        log(`Tool: Creating time series collection '${name}'…`)
         
         const options = {
           timeseries: {
@@ -2358,7 +2347,7 @@ const registerTools = (server) => {
     },
     async ({ collection, operations, duration, fullDocument }) => {
       try {
-        log(`Tool: Watching collection '${collection}' for changes...`)
+        log(`Tool: Watching collection '${collection}' for changes…`)
         
         const pipeline = [
           { $match: { 'operationType': { $in: operations } } }
@@ -2454,7 +2443,7 @@ const registerTools = (server) => {
     },
     async ({ operations }) => {
       try {
-        log('Tool: Executing operations in a transaction...')
+        log('Tool: Executing operations in a transaction…')
         
         const parsedOps = JSON.parse(operations)
         const session = mongoClient.startSession()
@@ -2628,7 +2617,6 @@ const registerTools = (server) => {
         let result
         
         if (target === 'database') {
-          // Check if database is sharded
           const listShards = await adminDb.command({ listShards: 1 })
           const dbStats = await adminDb.command({ dbStats: 1, scale: 1 })
           const dbShardStatus = await getShardingDbStatus(currentDbName)
@@ -2649,7 +2637,7 @@ const registerTools = (server) => {
             text: result
           }]
         }
-      }, `Error getting shard status for ${target}${collection ? ` '${collection}'` : ''}`);
+      }, `Error getting shard status for ${target}${collection ? ` '${collection}'` : ''}`)
     }
   )
   
@@ -2663,22 +2651,20 @@ const registerTools = (server) => {
     },
     async ({ sourceCollection, targetCollection, sampleSize }) => {
       return withErrorHandling(async () => {
-        log(`Tool: Comparing schemas between '${sourceCollection}' and '${targetCollection}'...`);
-        
-        // Get schemas for both collections
-        const sourceSchema = await inferSchema(sourceCollection, sampleSize);
-        const targetSchema = await inferSchema(targetCollection, sampleSize);
-        
-        // Compare the schemas
-        const comparison = compareSchemas(sourceSchema, targetSchema);
+        log(`Tool: Comparing schemas between '${sourceCollection}' and '${targetCollection}'…`)
+
+        const sourceSchema = await inferSchema(sourceCollection, sampleSize)
+        const targetSchema = await inferSchema(targetCollection, sampleSize)
+
+        const comparison = compareSchemas(sourceSchema, targetSchema)
         
         return {
           content: [{
             type: 'text',
             text: formatSchemaComparison(comparison, sourceCollection, targetCollection)
           }]
-        };
-      }, `Error comparing schemas between '${sourceCollection}' and '${targetCollection}'`);
+        }
+      }, `Error comparing schemas between '${sourceCollection}' and '${targetCollection}'`)
     }
   )
   
@@ -2691,57 +2677,47 @@ const registerTools = (server) => {
     },
     async ({ collection, duration }) => {
       return withErrorHandling(async () => {
-        log(`Tool: Analyzing query patterns for collection '${collection}'...`);
-        
-        // Get collection and index information
-        await throwIfCollectionNotExists(collection);
-        const indexes = await getCollectionIndexes(collection);
-        const schema = await inferSchema(collection);
-        
-        // Attempt to get query execution stats if available (may not be in 3.6)
-        let queryStats = [];
+        log(`Tool: Analyzing query patterns for collection '${collection}'…`)
+
+        await throwIfCollectionNotExists(collection)
+        const indexes = await getCollectionIndexes(collection)
+        const schema = await inferSchema(collection)
+
+        let queryStats = []
         try {
-          // Check if we can use the profiler
-          const adminDb = mongoClient.db('admin');
-          const profilerStatus = await currentDb.command({ profile: -1 });
+          const adminDb = mongoClient.db('admin')
+          const profilerStatus = await currentDb.command({ profile: -1 })
+
+          let prevProfileLevel = profilerStatus.was
+          let prevSlowMs = profilerStatus.slowms
+
+          await currentDb.command({ profile: 2, slowms: 0 })
           
-          // If profiler is available, set to logging all queries
-          let prevProfileLevel = profilerStatus.was;
-          let prevSlowMs = profilerStatus.slowms;
-          
-          // Temporarily enable full profiling
-          await currentDb.command({ profile: 2, slowms: 0 });
-          
-          log(`Tool: Monitoring queries for ${duration} seconds...`);
-          
-          // Wait for the specified duration
-          await new Promise(resolve => setTimeout(resolve, duration * 1000));
-          
-          // Get the profiler data
+          log(`Tool: Monitoring queries for ${duration} seconds…`)
+
+          await new Promise(resolve => setTimeout(resolve, duration * 1000))
+
           queryStats = await currentDb.collection('system.profile')
             .find({ ns: `${currentDbName}.${collection}`, op: 'query' })
             .sort({ ts: -1 })
             .limit(100)
-            .toArray();
-            
-          // Reset profiler to previous state
-          await currentDb.command({ profile: prevProfileLevel, slowms: prevSlowMs });
+            .toArray()
+
+          await currentDb.command({ profile: prevProfileLevel, slowms: prevSlowMs })
           
         } catch (profileError) {
-          log(`Tool: Unable to use profiler: ${profileError.message}`);
-          // We'll continue with just index and schema analysis
+          log(`Tool: Unable to use profiler: ${profileError.message}`)
         }
-        
-        // Analyze and generate recommendations
-        const analysis = analyzeQueryPatterns(collection, schema, indexes, queryStats);
+
+        const analysis = analyzeQueryPatterns(collection, schema, indexes, queryStats)
         
         return {
           content: [{
             type: 'text',
             text: formatQueryAnalysis(analysis)
           }]
-        };
-      }, `Error analyzing query patterns for '${collection}'`);
+        }
+      }, `Error analyzing query patterns for '${collection}'`)
     }
   )
   
@@ -2754,15 +2730,12 @@ const registerTools = (server) => {
     },
     async ({ collection, strictness }) => {
       return withErrorHandling(async () => {
-        log(`Tool: Generating schema validator for '${collection}' with ${strictness} strictness`);
-        
-        // Infer schema with larger sample
-        const schema = await inferSchema(collection, 200);
-        
-        // Generate JSON Schema validator
-        const validator = generateJsonSchemaValidator(schema, strictness);
-        
-        // Format results with example of how to apply it
+        log(`Tool: Generating schema validator for '${collection}' with ${strictness} strictness`)
+
+        const schema = await inferSchema(collection, 200)
+
+        const validator = generateJsonSchemaValidator(schema, strictness)
+
         const result = `# MongoDB JSON Schema Validator for '${collection}'
 
 ## Schema Validator
@@ -2797,15 +2770,15 @@ modify-document {
 \`\`\`
 
 This schema validator was generated based on ${schema.sampleSize} sample documents with ${Object.keys(schema.fields).length} fields.
-`;
+`
 
         return {
           content: [{
             type: 'text',
             text: result
           }]
-        };
-      }, `Error generating schema validator for '${collection}'`);
+        }
+      }, `Error generating schema validator for '${collection}'`)
     }
   )
 }
@@ -2866,26 +2839,23 @@ const listCollections = async () => {
   log(`DB Operation: Listing collections in database '${currentDbName}'…`)
   try {
     if (!currentDb) throw new Error("No database selected")
-    
-    // Check if result is in cache
-    const cacheKey = currentDbName;
-    const cachedData = memoryCache.collections.get(cacheKey);
+
+    const cacheKey = currentDbName
+    const cachedData = memoryCache.collections.get(cacheKey)
     
     if (cachedData && 
         (Date.now() - cachedData.timestamp) < CACHE_TTL.COLLECTIONS) {
-      log(`DB Operation: Using cached collections list for '${currentDbName}'`);
-      return cachedData.data;
+      log(`DB Operation: Using cached collections list for '${currentDbName}'`)
+      return cachedData.data
     }
-    
-    // Not in cache, fetch from database
+
     const collections = await currentDb.listCollections().toArray()
     log(`DB Operation: Found ${collections.length} collections.`)
-    
-    // Update cache
+
     memoryCache.collections.set(cacheKey, {
       data: collections,
       timestamp: Date.now()
-    });
+    })
     
     return collections
   } catch (error) {
@@ -2968,41 +2938,36 @@ const getCollectionIndexes = async (collectionName) => {
   log(`DB Operation: Getting indexes for collection '${collectionName}'…`)
   try {
     await throwIfCollectionNotExists(collectionName)
-    
-    // Check cache first
-    const cacheKey = `${currentDbName}.${collectionName}`;
-    const cachedData = memoryCache.indexes.get(cacheKey);
+
+    const cacheKey = `${currentDbName}.${collectionName}`
+    const cachedData = memoryCache.indexes.get(cacheKey)
     
     if (cachedData && 
         (Date.now() - cachedData.timestamp) < CACHE_TTL.STATS) {
-      log(`DB Operation: Using cached indexes for '${collectionName}'`);
-      return cachedData.data;
+      log(`DB Operation: Using cached indexes for '${collectionName}'`)
+      return cachedData.data
     }
-    
-    // Not in cache, fetch from database
+
     const indexes = await currentDb.collection(collectionName).indexes()
     log(`DB Operation: Retrieved ${indexes.length} indexes for collection '${collectionName}'.`)
-    
-    // Add usage statistics to indexes when available
+
     try {
-      const stats = await currentDb.command({ collStats: collectionName, indexDetails: true });
+      const stats = await currentDb.command({ collStats: collectionName, indexDetails: true })
       if (stats && stats.indexDetails) {
         for (const index of indexes) {
           if (stats.indexDetails[index.name]) {
-            index.usage = stats.indexDetails[index.name];
+            index.usage = stats.indexDetails[index.name]
           }
         }
       }
     } catch (statsError) {
-      // Index usage stats might not be available in MongoDB 3.6
-      log(`DB Operation: Index usage stats not available: ${statsError.message}`);
+      log(`DB Operation: Index usage stats not available: ${statsError.message}`)
     }
-    
-    // Update cache
+
     memoryCache.indexes.set(cacheKey, {
       data: indexes,
       timestamp: Date.now()
-    });
+    })
     
     return indexes
   } catch (error) {
@@ -3047,7 +3012,7 @@ const inferSchema = async (collectionName, sampleSize = 100) => {
       processed++
       
       if (processed % 50 === 0) {
-        log(`DB Operation: Processed ${processed} documents for schema inference...`)
+        log(`DB Operation: Processed ${processed} documents for schema inference…`)
       }
     }
     
@@ -3109,31 +3074,27 @@ const inferSchema = async (collectionName, sampleSize = 100) => {
   }
 }
 
-// Helper function to collect all field paths including nested objects and arrays
 const collectFieldPaths = (obj, prefix = '', paths = new Set()) => {
-  if (!obj || typeof obj !== 'object') return;
+  if (!obj || typeof obj !== 'object') return
   
   Object.entries(obj).forEach(([key, value]) => {
-    const path = prefix ? `${prefix}.${key}` : key;
-    paths.add(path);
+    const path = prefix ? `${prefix}.${key}` : key
+    paths.add(path)
     
     if (value && typeof value === 'object') {
       if (Array.isArray(value)) {
-        // Add array path
         if (value.length > 0) {
-          // If array contains objects, analyze them too
           if (typeof value[0] === 'object' && value[0] !== null) {
-            collectFieldPaths(value[0], `${path}[]`, paths);
+            collectFieldPaths(value[0], `${path}[]`, paths)
           }
         }
       } else if (!(value instanceof ObjectId) && !(value instanceof Date)) {
-        // Recurse into nested objects but not ObjectId or Date
-        collectFieldPaths(value, path, paths);
+        collectFieldPaths(value, path, paths)
       }
     }
-  });
+  })
   
-  return paths;
+  return paths
 }
 
 const createIndex = async (collectionName, keys, options = {}) => {
@@ -3275,15 +3236,13 @@ const getPerformanceMetrics = async () => {
     const adminDb = mongoClient.db('admin')
     const serverStatus = await adminDb.command({ serverStatus: 1 })
     const profileStats = await currentDb.command({ profile: -1 })
-    
-    // Get currently running operations
+
     const currentOps = await adminDb.command({ 
       currentOp: 1, 
       active: true,
       secs_running: { $gt: 1 }
     })
-    
-    // Get database performance stats
+
     const perfStats = await currentDb.command({ dbStats: 1 })
     
     return {
@@ -3307,7 +3266,6 @@ const getPerformanceMetrics = async () => {
 
 const getDatabaseTriggers = async () => {
   try {
-    // For MongoDB 4.2+, check for database-level change streams
     const changeStreamInfo = {
       supported: true,
       resumeTokenSupported: true,
@@ -3315,12 +3273,7 @@ const getDatabaseTriggers = async () => {
       fullDocumentBeforeChangeSupported: true
     }
     
-    // Get any Atlas trigger configurations if available
-    // Since Atlas triggers are cloud-based, we'll just check for collections with 
-    // existing triggers by checking collection names
     const triggerCollections = await currentDb.listCollections({ name: /trigger|event|notification/i }).toArray()
-    
-    // Also look for system.js entries that might be trigger functions
     const system = currentDb.collection('system.js')
     const triggerFunctions = await system.find({ _id: /trigger|event|watch|notify/i }).toArray()
     
@@ -4255,8 +4208,7 @@ const formatPerformanceMetrics = (metrics) => {
   if (metrics.error) {
     return `Error retrieving metrics: ${metrics.error}`
   }
-  
-  // Format server status
+
   result += '## Server Status\n'
   if (metrics.serverStatus.connections) {
     result += `- Current Connections: ${metrics.serverStatus.connections.current}\n`
@@ -4277,13 +4229,11 @@ const formatPerformanceMetrics = (metrics) => {
     result += `- Current Bytes: ${formatSize(metrics.serverStatus.wiredTiger.bytes_currently_in_cache)}\n`
     result += `- Dirty Bytes: ${formatSize(metrics.serverStatus.wiredTiger.tracked_dirty_bytes)}\n`
   }
-  
-  // Profile settings
+
   result += '\n## Database Profiling\n'
   result += `- Profiling Level: ${metrics.profileSettings.was}\n`
   result += `- Slow Query Threshold: ${metrics.profileSettings.slowms}ms\n`
-  
-  // Current operations
+
   if (metrics.currentOperations && metrics.currentOperations.length > 0) {
     result += '\n## Long-Running Operations\n'
     for (const op of metrics.currentOperations) {
@@ -4304,8 +4254,7 @@ const formatTriggerConfiguration = (triggers) => {
   }
   
   let result = 'MongoDB Event Trigger Configuration:\n\n'
-  
-  // Change stream support
+
   result += '## Change Stream Support\n'
   if (triggers.changeStreams.supported) {
     result += '- Change streams are supported in this MongoDB version\n'
@@ -4315,8 +4264,7 @@ const formatTriggerConfiguration = (triggers) => {
   } else {
     result += '- Change streams are not supported in this MongoDB version\n'
   }
-  
-  // Potential trigger collections
+
   result += '\n## Potential Trigger Collections\n'
   if (triggers.triggerCollections && triggers.triggerCollections.length > 0) {
     for (const coll of triggers.triggerCollections) {
@@ -4325,14 +4273,13 @@ const formatTriggerConfiguration = (triggers) => {
   } else {
     result += '- No collections found with trigger-related naming\n'
   }
-  
-  // Trigger functions
+
   result += '\n## Stored Trigger Functions\n'
   if (triggers.triggerFunctions && triggers.triggerFunctions.length > 0) {
     for (const func of triggers.triggerFunctions) {
       result += `- ${func._id}\n`
       if (typeof func.value === 'function') {
-        result += `  ${func.value.toString().split('\n')[0]}...\n`
+        result += `  ${func.value.toString().split('\n')[0]}…\n`
       }
     }
   } else {
@@ -4396,7 +4343,6 @@ const getNestedValue = (obj, path) => {
   return current
 }
 
-// Compare schemas between two collections
 const compareSchemas = (sourceSchema, targetSchema) => {
   const result = {
     source: sourceSchema.collectionName,
@@ -4405,127 +4351,114 @@ const compareSchemas = (sourceSchema, targetSchema) => {
     sourceOnlyFields: [],
     targetOnlyFields: [],
     typeDifferences: []
-  };
-  
-  // Find common fields and fields unique to each schema
-  const sourceFields = Object.keys(sourceSchema.fields);
-  const targetFields = Object.keys(targetSchema.fields);
-  
-  // Find fields in both schemas
+  }
+
+  const sourceFields = Object.keys(sourceSchema.fields)
+  const targetFields = Object.keys(targetSchema.fields)
+
   sourceFields.forEach(field => {
     if (targetFields.includes(field)) {
-      const sourceTypes = sourceSchema.fields[field].types;
-      const targetTypes = targetSchema.fields[field].types;
-      
-      // Check if types match
-      const typesMatch = arraysEqual(sourceTypes, targetTypes);
+      const sourceTypes = sourceSchema.fields[field].types
+      const targetTypes = targetSchema.fields[field].types
+
+      const typesMatch = arraysEqual(sourceTypes, targetTypes)
       
       result.commonFields.push({
         name: field,
         sourceTypes,
         targetTypes,
         typesMatch
-      });
+      })
       
       if (!typesMatch) {
         result.typeDifferences.push({
           field,
           sourceTypes,
           targetTypes
-        });
+        })
       }
     } else {
       result.sourceOnlyFields.push({
         name: field,
         types: sourceSchema.fields[field].types
-      });
+      })
     }
-  });
-  
-  // Find fields only in target
+  })
+
   targetFields.forEach(field => {
     if (!sourceFields.includes(field)) {
       result.targetOnlyFields.push({
         name: field,
         types: targetSchema.fields[field].types
-      });
+      })
     }
-  });
-  
-  // Add summary stats
+  })
+
   result.stats = {
     sourceFieldCount: sourceFields.length,
     targetFieldCount: targetFields.length,
     commonFieldCount: result.commonFields.length,
     mismatchCount: result.typeDifferences.length
-  };
+  }
   
-  return result;
-};
+  return result
+}
 
-// Helper function to check if arrays have the same elements
 const arraysEqual = (a, b) => {
-  if (a.length !== b.length) return false;
-  const sortedA = [...a].sort();
-  const sortedB = [...b].sort();
-  return sortedA.every((item, i) => item === sortedB[i]);
-};
+  if (a.length !== b.length) return false
+  const sortedA = [...a].sort()
+  const sortedB = [...b].sort()
+  return sortedA.every((item, i) => item === sortedB[i])
+}
 
-// Format schema comparison results
 const formatSchemaComparison = (comparison, sourceCollection, targetCollection) => {
-  const { source, target, commonFields, sourceOnlyFields, targetOnlyFields, typeDifferences, stats } = comparison;
+  const { source, target, commonFields, sourceOnlyFields, targetOnlyFields, typeDifferences, stats } = comparison
   
-  let result = `# Schema Comparison: '${source}' vs '${target}'\n\n`;
-  
-  // Summary
-  result += `## Summary\n`;
-  result += `- Source Collection: ${source} (${stats.sourceFieldCount} fields)\n`;
-  result += `- Target Collection: ${target} (${stats.targetFieldCount} fields)\n`;
-  result += `- Common Fields: ${stats.commonFieldCount}\n`;
-  result += `- Fields Only in Source: ${sourceOnlyFields.length}\n`;
-  result += `- Fields Only in Target: ${targetOnlyFields.length}\n`;
-  result += `- Type Mismatches: ${typeDifferences.length}\n\n`;
-  
-  // Type mismatches
-  if (typeDifferences.length > 0) {
-    result += `## Type Differences\n`;
-    typeDifferences.forEach(diff => {
-      result += `- ${diff.field}: ${diff.sourceTypes.join(', ')} (${source}) vs ${diff.targetTypes.join(', ')} (${target})\n`;
-    });
-    result += '\n';
-  }
-  
-  // Fields only in source
-  if (sourceOnlyFields.length > 0) {
-    result += `## Fields Only in ${source}\n`;
-    sourceOnlyFields.forEach(field => {
-      result += `- ${field.name}: ${field.types.join(', ')}\n`;
-    });
-    result += '\n';
-  }
-  
-  // Fields only in target
-  if (targetOnlyFields.length > 0) {
-    result += `## Fields Only in ${target}\n`;
-    targetOnlyFields.forEach(field => {
-      result += `- ${field.name}: ${field.types.join(', ')}\n`;
-    });
-    result += '\n';
-  }
-  
-  // Common fields
-  if (stats.commonFieldCount > 0) {
-    result += `## Common Fields\n`;
-    commonFields.forEach(field => {
-      const statusSymbol = field.typesMatch ? '✓' : '✗';
-      result += `- ${statusSymbol} ${field.name}\n`;
-    });
-  }
-  
-  return result;
-};
+  let result = `# Schema Comparison: '${source}' vs '${target}'\n\n`
 
-// Analyze query patterns and suggest optimizations
+  result += `## Summary\n`
+  result += `- Source Collection: ${source} (${stats.sourceFieldCount} fields)\n`
+  result += `- Target Collection: ${target} (${stats.targetFieldCount} fields)\n`
+  result += `- Common Fields: ${stats.commonFieldCount}\n`
+  result += `- Fields Only in Source: ${sourceOnlyFields.length}\n`
+  result += `- Fields Only in Target: ${targetOnlyFields.length}\n`
+  result += `- Type Mismatches: ${typeDifferences.length}\n\n`
+
+  if (typeDifferences.length > 0) {
+    result += `## Type Differences\n`
+    typeDifferences.forEach(diff => {
+      result += `- ${diff.field}: ${diff.sourceTypes.join(', ')} (${source}) vs ${diff.targetTypes.join(', ')} (${target})\n`
+    })
+    result += '\n'
+  }
+
+  if (sourceOnlyFields.length > 0) {
+    result += `## Fields Only in ${source}\n`
+    sourceOnlyFields.forEach(field => {
+      result += `- ${field.name}: ${field.types.join(', ')}\n`
+    })
+    result += '\n'
+  }
+
+  if (targetOnlyFields.length > 0) {
+    result += `## Fields Only in ${target}\n`
+    targetOnlyFields.forEach(field => {
+      result += `- ${field.name}: ${field.types.join(', ')}\n`
+    })
+    result += '\n'
+  }
+
+  if (stats.commonFieldCount > 0) {
+    result += `## Common Fields\n`
+    commonFields.forEach(field => {
+      const statusSymbol = field.typesMatch ? '✓' : '✗'
+      result += `- ${statusSymbol} ${field.name}\n`
+    })
+  }
+  
+  return result
+}
+
 const analyzeQueryPatterns = (collection, schema, indexes, queryStats) => {
   const analysis = {
     collection,
@@ -4534,10 +4467,9 @@ const analyzeQueryPatterns = (collection, schema, indexes, queryStats) => {
     unusedIndexes: [],
     schemaIssues: [],
     queryStats: []
-  };
-  
-  // Convert indexes to a more usable format
-  const indexMap = {};
+  }
+
+  const indexMap = {}
   indexes.forEach(idx => {
     indexMap[idx.name] = {
       key: idx.key,
@@ -4545,73 +4477,65 @@ const analyzeQueryPatterns = (collection, schema, indexes, queryStats) => {
       sparse: !!idx.sparse,
       fields: Object.keys(idx.key),
       usage: idx.usage || { ops: 0, since: new Date() }
-    };
-  });
-  
-  // Check for unused indexes
+    }
+  })
+
   for (const [name, idx] of Object.entries(indexMap)) {
     if (name !== '_id_' && (!idx.usage || idx.usage.ops === 0)) {
       analysis.unusedIndexes.push({
         name,
         fields: idx.fields,
         properties: idx.unique ? 'unique' : ''
-      });
+      })
     }
   }
-  
-  // Analyze query stats if available
+
   if (queryStats && queryStats.length > 0) {
     queryStats.forEach(stat => {
       if (stat.command && stat.command.filter) {
-        const filter = stat.command.filter;
-        const queryFields = Object.keys(filter);
-        const millis = stat.millis || 0;
-        
-        // Track query stats
+        const filter = stat.command.filter
+        const queryFields = Object.keys(filter)
+        const millis = stat.millis || 0
+
         analysis.queryStats.push({
           filter: JSON.stringify(filter),
           fields: queryFields,
           millis,
           scanType: stat.planSummary || 'Unknown',
           timestamp: stat.ts
-        });
-        
-        // Check if we have an index for this query pattern
+        })
+
         const hasMatchingIndex = indexes.some(idx => {
-          const indexFields = Object.keys(idx.key);
-          return queryFields.every(field => indexFields.includes(field));
-        });
+          const indexFields = Object.keys(idx.key)
+          return queryFields.every(field => indexFields.includes(field))
+        })
         
         if (!hasMatchingIndex && queryFields.length > 0 && millis > 10) {
-          // Suggest an index for this query
           analysis.indexRecommendations.push({
             fields: queryFields,
             filter: JSON.stringify(filter),
             millis
-          });
+          })
         }
       }
-    });
+    })
   }
-  
-  // Check schema for potential issues
-  const schemaFields = Object.entries(schema.fields);
-  
-  // Find very large arrays
+
+  const schemaFields = Object.entries(schema.fields)
+
   schemaFields.forEach(([fieldName, info]) => {
     if (info.types.includes('array') && info.sample && Array.isArray(info.sample) && info.sample.length > 50) {
       analysis.schemaIssues.push({
         field: fieldName,
         issue: 'Large array',
         description: `Field contains arrays with ${info.sample.length}+ items, which can cause performance issues.`
-      });
+      })
     }
-  });
-  
-  // Find fields that might benefit from indexing based on patterns
+  })
+
   const likelyQueryFields = schemaFields
     .filter(([name, info]) => {
-      const lowerName = name.toLowerCase();
+      const lowerName = name.toLowerCase()
       return (
         lowerName.includes('id') || 
         lowerName.includes('key') || 
@@ -4620,71 +4544,66 @@ const analyzeQueryPatterns = (collection, schema, indexes, queryStats) => {
         lowerName === 'email' || 
         lowerName === 'name' ||
         lowerName === 'status'
-      ) && !indexMap._id_ && !indexMap[name + '_1'];
+      ) && !indexMap._id_ && !indexMap[name + '_1']
     })
-    .map(([name]) => name);
+    .map(([name]) => name)
     
   if (likelyQueryFields.length > 0) {
     analysis.indexRecommendations.push({
       fields: likelyQueryFields,
       filter: 'Common query field pattern',
       automatic: true
-    });
+    })
   }
   
-  return analysis;
-};
+  return analysis
+}
 
-// Format query pattern analysis
 const formatQueryAnalysis = (analysis) => {
-  const { collection, indexRecommendations, queryOptimizations, unusedIndexes, schemaIssues, queryStats } = analysis;
+  const { collection, indexRecommendations, queryOptimizations, unusedIndexes, schemaIssues, queryStats } = analysis
   
-  let result = `# Query Pattern Analysis for '${collection}'\n\n`;
-  
-  // Index recommendations
+  let result = `# Query Pattern Analysis for '${collection}'\n\n`
+
   if (indexRecommendations.length > 0) {
-    result += `## Index Recommendations\n`;
+    result += `## Index Recommendations\n`
     indexRecommendations.forEach((rec, i) => {
-      result += `### ${i+1}. Create index on: ${rec.fields.join(', ')}\n`;
+      result += `### ${i+1}. Create index on: ${rec.fields.join(', ')}\n`
       if (rec.filter && !rec.automatic) {
-        result += `- Based on query filter: ${rec.filter}\n`;
+        result += `- Based on query filter: ${rec.filter}\n`
         if (rec.millis) {
-          result += `- Current execution time: ${rec.millis}ms\n`;
+          result += `- Current execution time: ${rec.millis}ms\n`
         }
       } else if (rec.automatic) {
-        result += `- Automatic recommendation based on field name patterns\n`;
+        result += `- Automatic recommendation based on field name patterns\n`
       }
-      result += `- Create using: \`create-index {"collection": "${collection}", "keys": "{\\"${rec.fields[0]}\\": 1}"}\`\n\n`;
-    });
+      result += `- Create using: \`create-index {"collection": "${collection}", "keys": "{\\"${rec.fields[0]}\\": 1}"}\`\n\n`
+    })
   }
-  
-  // Unused indexes
+
   if (unusedIndexes.length > 0) {
-    result += `## Unused Indexes\n`;
-    result += 'The following indexes appear to be unused and could potentially be removed:\n';
+    result += `## Unused Indexes\n`
+    result += 'The following indexes appear to be unused and could potentially be removed:\n'
     unusedIndexes.forEach((idx) => {
-      result += `- ${idx.name} on fields: ${idx.fields.join(', ')}\n`;
-    });
-    result += '\n';
+      result += `- ${idx.name} on fields: ${idx.fields.join(', ')}\n`
+    })
+    result += '\n'
   }
-  
-  // Schema issues
+
   if (schemaIssues.length > 0) {
-    result += `## Schema Concerns\n`;
+    result += `## Schema Concerns\n`
     schemaIssues.forEach((issue) => {
-      result += `- ${issue.field}: ${issue.issue} - ${issue.description}\n`;
-    });
-    result += '\n';
+      result += `- ${issue.field}: ${issue.issue} - ${issue.description}\n`
+    })
+    result += '\n'
   }
-  
-  // Query stats
+
   if (queryStats.length > 0) {
-    result += `## Recent Queries\n`;
-    result += 'Most recent query patterns observed:\n';
+    result += `## Recent Queries\n`
+    result += 'Most recent query patterns observed:\n'
     
-    const uniquePatterns = {};
+    const uniquePatterns = {}
     queryStats.forEach(stat => {
-      const key = stat.filter;
+      const key = stat.filter
       if (!uniquePatterns[key]) {
         uniquePatterns[key] = {
           filter: stat.filter,
@@ -4693,30 +4612,29 @@ const formatQueryAnalysis = (analysis) => {
           totalTime: stat.millis,
           avgTime: stat.millis,
           scanType: stat.scanType
-        };
+        }
       } else {
-        uniquePatterns[key].count++;
-        uniquePatterns[key].totalTime += stat.millis;
-        uniquePatterns[key].avgTime = uniquePatterns[key].totalTime / uniquePatterns[key].count;
+        uniquePatterns[key].count++
+        uniquePatterns[key].totalTime += stat.millis
+        uniquePatterns[key].avgTime = uniquePatterns[key].totalTime / uniquePatterns[key].count
       }
-    });
+    })
     
     Object.values(uniquePatterns)
       .sort((a, b) => b.avgTime - a.avgTime)
       .slice(0, 5)
       .forEach(pattern => {
-        result += `- Filter: ${pattern.filter}\n`;
-        result += `  - Fields: ${pattern.fields.join(', ')}\n`;
-        result += `  - Count: ${pattern.count}\n`;
-        result += `  - Avg Time: ${pattern.avgTime.toFixed(2)}ms\n`;
-        result += `  - Scan Type: ${pattern.scanType}\n\n`;
-      });
+        result += `- Filter: ${pattern.filter}\n`
+        result += `  - Fields: ${pattern.fields.join(', ')}\n`
+        result += `  - Count: ${pattern.count}\n`
+        result += `  - Avg Time: ${pattern.avgTime.toFixed(2)}ms\n`
+        result += `  - Scan Type: ${pattern.scanType}\n\n`
+      })
   }
   
-  return result;
-};
+  return result
+}
 
-// Generate a JSON Schema validator
 const generateJsonSchemaValidator = (schema, strictness) => {
   const validator = {
     $jsonSchema: {
@@ -4724,76 +4642,66 @@ const generateJsonSchemaValidator = (schema, strictness) => {
       required: [],
       properties: {}
     }
-  };
-  
-  // Set required fields based on strictness
+  }
+
   const requiredThreshold = 
     strictness === 'strict' ? 90 :
     strictness === 'moderate' ? 75 :
-    60; // relaxed
+    60
   
   Object.entries(schema.fields).forEach(([fieldPath, info]) => {
-    // Skip nested fields with dots for simplicity
-    if (fieldPath.includes('.')) return;
-    
-    // For array fields with trailing [], clean up the name
-    const cleanFieldPath = fieldPath.replace('[]', '');
-    
-    // Determine bsonType(s)
-    let bsonTypes = [];
+    if (fieldPath.includes('.')) return
+
+    const cleanFieldPath = fieldPath.replace('[]', '')
+
+    let bsonTypes = []
     info.types.forEach(type => {
       switch(type) {
         case 'string':
-          bsonTypes.push('string');
-          break;
+          bsonTypes.push('string')
+          break
         case 'number':
-          bsonTypes.push('number', 'double', 'int');
-          break;
+          bsonTypes.push('number', 'double', 'int')
+          break
         case 'boolean':
-          bsonTypes.push('bool');
-          break;
+          bsonTypes.push('bool')
+          break
         case 'array':
-          bsonTypes.push('array');
-          break;
+          bsonTypes.push('array')
+          break
         case 'object':
-          bsonTypes.push('object');
-          break;
+          bsonTypes.push('object')
+          break
         case 'null':
-          bsonTypes.push('null');
-          break;
+          bsonTypes.push('null')
+          break
         case 'Date':
-          bsonTypes.push('date');
-          break;
+          bsonTypes.push('date')
+          break
         case 'ObjectId':
-          bsonTypes.push('objectId');
-          break;
-        default:
-          // Skip or handle other types
+          bsonTypes.push('objectId')
+          break
       }
-    });
-    
-    // Field may have multiple possible types
+    })
+
     const fieldSchema = bsonTypes.length === 1 
       ? { bsonType: bsonTypes[0] }
-      : { bsonType: bsonTypes };
-    
-    // Add field to properties
-    validator.$jsonSchema.properties[cleanFieldPath] = fieldSchema;
-    
-    // Check if field should be required
-    const coverage = info.coverage || Math.round((info.count / schema.sampleSize) * 100);
+      : { bsonType: bsonTypes }
+
+    validator.$jsonSchema.properties[cleanFieldPath] = fieldSchema
+
+    const coverage = info.coverage || Math.round((info.count / schema.sampleSize) * 100)
     if (coverage >= requiredThreshold && !info.types.includes('null')) {
-      validator.$jsonSchema.required.push(cleanFieldPath);
+      validator.$jsonSchema.required.push(cleanFieldPath)
     }
-  });
-  
-  // Special handling for strict mode: add additionalProperties restriction
+  })
+
   if (strictness === 'strict') {
-    validator.$jsonSchema.additionalProperties = false;
+    validator.$jsonSchema.additionalProperties = false
   }
   
-  return validator;
-};
+  return validator
+}
 
 const log = (message, forceLog = false) => {
   if (forceLog || VERBOSE_LOGGING) console.error(message)

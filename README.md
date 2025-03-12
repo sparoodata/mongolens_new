@@ -257,7 +257,7 @@ For each option:
 }
 ```
 
-#### Option 2: Docker Hub Image
+##### Option 2: Docker Hub Image
 
 ```json
 {
@@ -279,7 +279,7 @@ For each option:
 }
 ```
 
-#### Option 3: Local Node.js Installation
+##### Option 3: Local Node.js Installation
 
 ```json
 {
@@ -298,7 +298,7 @@ For each option:
 }
 ```
 
-#### Option 4: Local Docker Image
+##### Option 4: Local Docker Image
 
 ```json
 {

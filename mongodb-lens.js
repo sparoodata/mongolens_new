@@ -64,96 +64,23 @@ if (existsSync(CONFIG_PATH)) {
 }
 
 const instructions = `
-# MongoDB Lens
+MongoDB Lens is an MCP server that lets you interact with MongoDB databases through natural language.
 
-## Core Capabilities
+Core capabilities include:
 
-1. **Database Exploration**
+- Database exploration: List databases, view collections, analyze schemas
+- Querying: Find documents, count, aggregate data, full-text search, geospatial queries
+- Data management: Insert, update, delete documents, bulk operations, transactions
+- Performance tools: Create indexes, explain queries, analyze patterns, view metrics
+- Administration: Monitor server status, users, replication, sharding
 
-  - List all databases: Use the \`mongodb://databases\` resource or \`list-databases\` tool
-  - Switch databases: e.g. \`use-database {"database": "myDb"}\`
-  - View collections: \`list-collections\` or \`mongodb://collections\`
+Use tools like \`list-databases\`, \`find-documents\`, \`aggregate-data\`, \`create-index\`, and \`modify-document\` to interact with your data.
 
-2. **Data Querying**
+For complex tasks, use prompts like \`query-builder\`, \`schema-analysis\`, \`data-modeling\`, and \`sql-to-mongodb\` to get expert assistance.
 
-  - Find documents: e.g. \`find-documents {"collection": "users", "filter": "{\"age\": {\"$gt\": 30}}", "limit": 5}\`
-  - Stream large results: e.g. \`find-documents {"collection": "users", "streaming": true, "limit": 1000}\`
-  - Count documents: e.g. \`count-documents {"collection": "users", "filter": "{\"active\": true}"}\`
-  - Aggregate data: e.g. \`aggregate-data {"collection": "orders", "pipeline": "[{\"$group\": {\"_id\": \"$status\", \"total\": {\"$sum\": 1}}}]"}\`
-  - Stream large aggregations: e.g. \`aggregate-data {"collection": "orders", "pipeline": "[...]", "streaming": true}\`
-  - Full-text search: e.g. \`text-search {"collection": "articles", "searchText": "mongodb performance"}\`
-  - Collation queries: e.g. \`collation-query {"collection": "users", "filter": "{\"name\": \"müller\"}", "locale": "de"}\`
+Stream large result sets with \`streaming: true\` parameter and monitor real-time database changes with \`watch-changes\`.
 
-3. **Geospatial Operations**
-
-  - Run geo queries: e.g. \`geo-query {"collection": "stores", "operator": "near", "field": "location", "geometry": "{\"type\": \"Point\", \"coordinates\": [-73.9, 40.8]}", "maxDistance": 5000}\`
-  - Find within areas: e.g. \`geo-query {"collection": "restaurants", "operator": "geoWithin", "field": "location", "geometry": "{\"type\": \"Polygon\", \"coordinates\": [[[...coordinates...]]]}"}\`
-  - Check intersections: e.g. \`geo-query {"collection": "routes", "operator": "geoIntersects", "field": "path", "geometry": "{\"type\": \"LineString\", \"coordinates\": [[...]]}"}\`
-
-4. **Schema and Performance**  
-
-  - Analyze schemas: e.g. \`analyze-schema {"collection": "products"}\` or \`mongodb://collection/products/schema\`
-  - Create indexes: e.g. \`create-index {"collection": "users", "keys": "{\"email\": 1}", "options": "{\"unique\": true}"}\`
-  - Explain queries: e.g. \`explain-query {"collection": "orders", "filter": "{\"total\": {\"$gt\": 100}}}"}\`
-  - View performance metrics: \`mongodb://server/metrics\` for real-time stats and profiling
-
-5. **Data Management**
-
-  - Modify documents: e.g. \`modify-document {"collection": "users", "operation": "insert", "document": "{\"name\": \"Alice\", \"age\": 25}"}\`
-  - Bulk operations: e.g. \`bulk-operations {"collection": "users", "operations": "[{\"insertOne\": {\"document\": {\"name\": \"Bob\"}}}]"}\`
-  - Export data: e.g. \`export-data {"collection": "users", "format": "csv", "fields": "name,age"}\`
-
-6. **Server Insights**
-
-  - Check status: \`mongodb://server/status\` or \`get-stats {"target": "database"}\`
-  - View replica info: \`mongodb://server/replica\`
-  - List users: \`mongodb://database/users\`
-  - View shard status: \`shard-status {"target": "database"}\` or \`shard-status {"target": "collection", "collection": "users"}\`
-  - Performance metrics: \`mongodb://server/metrics\` for operational insights
-  - Event triggers: \`mongodb://database/triggers\` for change stream configuration
-
-7. **Advanced Features**
-
-  - Transactions: \`transaction {"operations": "[{\"collection\": \"accounts\", \"operation\": \"update\", \"filter\": {\"_id\": 1}, \"update\": {\"$inc\": {\"balance\": -100}}}, {\"collection\": \"accounts\", \"operation\": \"update\", \"filter\": {\"_id\": 2}, \"update\": {\"$inc\": {\"balance\": 100}}}]"}\`
-  - Time series: \`create-timeseries {"name": "metrics", "timeField": "timestamp", "metaField": "sensorId", "granularity": "minutes"}\`
-  - GridFS operations: \`gridfs-operation {"operation": "list", "bucket": "images"}\` or \`gridfs-operation {"operation": "info", "filename": "profile.jpg"}\`
-  - Change streams: \`watch-changes {"collection": "orders", "operations": ["insert", "update"], "duration": 30}\`
-
-8. **Advanced Assistance**
-
-  - Build queries: Use the \`query-builder\` prompt: e.g. \`{"collection": "users", "condition": "age over 30"}\`
-  - Optimize queries: e.g. \`query-optimizer {"collection": "orders", "query": "{\"total\": {\"$gt\": 100}}}"}\`
-  - Audit security: \`security-audit {}\`
-  - Convert SQL: \`sql-to-mongodb {"sqlQuery": "SELECT * FROM users WHERE age > 30 ORDER BY name", "targetCollection": "users"}\`
-  - Health check: \`database-health-check {"includePerformance": true, "includeSchema": true, "includeSecurity": true}\`
-  - Multi-tenant design: \`multi-tenant-design {"tenantIsolation": "collection", "estimatedTenants": 1000, "sharedFeatures": "auth, logging", "tenantSpecificFeatures": "user data, settings"}\`
-  - Schema versioning: \`schema-versioning {"collection": "users", "currentSchema": "email, name, age", "plannedChanges": "add address object, split name into first/last"}\`
-  - Data modeling: \`data-modeling {"useCase": "e-commerce platform", "requirements": "high write throughput, analytics"}\`
-
-## Getting Started
-
-1. Connect to the server and run \`list-databases\` to see available databases.
-2. Select a database e.g. \`use-database {"database": "yourDb"}\`.
-3. Explore collections via \`list-collections\` or fetch schemas with \`mongodb://collection/{name}/schema\`.
-4. Query data using \`find-documents\` or analyze with prompts like \`schema-analysis\`.
-5. Manage data with tools like \`modify-document\` or \`create-index\`.
-
-## Tips
-
-- Use templated resources (e.g. \`mongodb://collection/{name}/stats\`) with autocompletion support.
-- Enable streaming for large result sets with the \`streaming: true\` parameter.
-- Use WebSocket transport with \`USE_WEBSOCKET=true\` for better client compatibility.
-- Create a config file at \`~/.mongodb-lens.json\` for custom configurations (use maxPoolSize instead of poolSize).
-- Leverage prompts like \`aggregation-builder\` for complex pipelines.
-- Check logs with \`VERBOSE_LOGGING=true\` for debugging.
-- Combine tools and resources for workflows, e.g. schema analysis → index creation.
-- Use geospatial queries with \`geo-query\` for location-based operations.
-- Monitor changes in real-time using \`watch-changes\` to observe database activity.
-- Leverage \`transaction\` for operations that must succeed or fail as a unit.
-- Get comprehensive database assessments with \`database-health-check\`.
-- Convert existing SQL queries to MongoDB with \`sql-to-mongodb\`.
-- Design schema evolution strategies with \`schema-versioning\` for zero-downtime updates.
-- Use modern MongoDB connection options and avoid deprecated options like autoReconnect, reconnectTries, and reconnectInterval.
+For full documentation and examples, see: https://github.com/furey/mongodb-lens
 `
 
 const startWatchdog = () => {

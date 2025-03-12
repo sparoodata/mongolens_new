@@ -36,8 +36,10 @@
 - Collection statistics
 - Collection validation rules
 - Database listings
+- Database triggers and event configurations
 - Database users and roles
 - Index information
+- Performance metrics and profiling data
 - Replica set configuration
 - Schema inference
 - Server status and metrics
@@ -48,37 +50,49 @@
 - `aggregate-data`: Execute aggregation pipelines
 - `analyze-schema`: Automatically infer collection schemas
 - `bulk-operations`: Perform multiple operations efficiently
+- `collation-query`: Find documents with language-specific collation rules
 - `count-documents`: Count documents matching specified criteria
 - `create-collection`: Create new collections with custom options
 - `create-index`: Create new indexes for performance optimization
+- `create-timeseries`: Create time series collections for temporal data
 - `current-database`: Show the current database context
 - `distinct-values`: Extract unique values for any field
 - `drop-collection`: Remove collections from the database
 - `explain-query`: Analyze query execution plans
 - `export-data`: Export query results in JSON or CSV format
 - `find-documents`: Run queries with filters, projections, and sorting
+- `geo-query`: Perform geospatial queries with various operators
 - `get-stats`: Retrieve database or collection statistics
+- `gridfs-operation`: Manage large files with GridFS buckets
 - `list-collections`: Explore collections in the current database
 - `list-databases`: View all accessible MongoDB databases
 - `map-reduce`: Run MapReduce operations for complex data processing
 - `modify-document`: Insert, update, or delete specific documents
 - `rename-collection`: Rename existing collections
+- `shard-status`: View sharding configuration for databases and collections
+- `text-search`: Perform full-text search across text-indexed fields
+- `transaction`: Execute multiple operations in a single ACID transaction
 - `use-database`: Switch to a specific database context
 - `validate-collection`: Check for data inconsistencies
+- `watch-changes`: Monitor real-time changes to collections
 
 ### Prompts
 
 - `aggregation-builder`: Step-by-step creation of aggregation pipelines
 - `backup-strategy`: Customized backup and recovery recommendations
 - `data-modeling`: Expert advice on MongoDB schema design for specific use cases
+- `database-health-check`: Comprehensive database health assessment and recommendations
 - `index-recommendation`: Get personalized index suggestions based on query patterns
 - `inspector-guide`: Get help using MongoDB Lens with MCP Inspector
 - `migration-guide`: Step-by-step MongoDB version migration plans
 - `mongo-shell`: Generate MongoDB shell commands with explanations
+- `multi-tenant-design`: Design MongoDB multi-tenant database architecture
 - `query-builder`: Interactive guidance for constructing MongoDB queries
 - `query-optimizer`: Optimization recommendations for slow queries
 - `schema-analysis`: Detailed collection schema analysis with recommendations
+- `schema-versioning`: Manage schema evolution in MongoDB applications
 - `security-audit`: Database security analysis and improvement recommendations
+- `sql-to-mongodb`: Convert SQL queries to MongoDB aggregation pipelines
 
 ## Installation
 
@@ -443,8 +457,11 @@ With your MCP Client running and connected to MongoDB Lens, try these example qu
 - [Example Queries: Movie Data Analysis](#example-queries-movie-data-analysis)
 - [Example Queries: Airbnb Data Exploration](#example-queries-airbnb-data-exploration)
 - [Example Queries: Weather Data Operations](#example-queries-weather-data-operations)
+- [Example Queries: Geospatial Operations](#example-queries-geospatial-operations)
+- [Example Queries: Time Series & Change Streams](#example-queries-time-series--change-streams)
 - [Example Queries: Bulk Operations & Data Modeling](#example-queries-bulk-operations--data-modeling)
 - [Example Queries: Administrative Operations](#example-queries-administrative-operations)
+- [Example Queries: Advanced Features](#example-queries-advanced-features)
 
 #### Example Queries: Basic Database Operations
 
@@ -530,6 +547,34 @@ With your MCP Client running and connected to MongoDB Lens, try these example qu
 - _"Delete all weather readings below -50 degrees"_<br>
   <sup>➥ Uses `modify-document` tool with delete operation</sup>
 
+#### Example Queries: Geospatial Operations
+
+- _"Switch to sample_geospatial database"_<br>
+  <sup>➥ Uses `use-database` tool</sup>
+- _"Find all shipwrecks within 5km of the coast of Florida"_<br>
+  <sup>➥ Uses `geo-query` tool with near operator</sup>
+- _"Show me restaurants that fall within the downtown Manhattan polygon"_<br>
+  <sup>➥ Uses `geo-query` tool with geoWithin operator</sup>
+- _"Which bike routes intersect with Central Park?"_<br>
+  <sup>➥ Uses `geo-query` tool with geoIntersects operator</sup>
+- _"Create a geospatial index on the location field of the neighborhoods collection"_<br>
+  <sup>➥ Uses `create-index` tool with 2dsphere index type</sup>
+- _"Analyze the schema of the shipwrecks collection to understand its geospatial data structure"_<br>
+  <sup>➥ Uses `analyze-schema` tool</sup>
+
+#### Example Queries: Time Series & Change Streams
+
+- _"Create a new time series collection for sensor readings with 'timestamp' as the time field"_<br>
+  <sup>➥ Uses `create-timeseries` tool</sup>
+- _"Watch for changes in the orders collection for the next 30 seconds"_<br>
+  <sup>➥ Uses `watch-changes` tool</sup>
+- _"Monitor all insert operations on the users collection for 15 seconds"_<br>
+  <sup>➥ Uses `watch-changes` tool with specific operations</sup>
+- _"Create a time series collection for IoT device data with hourly granularity"_<br>
+  <sup>➥ Uses `create-timeseries` tool with granularity option</sup>
+- _"Create a time series collection that automatically deletes data older than 30 days"_<br>
+  <sup>➥ Uses `create-timeseries` tool with expireAfterSeconds option</sup>
+
 #### Example Queries: Bulk Operations & Data Modeling
 
 - _"Switch to sample_training database"_<br>
@@ -563,6 +608,39 @@ With your MCP Client running and connected to MongoDB Lens, try these example qu
   <sup>➥ Uses `backup-strategy` prompt</sup>
 - _"How would I migrate from MongoDB 4.4 to 6.0?"_<br>
   <sup>➥ Uses `migration-guide` prompt</sup>
+
+### Example Queries: Advanced Features
+
+- _"Switch to sample_mflix database"_<br>
+  <sup>➥ Uses `use-database` tool</sup>
+- _"Search for movies containing the phrase 'space odyssey' using text search"_<br>
+  <sup>➥ Uses `text-search` tool</sup>
+- _"Find users named 'müller' using German collation rules"_<br>
+  <sup>➥ Uses `collation-query` tool</sup>
+- _"List all files in the images GridFS bucket"_<br>
+  <sup>➥ Uses `gridfs-operation` tool with list operation</sup>
+- _"Get detailed information about the 'profile.jpg' file in GridFS"_<br>
+  <sup>➥ Uses `gridfs-operation` tool with info operation</sup>
+- _"Delete the 'old_backup.zip' file from the files GridFS bucket"_<br>
+  <sup>➥ Uses `gridfs-operation` tool with delete operation</sup>
+- _"Check the sharding status of the sample_analytics database"_<br>
+  <sup>➥ Uses `shard-status` tool with database target</sup>
+- _"View the sharding distribution for the customers collection"_<br>
+  <sup>➥ Uses `shard-status` tool with collection target</sup>
+- _"Execute a transaction that transfers $100 from account A to account B"_<br>
+  <sup>➥ Uses `transaction` tool</sup>
+- _"Get real-time performance metrics for my MongoDB server"_<br>
+  <sup>➥ Uses `performance-metrics` resource</sup>
+- _"Show me the current event triggers in my database"_<br>
+  <sup>➥ Uses `database-triggers` resource</sup>
+- _"Convert this SQL query to MongoDB: SELECT * FROM users WHERE age > 30 ORDER BY name"_<br>
+  <sup>➥ Uses `sql-to-mongodb` prompt</sup>
+- _"Perform a comprehensive health check on my database"_<br>
+  <sup>➥ Uses `database-health-check` prompt</sup>
+- _"Help me design a multi-tenant architecture for my SaaS application"_<br>
+  <sup>➥ Uses `multi-tenant-design` prompt</sup>
+- _"I need to add user address fields to my schema. How should I version and migrate?"_<br>
+  <sup>➥ Uses `schema-versioning` prompt</sup>
 
 ## Disclaimer
 

@@ -2,7 +2,6 @@
 
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { WebSocketServerTransport } from '@modelcontextprotocol/sdk/server/websocket.js'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { readFileSync, existsSync } from 'fs'
@@ -30,17 +29,16 @@ const memoryCache = {
 }
 
 const connectionOptions = {
-  useUnifiedTopology: true,
-  poolSize: 20,
+  useUnifiedTopology: true, 
+  maxPoolSize: 20,        // renamed from poolSize
   connectTimeoutMS: 30000,
   socketTimeoutMS: 360000,
   serverSelectionTimeoutMS: 30000,
   heartbeatFrequencyMS: 10000,
   retryWrites: false,
-  useNewUrlParser: true,
-  autoReconnect: true,
-  reconnectTries: 60,
-  reconnectInterval: 1000
+  useNewUrlParser: true
+  // Removed deprecated options:
+  // autoReconnect, reconnectTries, reconnectInterval
 }
 
 const __filename = fileURLToPath(import.meta.url)
@@ -48,8 +46,6 @@ const __dirname = dirname(__filename)
 const packageJson = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'))
 const PACKAGE_VERSION = packageJson.version
 const VERBOSE_LOGGING = process.env.VERBOSE_LOGGING === 'true'
-const USE_WEBSOCKET = process.env.USE_WEBSOCKET === 'true'
-const WEBSOCKET_PORT = parseInt(process.env.WEBSOCKET_PORT || '3456', 10)
 const CONFIG_PATH = process.env.CONFIG_PATH || join(process.env.HOME || __dirname, '.mongodb-lens.json')
 
 let server = null
@@ -149,7 +145,7 @@ const instructions = `
 - Use templated resources (e.g. \`mongodb://collection/{name}/stats\`) with autocompletion support.
 - Enable streaming for large result sets with the \`streaming: true\` parameter.
 - Use WebSocket transport with \`USE_WEBSOCKET=true\` for better client compatibility.
-- Create a config file at \`~/.mongodb-lens.json\` for custom configurations.
+- Create a config file at \`~/.mongodb-lens.json\` for custom configurations (use maxPoolSize instead of poolSize).
 - Leverage prompts like \`aggregation-builder\` for complex pipelines.
 - Check logs with \`VERBOSE_LOGGING=true\` for debugging.
 - Combine tools and resources for workflows, e.g. schema analysis → index creation.
@@ -159,6 +155,7 @@ const instructions = `
 - Get comprehensive database assessments with \`database-health-check\`.
 - Convert existing SQL queries to MongoDB with \`sql-to-mongodb\`.
 - Design schema evolution strategies with \`schema-versioning\` for zero-downtime updates.
+- Use modern MongoDB connection options and avoid deprecated options like autoReconnect, reconnectTries, and reconnectInterval.
 `
 
 const startWatchdog = () => {
@@ -184,7 +181,9 @@ const startWatchdog = () => {
       }
     }
     
-    if (!mongoClient || !mongoClient.isConnected()) {
+    // Check connection status properly without using deprecated isConnected
+    const isClientConnected = mongoClient && mongoClient.topology && mongoClient.topology.isConnected();
+    if (!isClientConnected) {
       log('Detected MongoDB disconnection. Attempting reconnect...', true)
       reconnect()
     }
@@ -213,13 +212,8 @@ const reconnect = async () => {
 }
 
 const createTransport = async () => {
-  if (USE_WEBSOCKET) {
-    log(`Starting WebSocket transport on port ${WEBSOCKET_PORT}...`, true)
-    transport = new WebSocketServerTransport({ port: WEBSOCKET_PORT })
-  } else {
-    log('Starting stdio transport...', true)
-    transport = new StdioServerTransport()
-  }
+  log('Starting stdio transport...', true)
+  transport = new StdioServerTransport()
   
   return transport
 }
@@ -250,59 +244,29 @@ const main = async (mongoUri) => {
     instructions
   })
   
-  server.setErrorHandler((error, request) => {
-    log(`Error handling request ${request?.id}: ${error.message}`, true)
-    
-    const JSONRPC_ERROR_CODES = {
-      PARSE_ERROR: -32700,
-      INVALID_REQUEST: -32600,
-      METHOD_NOT_FOUND: -32601,
-      INVALID_PARAMS: -32602,
-      INTERNAL_ERROR: -32603,
-      SERVER_ERROR_START: -32000,
-      SERVER_ERROR_END: -32099,
-      MONGODB_CONNECTION_ERROR: -32050,
-      MONGODB_QUERY_ERROR: -32051,
-      MONGODB_SCHEMA_ERROR: -32052,
-      RESOURCE_NOT_FOUND: -32040,
-      RESOURCE_ACCESS_DENIED: -32041
-    }
-    
-    let errorCode = JSONRPC_ERROR_CODES.INTERNAL_ERROR
-    
-    if (error.name === 'SyntaxError' || error.message.includes('JSON')) {
-      errorCode = JSONRPC_ERROR_CODES.PARSE_ERROR
-    } else if (error.name === 'TypeError' && error.message.includes('params')) {
-      errorCode = JSONRPC_ERROR_CODES.INVALID_PARAMS
-    } else if (error.message.includes('not found') || error.message.includes('does not exist')) {
-      errorCode = JSONRPC_ERROR_CODES.RESOURCE_NOT_FOUND
-    } else if (error.message.includes('connection') || error.message.includes('connect')) {
-      errorCode = JSONRPC_ERROR_CODES.MONGODB_CONNECTION_ERROR
-    } else if (error.message.includes('query') || error.message.includes('aggregation')) {
-      errorCode = JSONRPC_ERROR_CODES.MONGODB_QUERY_ERROR
-    } else if (error.message.includes('schema') || error.message.includes('validation')) {
-      errorCode = JSONRPC_ERROR_CODES.MONGODB_SCHEMA_ERROR
-    } else if (error.code && error.code >= JSONRPC_ERROR_CODES.SERVER_ERROR_START && 
-               error.code <= JSONRPC_ERROR_CODES.SERVER_ERROR_END) {
-      errorCode = error.code
-    }
-    
-    const errorResponse = {
-      jsonrpc: '2.0',
-      id: request?.id,
-      error: {
-        code: errorCode,
-        message: error.message || 'Unknown error',
-        data: { 
-          type: error.name,
-          method: request?.method,
-          details: VERBOSE_LOGGING ? error.stack : undefined
-        }
-      }
-    }
-    
-    return errorResponse
-  })
+  // Define error codes that will be used throughout the application
+  const JSONRPC_ERROR_CODES = {
+    PARSE_ERROR: -32700,
+    INVALID_REQUEST: -32600,
+    METHOD_NOT_FOUND: -32601,
+    INVALID_PARAMS: -32602,
+    INTERNAL_ERROR: -32603,
+    SERVER_ERROR_START: -32000,
+    SERVER_ERROR_END: -32099,
+    MONGODB_CONNECTION_ERROR: -32050,
+    MONGODB_QUERY_ERROR: -32051,
+    MONGODB_SCHEMA_ERROR: -32052,
+    RESOURCE_NOT_FOUND: -32040,
+    RESOURCE_ACCESS_DENIED: -32041
+  }
+  
+  // Set up custom fallback request handler for undefined methods
+  server.fallbackRequestHandler = async (request) => {
+    log(`Received request for undefined method: ${request.method}`, true)
+    const error = new Error(`Method '${request.method}' not found`)
+    error.code = JSONRPC_ERROR_CODES.METHOD_NOT_FOUND
+    throw error
+  }
   
   log('Registering MCP resources…')
   registerResources(server)
@@ -378,17 +342,14 @@ const connect = async (uri = 'mongodb://localhost:27017') => {
       log(`Warning: Unable to get database stats: ${statsError.message}`)
     }
     
-    mongoClient.on('timeout', () => {
-      log('MongoDB connection timeout. Will attempt to reconnect.', true)
+    // Handle connection events using modern approach
+    // The unified topology handles these events internally
+    mongoClient.on('error', (err) => {
+      log(`MongoDB connection error: ${err.message}. Will attempt to reconnect.`, true)
     })
     
     mongoClient.on('close', () => {
       log('MongoDB connection closed. Will attempt to reconnect.', true)
-    })
-    
-    mongoClient.on('reconnect', () => {
-      log('MongoDB connection reestablished.', true)
-      connectionRetries = 0
     })
     
     log(`Connected to MongoDB successfully, using database: ${currentDbName}`)

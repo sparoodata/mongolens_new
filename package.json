@@ -17,7 +17,6 @@
   ],
   "scripts": {
     "start": "node mongodb-lens.js",
-    "start:ws": "USE_WEBSOCKET=true node mongodb-lens.js",
     "start:memory": "node --expose-gc mongodb-lens.js",
     "docker:build": "docker build -t mongodb-lens .",
     "docker:run": "docker run --rm -i --network=host mongodb-lens"

@@ -106,7 +106,6 @@
 - **JSONRPC Error Handling**: Comprehensive error handling with proper error codes
 - **Memory Management**: Automatic memory monitoring and cleanup for large operations
 - **Smart Caching**: Enhanced caching for schemas, collection lists, and server status
-- **WebSocket Transport**: Optional WebSocket support via `USE_WEBSOCKET=true` environment variable
 - **Streaming Support**: Stream large result sets for `find-documents` and `aggregate-data` operations
 
 ## Installation
@@ -199,7 +198,6 @@ MongoDB Lens is now installed and ready to accept MCP requests.
 
 - [MongoDB Connection String](#configuration-mongodb-connection-string)
 - [Logging](#configuration-logging)
-- [WebSocket Transport](#configuration-websocket-transport)
 - [Config File](#configuration-config-file)
 
 ### Configuration: MongoDB Connection String
@@ -238,22 +236,6 @@ Example Docker usage:
 docker run --rm -i --network=host -e VERBOSE_LOGGING='true' mongodb-lens mongodb://your-connection-string
 ```
 
-### Configuration: WebSocket Transport
-
-To use WebSocket transport instead of stdio, set environment variable `USE_WEBSOCKET` to `true`. You can also specify a custom port with `WEBSOCKET_PORT` (default is 3456).
-
-Example Node.js usage:
-
-```console
-USE_WEBSOCKET=true WEBSOCKET_PORT=8765 node mongodb-lens.js mongodb://your-connection-string
-```
-
-Example Docker usage:
-
-```console
-docker run --rm -i --network=host -e USE_WEBSOCKET='true' -e WEBSOCKET_PORT='8765' mongodb-lens mongodb://your-connection-string
-```
-
 ### Configuration: Config File
 
 Create a JSON configuration file at `~/.mongodb-lens.json` to further customise MongoDB Lens.
@@ -266,7 +248,7 @@ Example configuration file:
 {
   "mongoUri": "mongodb://username:password@hostname:27017/mydatabase",
   "connectionOptions": {
-    "poolSize": 20,
+    "maxPoolSize": 20,
     "connectTimeoutMS": 30000
   }
 }

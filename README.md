@@ -1,8 +1,8 @@
 # MongoDB Lens
 
-[![License](https://img.shields.io/github/license/furey/mongodb-lens?)](./LICENSE)
-[![Docker Hub Version](https://img.shields.io/docker/v/furey/mongodb-lens?)](https://hub.docker.com/r/furey/mongodb-lens)
-[![NPM Version](https://img.shields.io/npm/v/mongodb-lens?)](https://www.npmjs.com/package/mongodb-lens)
+[![License](https://img.shields.io/github/license/furey/mongodb-lens)](./LICENSE)
+[![Docker Hub Version](https://img.shields.io/docker/v/furey/mongodb-lens)](https://hub.docker.com/r/furey/mongodb-lens)
+[![NPM Version](https://img.shields.io/npm/v/mongodb-lens)](https://www.npmjs.com/package/mongodb-lens)
 
 **MongoDB Lens** is a local Model Context Protocol (MCP) server with full featured access to MongoDB databases using natural language via LLMs to perform queries, run aggregations, optimize performance, and more.
 

@@ -22,8 +22,6 @@
 
 ## Features
 
-MongoDB Lens exposes the following capabilities through MCP:
-
 - [Resources](#resources)
 - [Tools](#tools)
 - [Prompts](#prompts)
@@ -82,13 +80,13 @@ MongoDB Lens exposes the following capabilities through MCP:
 
 MongoDB Lens can be installed and run in several ways:
 
-- [NPX Installation](#npx-installation) (Easiest)
-- [Docker Hub Installation](#docker-hub-installation)
-- [Node.js Installation from Source](#nodejs-installation-from-source)
-- [Docker Installation from Source](#docker-installation-from-source)
+- [NPX](#installation-npx) (Easiest)
+- [Docker Hub](#installation-docker-hub)
+- [Node.js from Source](#installation-nodejs-from-source)
+- [Docker from Source](#installation-docker-from-source)
 - [Installation Verification](#installation-verification)
 
-### NPX Installation
+### Installation: NPX
 
 The easiest way to run MongoDB Lens is using `npx` without installing anything:
 
@@ -100,7 +98,7 @@ npx mongodb-lens
 npx mongodb-lens mongodb://your-connection-string
 ```
 
-### Docker Hub Installation
+### Installation: Docker Hub
 
 Run MongoDB Lens directly from Docker Hub without building:
 
@@ -112,7 +110,7 @@ docker run --rm -i --network=host furey/mongodb-lens
 docker run --rm -i --network=host furey/mongodb-lens mongodb://your-connection-string
 ```
 
-### Node.js Installation from Source
+### Installation: Node.js from Source
 
 1. Navigate to the cloned repository directory:<br>
     ```console
@@ -133,7 +131,7 @@ docker run --rm -i --network=host furey/mongodb-lens mongodb://your-connection-s
     node mongodb-lens.js mongodb://your-connection-string
     ```
 
-### Docker Installation from Source
+### Installation: Docker from Source
 
 1. Navigate to the cloned repository directory:<br>
     ```console

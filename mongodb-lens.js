@@ -10,6 +10,33 @@ import { z } from 'zod'
 
 const { MongoClient, ObjectId } = mongodb
 
+// Cache configuration
+const CACHE_TTL = {
+  SCHEMAS: 60 * 1000, // 1 minute for schemas
+  COLLECTIONS: 30 * 1000, // 30 seconds for collection lists
+  STATS: 15 * 1000 // 15 seconds for stats
+}
+
+// In-memory cache
+const memoryCache = {
+  schemas: new Map(),
+  collections: new Map(),
+  stats: new Map(),
+  indexes: new Map()
+}
+
+// Connection management
+const connectionOptions = {
+  useUnifiedTopology: true,
+  poolSize: 10,            // Connection pool size
+  connectTimeoutMS: 30000, // Connection timeout
+  socketTimeoutMS: 360000, // Socket timeout
+  serverSelectionTimeoutMS: 30000,
+  heartbeatFrequencyMS: 10000,
+  retryWrites: false,      // Disable retry writes for 3.6 compatibility
+  useNewUrlParser: true    // Required for MongoDB 3.6
+}
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const packageJson = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'))
@@ -147,10 +174,40 @@ const main = async (mongoUri) => {
 const connect = async (uri = 'mongodb://localhost:27017') => {
   try {
     log(`Connecting to MongoDB at: ${uri}`)
-    mongoClient = new MongoClient(uri, { useUnifiedTopology: true })
-    await mongoClient.connect()
+    
+    // Create a new client with enhanced connection options
+    mongoClient = new MongoClient(uri, connectionOptions)
+    
+    // Attempt connection with timeouts and retries
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        await mongoClient.connect()
+        break;
+      } catch (connectionError) {
+        retryCount++;
+        if (retryCount >= maxRetries) {
+          throw connectionError; // Rethrow if max retries reached
+        }
+        log(`Connection attempt ${retryCount} failed, retrying in 2 seconds...`)
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
+      }
+    }
+    
+    // Get server info to confirm connection and version
+    const adminDb = mongoClient.db('admin');
+    const serverInfo = await adminDb.command({ buildInfo: 1 });
+    log(`Connected to MongoDB server version: ${serverInfo.version}`);
+    
+    // Extract and set current database name
     currentDbName = extractDbNameFromConnectionString(uri)
     currentDb = mongoClient.db(currentDbName)
+    
+    // Verify database access by fetching stats
+    await currentDb.stats();
+    
     log(`Connected to MongoDB successfully, using database: ${currentDbName}`)
     return true
   } catch (error) {
@@ -1168,11 +1225,29 @@ function isValidFieldName(field) {
 }
 
 const registerTools = (server) => {
+  // Helper function for consistent error handling across tools
+  const withErrorHandling = async (operation, errorMessage, defaultValue = null) => {
+    try {
+      return await operation();
+    } catch (error) {
+      const formattedError = `${errorMessage}: ${error.message}`;
+      console.error(formattedError);
+      log(formattedError);
+      return {
+        content: [{
+          type: 'text',
+          text: formattedError
+        }],
+        isError: true
+      };
+    }
+  };
+
   server.tool(
     'list-databases',
     'List all accessible MongoDB databases',
     async () => {
-      try {
+      return withErrorHandling(async () => {
         log('Tool: Listing databases…')
         const dbs = await listDatabases()
         log(`Tool: Found ${dbs.length} databases.`)
@@ -1182,16 +1257,7 @@ const registerTools = (server) => {
             text: formatDatabasesList(dbs)
           }]
         }
-      } catch (error) {
-        console.error('Error listing databases:', error)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error listing databases: ${error.message}`
-          }],
-          isError: true
-        }
-      }
+      }, 'Error listing databases');
     }
   )
 
@@ -1199,7 +1265,7 @@ const registerTools = (server) => {
     'current-database',
     'Get the name of the current database',
     async () => {
-      try {
+      return withErrorHandling(async () => {
         log('Tool: Getting current database name…')
         return {
           content: [{
@@ -1207,16 +1273,7 @@ const registerTools = (server) => {
             text: `Current database: ${currentDbName}`
           }]
         }
-      } catch (error) {
-        console.error('Error getting current database:', error)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error getting current database: ${error.message}`
-          }],
-          isError: true
-        }
-      }
+      }, 'Error getting current database');
     }
   )
   
@@ -2335,7 +2392,7 @@ const registerTools = (server) => {
       collection: z.string().optional().describe('Collection name (if target is collection)')
     },
     async ({ target, collection }) => {
-      try {
+      return withErrorHandling(async () => {
         log(`Tool: Getting shard status for ${target}${collection ? ` '${collection}'` : ''}`)
         
         const adminDb = mongoClient.db('admin')
@@ -2363,15 +2420,163 @@ const registerTools = (server) => {
             text: result
           }]
         }
-      } catch (error) {
+      }, `Error getting shard status for ${target}${collection ? ` '${collection}'` : ''}`);
+    }
+  )
+  
+  server.tool(
+    'compare-schemas',
+    'Compare schemas between two collections',
+    {
+      sourceCollection: z.string().min(1).describe('Source collection name'),
+      targetCollection: z.string().min(1).describe('Target collection name'),
+      sampleSize: z.number().int().min(1).default(100).describe('Number of documents to sample')
+    },
+    async ({ sourceCollection, targetCollection, sampleSize }) => {
+      return withErrorHandling(async () => {
+        log(`Tool: Comparing schemas between '${sourceCollection}' and '${targetCollection}'...`);
+        
+        // Get schemas for both collections
+        const sourceSchema = await inferSchema(sourceCollection, sampleSize);
+        const targetSchema = await inferSchema(targetCollection, sampleSize);
+        
+        // Compare the schemas
+        const comparison = compareSchemas(sourceSchema, targetSchema);
+        
         return {
           content: [{
             type: 'text',
-            text: `Error getting shard status: ${error.message}`
-          }],
-          isError: true
+            text: formatSchemaComparison(comparison, sourceCollection, targetCollection)
+          }]
+        };
+      }, `Error comparing schemas between '${sourceCollection}' and '${targetCollection}'`);
+    }
+  )
+  
+  server.tool(
+    'analyze-query-patterns',
+    'Analyze query patterns and suggest optimizations',
+    {
+      collection: z.string().min(1).describe('Collection name to analyze'),
+      duration: z.number().int().min(1).max(60).default(10).describe('Duration to analyze in seconds')
+    },
+    async ({ collection, duration }) => {
+      return withErrorHandling(async () => {
+        log(`Tool: Analyzing query patterns for collection '${collection}'...`);
+        
+        // Get collection and index information
+        await throwIfCollectionNotExists(collection);
+        const indexes = await getCollectionIndexes(collection);
+        const schema = await inferSchema(collection);
+        
+        // Attempt to get query execution stats if available (may not be in 3.6)
+        let queryStats = [];
+        try {
+          // Check if we can use the profiler
+          const adminDb = mongoClient.db('admin');
+          const profilerStatus = await currentDb.command({ profile: -1 });
+          
+          // If profiler is available, set to logging all queries
+          let prevProfileLevel = profilerStatus.was;
+          let prevSlowMs = profilerStatus.slowms;
+          
+          // Temporarily enable full profiling
+          await currentDb.command({ profile: 2, slowms: 0 });
+          
+          log(`Tool: Monitoring queries for ${duration} seconds...`);
+          
+          // Wait for the specified duration
+          await new Promise(resolve => setTimeout(resolve, duration * 1000));
+          
+          // Get the profiler data
+          queryStats = await currentDb.collection('system.profile')
+            .find({ ns: `${currentDbName}.${collection}`, op: 'query' })
+            .sort({ ts: -1 })
+            .limit(100)
+            .toArray();
+            
+          // Reset profiler to previous state
+          await currentDb.command({ profile: prevProfileLevel, slowms: prevSlowMs });
+          
+        } catch (profileError) {
+          log(`Tool: Unable to use profiler: ${profileError.message}`);
+          // We'll continue with just index and schema analysis
         }
-      }
+        
+        // Analyze and generate recommendations
+        const analysis = analyzeQueryPatterns(collection, schema, indexes, queryStats);
+        
+        return {
+          content: [{
+            type: 'text',
+            text: formatQueryAnalysis(analysis)
+          }]
+        };
+      }, `Error analyzing query patterns for '${collection}'`);
+    }
+  )
+  
+  server.tool(
+    'generate-schema-validator',
+    'Generate a JSON Schema validator for a collection',
+    {
+      collection: z.string().min(1).describe('Collection name'),
+      strictness: z.enum(['strict', 'moderate', 'relaxed']).default('moderate').describe('Validation strictness level')
+    },
+    async ({ collection, strictness }) => {
+      return withErrorHandling(async () => {
+        log(`Tool: Generating schema validator for '${collection}' with ${strictness} strictness`);
+        
+        // Infer schema with larger sample
+        const schema = await inferSchema(collection, 200);
+        
+        // Generate JSON Schema validator
+        const validator = generateJsonSchemaValidator(schema, strictness);
+        
+        // Format results with example of how to apply it
+        const result = `# MongoDB JSON Schema Validator for '${collection}'
+
+## Schema Validator
+\`\`\`json
+${JSON.stringify(validator, null, 2)}
+\`\`\`
+
+## How to Apply This Validator
+
+### MongoDB Shell Command
+\`\`\`javascript
+db.runCommand({
+  collMod: "${collection}",
+  validator: ${JSON.stringify(validator, null, 2)},
+  validationLevel: "${strictness === 'relaxed' ? 'moderate' : strictness}",
+  validationAction: "${strictness === 'strict' ? 'error' : 'warn'}"
+})
+\`\`\`
+
+### Using modify-document Tool in MongoDB Lens
+\`\`\`
+modify-document {
+  "collection": "system.command",
+  "operation": "insert",
+  "document": {
+    "collMod": "${collection}",
+    "validator": ${JSON.stringify(validator)},
+    "validationLevel": "${strictness === 'relaxed' ? 'moderate' : strictness}",
+    "validationAction": "${strictness === 'strict' ? 'error' : 'warn'}"
+  }
+}
+\`\`\`
+
+This schema validator was generated based on ${schema.sampleSize} sample documents with ${Object.keys(schema.fields).length} fields.
+`;
+
+        return {
+          content: [{
+            type: 'text',
+            text: result
+          }]
+        };
+      }, `Error generating schema validator for '${collection}'`);
     }
   )
 }
@@ -2432,8 +2637,27 @@ const listCollections = async () => {
   log(`DB Operation: Listing collections in database '${currentDbName}'…`)
   try {
     if (!currentDb) throw new Error("No database selected")
+    
+    // Check if result is in cache
+    const cacheKey = currentDbName;
+    const cachedData = memoryCache.collections.get(cacheKey);
+    
+    if (cachedData && 
+        (Date.now() - cachedData.timestamp) < CACHE_TTL.COLLECTIONS) {
+      log(`DB Operation: Using cached collections list for '${currentDbName}'`);
+      return cachedData.data;
+    }
+    
+    // Not in cache, fetch from database
     const collections = await currentDb.listCollections().toArray()
     log(`DB Operation: Found ${collections.length} collections.`)
+    
+    // Update cache
+    memoryCache.collections.set(cacheKey, {
+      data: collections,
+      timestamp: Date.now()
+    });
+    
     return collections
   } catch (error) {
     log(`DB Operation: Failed to list collections: ${error.message}`)
@@ -2515,8 +2739,42 @@ const getCollectionIndexes = async (collectionName) => {
   log(`DB Operation: Getting indexes for collection '${collectionName}'…`)
   try {
     await throwIfCollectionNotExists(collectionName)
+    
+    // Check cache first
+    const cacheKey = `${currentDbName}.${collectionName}`;
+    const cachedData = memoryCache.indexes.get(cacheKey);
+    
+    if (cachedData && 
+        (Date.now() - cachedData.timestamp) < CACHE_TTL.STATS) {
+      log(`DB Operation: Using cached indexes for '${collectionName}'`);
+      return cachedData.data;
+    }
+    
+    // Not in cache, fetch from database
     const indexes = await currentDb.collection(collectionName).indexes()
     log(`DB Operation: Retrieved ${indexes.length} indexes for collection '${collectionName}'.`)
+    
+    // Add usage statistics to indexes when available
+    try {
+      const stats = await currentDb.command({ collStats: collectionName, indexDetails: true });
+      if (stats && stats.indexDetails) {
+        for (const index of indexes) {
+          if (stats.indexDetails[index.name]) {
+            index.usage = stats.indexDetails[index.name];
+          }
+        }
+      }
+    } catch (statsError) {
+      // Index usage stats might not be available in MongoDB 3.6
+      log(`DB Operation: Index usage stats not available: ${statsError.message}`);
+    }
+    
+    // Update cache
+    memoryCache.indexes.set(cacheKey, {
+      data: indexes,
+      timestamp: Date.now()
+    });
+    
     return indexes
   } catch (error) {
     log(`DB Operation: Failed to get indexes for collection '${collectionName}': ${error.message}`)
@@ -2528,42 +2786,116 @@ const inferSchema = async (collectionName, sampleSize = 100) => {
   log(`DB Operation: Inferring schema for collection '${collectionName}' with sample size ${sampleSize}…`)
   try {
     await throwIfCollectionNotExists(collectionName)
+    
+    // Check cache first
+    const cacheKey = `${currentDbName}.${collectionName}.${sampleSize}`;
+    const cachedSchema = memoryCache.schemas.get(cacheKey);
+    
+    if (cachedSchema && 
+        (Date.now() - cachedSchema.timestamp) < CACHE_TTL.SCHEMAS) {
+      log(`DB Operation: Using cached schema for '${collectionName}'`);
+      return cachedSchema.data;
+    }
+    
+    // Not in cache, perform inference
     const collection = currentDb.collection(collectionName)
-    const documents = await collection.find({}).limit(sampleSize).toArray()
+    
+    // Use an aggregation pipeline for better performance with sampling
+    const documents = await collection.aggregate([
+      { $sample: { size: sampleSize } },  // Random sampling for more representative results
+      { $limit: sampleSize }
+    ]).toArray();
+    
     log(`DB Operation: Retrieved ${documents.length} sample documents for schema inference.`)
     
     if (documents.length === 0) throw new Error(`Collection '${collectionName}' is empty`)
     
     const schema = {}
+    const fieldPaths = new Set(); // Track all field paths including nested ones
+    
+    // First pass: collect all fields including nested ones
     documents.forEach(doc => {
-      Object.keys(doc).forEach(key => {
-        if (!schema[key]) {
-          schema[key] = {
-            types: new Set(),
-            count: 0,
-            sample: doc[key]
+      collectFieldPaths(doc, '', fieldPaths);
+    });
+    
+    // Initialize schema object with all discovered paths
+    fieldPaths.forEach(path => {
+      schema[path] = {
+        types: new Set(),
+        count: 0,
+        sample: null,
+        path: path
+      }
+    });
+    
+    // Second pass: analyze types and collect samples
+    documents.forEach(doc => {
+      fieldPaths.forEach(path => {
+        const value = getNestedValue(doc, path);
+        if (value !== undefined) {
+          if (!schema[path].sample) {
+            schema[path].sample = value;
           }
+          schema[path].types.add(getTypeName(value));
+          schema[path].count++;
         }
-        
-        schema[key].types.add(getTypeName(doc[key]))
-        schema[key].count++
-      })
-    })
+      });
+    });
 
+    // Convert Sets to Arrays for serialization
     for (const key in schema) {
-      schema[key].types = Array.from(schema[key].types)
+      schema[key].types = Array.from(schema[key].types);
+      
+      // Calculate coverage percentage
+      schema[key].coverage = Math.round((schema[key].count / documents.length) * 100);
     }
     
-    log(`DB Operation: Schema inference complete, identified ${Object.keys(schema).length} fields.`)
-    return { 
+    const result = { 
       collectionName,
       sampleSize: documents.length,
-      fields: schema
-    }
+      fields: schema,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Update cache
+    memoryCache.schemas.set(cacheKey, {
+      data: result,
+      timestamp: Date.now()
+    });
+    
+    log(`DB Operation: Schema inference complete, identified ${Object.keys(schema).length} fields.`)
+    return result;
   } catch (error) {
     log(`DB Operation: Failed to infer schema: ${error.message}`)
     throw error
   }
+}
+
+// Helper function to collect all field paths including nested objects and arrays
+const collectFieldPaths = (obj, prefix = '', paths = new Set()) => {
+  if (!obj || typeof obj !== 'object') return;
+  
+  Object.entries(obj).forEach(([key, value]) => {
+    const path = prefix ? `${prefix}.${key}` : key;
+    paths.add(path);
+    
+    if (value && typeof value === 'object') {
+      if (Array.isArray(value)) {
+        // Add array path
+        if (value.length > 0) {
+          // If array contains objects, analyze them too
+          if (typeof value[0] === 'object' && value[0] !== null) {
+            collectFieldPaths(value[0], `${path}[]`, paths);
+          }
+        }
+      } else if (!(value instanceof ObjectId) && !(value instanceof Date)) {
+        // Recurse into nested objects but not ObjectId or Date
+        collectFieldPaths(value, path, paths);
+      }
+    }
+  });
+  
+  return paths;
 }
 
 const createIndex = async (collectionName, keys, options = {}) => {
@@ -3825,6 +4157,405 @@ const getNestedValue = (obj, path) => {
   
   return current
 }
+
+// Compare schemas between two collections
+const compareSchemas = (sourceSchema, targetSchema) => {
+  const result = {
+    source: sourceSchema.collectionName,
+    target: targetSchema.collectionName,
+    commonFields: [],
+    sourceOnlyFields: [],
+    targetOnlyFields: [],
+    typeDifferences: []
+  };
+  
+  // Find common fields and fields unique to each schema
+  const sourceFields = Object.keys(sourceSchema.fields);
+  const targetFields = Object.keys(targetSchema.fields);
+  
+  // Find fields in both schemas
+  sourceFields.forEach(field => {
+    if (targetFields.includes(field)) {
+      const sourceTypes = sourceSchema.fields[field].types;
+      const targetTypes = targetSchema.fields[field].types;
+      
+      // Check if types match
+      const typesMatch = arraysEqual(sourceTypes, targetTypes);
+      
+      result.commonFields.push({
+        name: field,
+        sourceTypes,
+        targetTypes,
+        typesMatch
+      });
+      
+      if (!typesMatch) {
+        result.typeDifferences.push({
+          field,
+          sourceTypes,
+          targetTypes
+        });
+      }
+    } else {
+      result.sourceOnlyFields.push({
+        name: field,
+        types: sourceSchema.fields[field].types
+      });
+    }
+  });
+  
+  // Find fields only in target
+  targetFields.forEach(field => {
+    if (!sourceFields.includes(field)) {
+      result.targetOnlyFields.push({
+        name: field,
+        types: targetSchema.fields[field].types
+      });
+    }
+  });
+  
+  // Add summary stats
+  result.stats = {
+    sourceFieldCount: sourceFields.length,
+    targetFieldCount: targetFields.length,
+    commonFieldCount: result.commonFields.length,
+    mismatchCount: result.typeDifferences.length
+  };
+  
+  return result;
+};
+
+// Helper function to check if arrays have the same elements
+const arraysEqual = (a, b) => {
+  if (a.length !== b.length) return false;
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((item, i) => item === sortedB[i]);
+};
+
+// Format schema comparison results
+const formatSchemaComparison = (comparison, sourceCollection, targetCollection) => {
+  const { source, target, commonFields, sourceOnlyFields, targetOnlyFields, typeDifferences, stats } = comparison;
+  
+  let result = `# Schema Comparison: '${source}' vs '${target}'\n\n`;
+  
+  // Summary
+  result += `## Summary\n`;
+  result += `- Source Collection: ${source} (${stats.sourceFieldCount} fields)\n`;
+  result += `- Target Collection: ${target} (${stats.targetFieldCount} fields)\n`;
+  result += `- Common Fields: ${stats.commonFieldCount}\n`;
+  result += `- Fields Only in Source: ${sourceOnlyFields.length}\n`;
+  result += `- Fields Only in Target: ${targetOnlyFields.length}\n`;
+  result += `- Type Mismatches: ${typeDifferences.length}\n\n`;
+  
+  // Type mismatches
+  if (typeDifferences.length > 0) {
+    result += `## Type Differences\n`;
+    typeDifferences.forEach(diff => {
+      result += `- ${diff.field}: ${diff.sourceTypes.join(', ')} (${source}) vs ${diff.targetTypes.join(', ')} (${target})\n`;
+    });
+    result += '\n';
+  }
+  
+  // Fields only in source
+  if (sourceOnlyFields.length > 0) {
+    result += `## Fields Only in ${source}\n`;
+    sourceOnlyFields.forEach(field => {
+      result += `- ${field.name}: ${field.types.join(', ')}\n`;
+    });
+    result += '\n';
+  }
+  
+  // Fields only in target
+  if (targetOnlyFields.length > 0) {
+    result += `## Fields Only in ${target}\n`;
+    targetOnlyFields.forEach(field => {
+      result += `- ${field.name}: ${field.types.join(', ')}\n`;
+    });
+    result += '\n';
+  }
+  
+  // Common fields
+  if (stats.commonFieldCount > 0) {
+    result += `## Common Fields\n`;
+    commonFields.forEach(field => {
+      const statusSymbol = field.typesMatch ? '✓' : '✗';
+      result += `- ${statusSymbol} ${field.name}\n`;
+    });
+  }
+  
+  return result;
+};
+
+// Analyze query patterns and suggest optimizations
+const analyzeQueryPatterns = (collection, schema, indexes, queryStats) => {
+  const analysis = {
+    collection,
+    indexRecommendations: [],
+    queryOptimizations: [],
+    unusedIndexes: [],
+    schemaIssues: [],
+    queryStats: []
+  };
+  
+  // Convert indexes to a more usable format
+  const indexMap = {};
+  indexes.forEach(idx => {
+    indexMap[idx.name] = {
+      key: idx.key,
+      unique: !!idx.unique,
+      sparse: !!idx.sparse,
+      fields: Object.keys(idx.key),
+      usage: idx.usage || { ops: 0, since: new Date() }
+    };
+  });
+  
+  // Check for unused indexes
+  for (const [name, idx] of Object.entries(indexMap)) {
+    if (name !== '_id_' && (!idx.usage || idx.usage.ops === 0)) {
+      analysis.unusedIndexes.push({
+        name,
+        fields: idx.fields,
+        properties: idx.unique ? 'unique' : ''
+      });
+    }
+  }
+  
+  // Analyze query stats if available
+  if (queryStats && queryStats.length > 0) {
+    queryStats.forEach(stat => {
+      if (stat.command && stat.command.filter) {
+        const filter = stat.command.filter;
+        const queryFields = Object.keys(filter);
+        const millis = stat.millis || 0;
+        
+        // Track query stats
+        analysis.queryStats.push({
+          filter: JSON.stringify(filter),
+          fields: queryFields,
+          millis,
+          scanType: stat.planSummary || 'Unknown',
+          timestamp: stat.ts
+        });
+        
+        // Check if we have an index for this query pattern
+        const hasMatchingIndex = indexes.some(idx => {
+          const indexFields = Object.keys(idx.key);
+          return queryFields.every(field => indexFields.includes(field));
+        });
+        
+        if (!hasMatchingIndex && queryFields.length > 0 && millis > 10) {
+          // Suggest an index for this query
+          analysis.indexRecommendations.push({
+            fields: queryFields,
+            filter: JSON.stringify(filter),
+            millis
+          });
+        }
+      }
+    });
+  }
+  
+  // Check schema for potential issues
+  const schemaFields = Object.entries(schema.fields);
+  
+  // Find very large arrays
+  schemaFields.forEach(([fieldName, info]) => {
+    if (info.types.includes('array') && info.sample && Array.isArray(info.sample) && info.sample.length > 50) {
+      analysis.schemaIssues.push({
+        field: fieldName,
+        issue: 'Large array',
+        description: `Field contains arrays with ${info.sample.length}+ items, which can cause performance issues.`
+      });
+    }
+  });
+  
+  // Find fields that might benefit from indexing based on patterns
+  const likelyQueryFields = schemaFields
+    .filter(([name, info]) => {
+      const lowerName = name.toLowerCase();
+      return (
+        lowerName.includes('id') || 
+        lowerName.includes('key') || 
+        lowerName.includes('date') || 
+        lowerName.includes('time') ||
+        lowerName === 'email' || 
+        lowerName === 'name' ||
+        lowerName === 'status'
+      ) && !indexMap._id_ && !indexMap[name + '_1'];
+    })
+    .map(([name]) => name);
+    
+  if (likelyQueryFields.length > 0) {
+    analysis.indexRecommendations.push({
+      fields: likelyQueryFields,
+      filter: 'Common query field pattern',
+      automatic: true
+    });
+  }
+  
+  return analysis;
+};
+
+// Format query pattern analysis
+const formatQueryAnalysis = (analysis) => {
+  const { collection, indexRecommendations, queryOptimizations, unusedIndexes, schemaIssues, queryStats } = analysis;
+  
+  let result = `# Query Pattern Analysis for '${collection}'\n\n`;
+  
+  // Index recommendations
+  if (indexRecommendations.length > 0) {
+    result += `## Index Recommendations\n`;
+    indexRecommendations.forEach((rec, i) => {
+      result += `### ${i+1}. Create index on: ${rec.fields.join(', ')}\n`;
+      if (rec.filter && !rec.automatic) {
+        result += `- Based on query filter: ${rec.filter}\n`;
+        if (rec.millis) {
+          result += `- Current execution time: ${rec.millis}ms\n`;
+        }
+      } else if (rec.automatic) {
+        result += `- Automatic recommendation based on field name patterns\n`;
+      }
+      result += `- Create using: \`create-index {"collection": "${collection}", "keys": "{\\"${rec.fields[0]}\\": 1}"}\`\n\n`;
+    });
+  }
+  
+  // Unused indexes
+  if (unusedIndexes.length > 0) {
+    result += `## Unused Indexes\n`;
+    result += 'The following indexes appear to be unused and could potentially be removed:\n';
+    unusedIndexes.forEach((idx) => {
+      result += `- ${idx.name} on fields: ${idx.fields.join(', ')}\n`;
+    });
+    result += '\n';
+  }
+  
+  // Schema issues
+  if (schemaIssues.length > 0) {
+    result += `## Schema Concerns\n`;
+    schemaIssues.forEach((issue) => {
+      result += `- ${issue.field}: ${issue.issue} - ${issue.description}\n`;
+    });
+    result += '\n';
+  }
+  
+  // Query stats
+  if (queryStats.length > 0) {
+    result += `## Recent Queries\n`;
+    result += 'Most recent query patterns observed:\n';
+    
+    const uniquePatterns = {};
+    queryStats.forEach(stat => {
+      const key = stat.filter;
+      if (!uniquePatterns[key]) {
+        uniquePatterns[key] = {
+          filter: stat.filter,
+          fields: stat.fields,
+          count: 1,
+          totalTime: stat.millis,
+          avgTime: stat.millis,
+          scanType: stat.scanType
+        };
+      } else {
+        uniquePatterns[key].count++;
+        uniquePatterns[key].totalTime += stat.millis;
+        uniquePatterns[key].avgTime = uniquePatterns[key].totalTime / uniquePatterns[key].count;
+      }
+    });
+    
+    Object.values(uniquePatterns)
+      .sort((a, b) => b.avgTime - a.avgTime)
+      .slice(0, 5)
+      .forEach(pattern => {
+        result += `- Filter: ${pattern.filter}\n`;
+        result += `  - Fields: ${pattern.fields.join(', ')}\n`;
+        result += `  - Count: ${pattern.count}\n`;
+        result += `  - Avg Time: ${pattern.avgTime.toFixed(2)}ms\n`;
+        result += `  - Scan Type: ${pattern.scanType}\n\n`;
+      });
+  }
+  
+  return result;
+};
+
+// Generate a JSON Schema validator
+const generateJsonSchemaValidator = (schema, strictness) => {
+  const validator = {
+    $jsonSchema: {
+      bsonType: "object",
+      required: [],
+      properties: {}
+    }
+  };
+  
+  // Set required fields based on strictness
+  const requiredThreshold = 
+    strictness === 'strict' ? 90 :
+    strictness === 'moderate' ? 75 :
+    60; // relaxed
+  
+  Object.entries(schema.fields).forEach(([fieldPath, info]) => {
+    // Skip nested fields with dots for simplicity
+    if (fieldPath.includes('.')) return;
+    
+    // For array fields with trailing [], clean up the name
+    const cleanFieldPath = fieldPath.replace('[]', '');
+    
+    // Determine bsonType(s)
+    let bsonTypes = [];
+    info.types.forEach(type => {
+      switch(type) {
+        case 'string':
+          bsonTypes.push('string');
+          break;
+        case 'number':
+          bsonTypes.push('number', 'double', 'int');
+          break;
+        case 'boolean':
+          bsonTypes.push('bool');
+          break;
+        case 'array':
+          bsonTypes.push('array');
+          break;
+        case 'object':
+          bsonTypes.push('object');
+          break;
+        case 'null':
+          bsonTypes.push('null');
+          break;
+        case 'Date':
+          bsonTypes.push('date');
+          break;
+        case 'ObjectId':
+          bsonTypes.push('objectId');
+          break;
+        default:
+          // Skip or handle other types
+      }
+    });
+    
+    // Field may have multiple possible types
+    const fieldSchema = bsonTypes.length === 1 
+      ? { bsonType: bsonTypes[0] }
+      : { bsonType: bsonTypes };
+    
+    // Add field to properties
+    validator.$jsonSchema.properties[cleanFieldPath] = fieldSchema;
+    
+    // Check if field should be required
+    const coverage = info.coverage || Math.round((info.count / schema.sampleSize) * 100);
+    if (coverage >= requiredThreshold && !info.types.includes('null')) {
+      validator.$jsonSchema.required.push(cleanFieldPath);
+    }
+  });
+  
+  // Special handling for strict mode: add additionalProperties restriction
+  if (strictness === 'strict') {
+    validator.$jsonSchema.additionalProperties = false;
+  }
+  
+  return validator;
+};
 
 const log = (message, forceLog = false) => {
   if (forceLog || VERBOSE_LOGGING) console.error(message)

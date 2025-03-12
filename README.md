@@ -27,8 +27,9 @@
 ## Features
 
 - [Resources](#resources)
-- [Tools](#tools)
+- [Tools](#tools) - Now with new schema comparison and query analysis tools!
 - [Prompts](#prompts)
+- [Performance Optimizations](#performance-optimizations) - New caching and connection management!
 
 ### Resources
 
@@ -47,33 +48,49 @@
 
 ### Tools
 
-- `aggregate-data`: Execute aggregation pipelines
-- `analyze-schema`: Automatically infer collection schemas
-- `bulk-operations`: Perform multiple operations efficiently
-- `collation-query`: Find documents with language-specific collation rules
-- `count-documents`: Count documents matching specified criteria
-- `create-collection`: Create new collections with custom options
-- `create-index`: Create new indexes for performance optimization
-- `create-timeseries`: Create time series collections for temporal data
-- `current-database`: Show the current database context
-- `distinct-values`: Extract unique values for any field
-- `drop-collection`: Remove collections from the database
-- `explain-query`: Analyze query execution plans
-- `export-data`: Export query results in JSON or CSV format
-- `find-documents`: Run queries with filters, projections, and sorting
-- `geo-query`: Perform geospatial queries with various operators
-- `get-stats`: Retrieve database or collection statistics
-- `gridfs-operation`: Manage large files with GridFS buckets
-- `list-collections`: Explore collections in the current database
+#### Core Database Tools
 - `list-databases`: View all accessible MongoDB databases
-- `map-reduce`: Run MapReduce operations for complex data processing
-- `modify-document`: Insert, update, or delete specific documents
-- `rename-collection`: Rename existing collections
-- `shard-status`: View sharding configuration for databases and collections
-- `text-search`: Perform full-text search across text-indexed fields
-- `transaction`: Execute multiple operations in a single ACID transaction
+- `list-collections`: Explore collections in the current database
+- `current-database`: Show the current database context
 - `use-database`: Switch to a specific database context
+- `get-stats`: Retrieve database or collection statistics
+
+#### Document Operations
+- `find-documents`: Run queries with filters, projections, and sorting
+- `count-documents`: Count documents matching specified criteria
+- `modify-document`: Insert, update, or delete specific documents
+- `distinct-values`: Extract unique values for any field
+- `bulk-operations`: Perform multiple operations efficiently
+- `transaction`: Execute multiple operations in a single ACID transaction
+
+#### Schema & Structure Analysis
+- `analyze-schema`: Automatically infer collection schemas
+- `compare-schemas`: Compare schemas between two collections *(NEW)*
+- `generate-schema-validator`: Generate JSON Schema validators *(NEW)*
+- `analyze-query-patterns`: Analyze queries and suggest optimizations *(NEW)*
 - `validate-collection`: Check for data inconsistencies
+
+#### Collection Management
+- `create-collection`: Create new collections with custom options
+- `drop-collection`: Remove collections from the database
+- `rename-collection`: Rename existing collections
+- `create-timeseries`: Create time series collections for temporal data
+
+#### Indexing & Performance
+- `create-index`: Create new indexes for performance optimization
+- `explain-query`: Analyze query execution plans
+
+#### Advanced Queries
+- `aggregate-data`: Execute aggregation pipelines
+- `text-search`: Perform full-text search across text-indexed fields
+- `geo-query`: Perform geospatial queries with various operators
+- `collation-query`: Find documents with language-specific collation rules
+- `map-reduce`: Run MapReduce operations for complex data processing
+
+#### Special Features
+- `export-data`: Export query results in JSON or CSV format
+- `gridfs-operation`: Manage large files with GridFS buckets
+- `shard-status`: View sharding configuration for databases and collections
 - `watch-changes`: Monitor real-time changes to collections
 
 ### Prompts
@@ -93,6 +110,17 @@
 - `schema-versioning`: Manage schema evolution in MongoDB applications
 - `security-audit`: Database security analysis and improvement recommendations
 - `sql-to-mongodb`: Convert SQL queries to MongoDB aggregation pipelines
+
+### Performance Optimizations
+
+MongoDB Lens 4.2+ includes significant performance enhancements:
+
+- **Intelligent Caching**: Caches schema, collection, and index information with smart invalidation
+- **Connection Pooling**: Manages MongoDB connections efficiently with automatic retries
+- **Enhanced Schema Inference**: More efficient and detailed schema analysis with nested documents support
+- **Streaming Support**: Better handling of large result sets
+- **Improved Error Handling**: Consistent error management across all operations
+- **MongoDB 3.6+ Compatibility**: Maintains compatibility with older MongoDB versions
 
 ## Installation
 
@@ -609,7 +637,20 @@ With your MCP Client running and connected to MongoDB Lens, try these example qu
 - _"How would I migrate from MongoDB 4.4 to 6.0?"_<br>
   <sup>➥ Uses `migration-guide` prompt</sup>
 
-### Example Queries: Advanced Features
+#### Example Queries: Schema Management & Analysis *(NEW)*
+
+- _"Compare schemas between the users and customers collections"_<br>
+  <sup>➥ Uses new `compare-schemas` tool to identify differences</sup>
+- _"Generate a JSON Schema validator for the profiles collection with moderate strictness"_<br>
+  <sup>➥ Uses new `generate-schema-validator` tool</sup>
+- _"Analyze query patterns for the orders collection"_<br>
+  <sup>➥ Uses new `analyze-query-patterns` tool</sup>
+- _"What fields are missing in the new customers collection compared to the old one?"_<br>
+  <sup>➥ Uses `compare-schemas` to analyze migration gaps</sup>
+- _"Are my indexes being used effectively for my queries?"_<br>
+  <sup>➥ Uses `analyze-query-patterns` to identify optimization opportunities</sup>
+
+#### Example Queries: Advanced Features
 
 - _"Switch to sample_mflix database"_<br>
   <sup>➥ Uses `use-database` tool</sup>

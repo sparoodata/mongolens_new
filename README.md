@@ -190,17 +190,23 @@ docker run --rm -i --network=host furey/mongodb-lens mongodb://your-connection-s
 To verify the installation, paste and run the following jsonrpc message into the server's stdio:
     
 ```json
-{"jsonrpc":"2.0","id":1,"method":"resources/read","params":{"uri":"mongodb://databases"}}
+{"method":"resources/read","params":{"uri":"mongodb://databases"},"jsonrpc":"2.0","id":1}
 ```
 
-The server should respond with a list of databases in your MongoDB instance.
+The server should respond with a list of databases in your MongoDB instance, for example:
+
+```json
+{"result":{"contents":[{"uri":"mongodb://databases","text":"Databases (12):\n- admin (180.00 KB)\n- config (108.00 KB)\n- local (40.00 KB)\n- sample_airbnb (51.88 MB)\n- sample_analytics (9.46 MB)\n- sample_geospatial (980.00 KB)\n- sample_guides (40.00 KB)\n- sample_mflix (108.90 MB)\n- sample_restaurants (7.73 MB)\n- sample_supplies (968.00 KB)\n- sample_training (40.85 MB)\n- sample_weatherdata (2.69 MB)"}]},"jsonrpc":"2.0","id":1}
+```
 
 MongoDB Lens is now installed and ready to accept MCP requests.
+
+Shut down the server by sending a `SIGINT` signal (<kbd>Ctrl</kbd>+<kbd>C</kbd>).
 
 ## Configuration
 
 - [MongoDB Connection String](#configuration-mongodb-connection-string)
-- [Logging](#configuration-logging)
+- [Verbose Logging](#configuration-verbose-logging)
 - [Config File](#configuration-config-file)
 
 ### Configuration: MongoDB Connection String
@@ -227,7 +233,7 @@ Example URIs:
 
 If no connection string is provided, the server will attempt to connect via local connection.
 
-### Configuration: Logging
+### Configuration: Verbose Logging
 
 To enable verbose logging, set environment variable `VERBOSE_LOGGING` to `true`.
 
@@ -242,6 +248,8 @@ Example Docker Hub usage:
 ```console
 docker run --rm -i --network=host -e VERBOSE_LOGGING='true' furey/mongodb-lens mongodb://your-connection-string
 ```
+
+With verbose logging enabled, the server will output additional information to the console.
 
 ### Configuration: Config File
 

@@ -67,18 +67,18 @@
 
 ### Resources
 
-- Collection metadata
-- Collection statistics
-- Collection validation rules
-- Database listings
-- Database triggers and event configurations
-- Database users and roles
-- Index information
-- Performance metrics and profiling data
-- Replica set configuration
-- Schema inference
-- Server status and metrics
-- Stored JavaScript functions
+- `collection-indexes`: Index information for a collection
+- `collection-schema`: Schema information for a collection
+- `collection-stats`: Performance statistics for a collection
+- `collection-validation`: Validation rules for a collection
+- `collections`: List of collections in the current database
+- `database-triggers`: Database change streams and event triggers configuration
+- `database-users`: Database users and roles in the current database
+- `databases`: List of all accessible databases
+- `performance-metrics`: Real-time performance metrics and profiling data
+- `replica-status`: Replica set status and configuration
+- `server-status`: Server status information
+- `stored-functions`: Stored JavaScript functions in the current database
 
 ### Prompts
 

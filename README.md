@@ -22,29 +22,14 @@
 - [Install](#installation) dependencies
 - [Configure](#configuration) MongoDB Lens
 - [Set up](#client-setup) your MCP Client (e.g. [Claude Desktop](#client-setup-claude-desktop))
-- Start exploring your MongoDB databases with [natural language queries](#tutorial-example-queries)
+- Start exploring your MongoDB databases with [natural language queries](#tutorial-4-example-queries)
 
 ## Features
 
-- [Resources](#resources)
 - [Tools](#tools)
+- [Resources](#resources)
 - [Prompts](#prompts)
 - [Performance Features](#performance-features)
-
-### Resources
-
-- Collection metadata
-- Collection statistics
-- Collection validation rules
-- Database listings
-- Database triggers and event configurations
-- Database users and roles
-- Index information
-- Performance metrics and profiling data
-- Replica set configuration
-- Schema inference
-- Server status and metrics
-- Stored JavaScript functions
 
 ### Tools
 
@@ -80,6 +65,21 @@
 - `validate-collection`: Check for data inconsistencies
 - `watch-changes`: Monitor real-time changes to collections
 
+### Resources
+
+- Collection metadata
+- Collection statistics
+- Collection validation rules
+- Database listings
+- Database triggers and event configurations
+- Database users and roles
+- Index information
+- Performance metrics and profiling data
+- Replica set configuration
+- Schema inference
+- Server status and metrics
+- Stored JavaScript functions
+
 ### Prompts
 
 - `aggregation-builder`: Step-by-step creation of aggregation pipelines
@@ -102,7 +102,7 @@
 
 - **Sanitized Inputs**: Security enhancements for query processing
 - **Connection Resilience**: Automatic reconnection with exponential backoff
-- **Configuration File**: Support for custom configuration via `~/.mongodb-lens.json`
+- **Configuration File**: Custom configuration via `~/.mongodb-lens.json`
 - **JSONRPC Error Handling**: Comprehensive error handling with proper error codes
 - **Memory Management**: Automatic memory monitoring and cleanup for large operations
 - **Smart Caching**: Enhanced caching for schemas, collection lists, and server status
@@ -130,6 +130,9 @@ npx -y mongodb-lens
 npx -y mongodb-lens mongodb://your-connection-string
 ```
 
+> [!TIP]<br>
+> If you encounter permissions errors with `npx`, try running `npx clear-npx-cache` prior to running `npx -y mongodb-lens` (this clears the cache and re-downloads the package).
+
 ### Installation: Docker Hub
 
 Run MongoDB Lens directly from Docker Hub without building:
@@ -148,13 +151,13 @@ docker run --rm -i --network=host furey/mongodb-lens mongodb://your-connection-s
     ```console
     cd /path/to/mongodb-lens
     ```
-1. Ensure [Node](https://nodejs.org/en/download) running (tip: use [Volta](https://volta.sh)):<br>
+1. Ensure [Node](https://nodejs.org/en/download) running (suggestion: use [Volta](https://volta.sh)):<br>
     `$ node -v` >= `22.*`
 1. Install Node.js dependencies:<br>
     ```console
     npm ci
     ```
-1. Start the server (tip: press <kbd>Ctrl</kbd>+<kbd>C</kbd> to exit):<br>
+1. Start the server:<br>
     ```console
     # Using default connection string mongodb://localhost:27017
     node mongodb-lens.js
@@ -202,7 +205,15 @@ MongoDB Lens is now installed and ready to accept MCP requests.
 
 ### Configuration: MongoDB Connection String
 
-The server accepts a MongoDB connection string as its only argument:
+The server accepts a MongoDB connection string as its only argument.
+
+Example NPX usage:
+
+```console
+npx -y mongodb-lens mongodb://your-connection-string
+```
+
+MongoDB connection strings have the following format:
 
 ```txt
 mongodb://[username:password@]host[:port][/database][?options]
@@ -214,35 +225,43 @@ Example URIs:
 - Connection with credentials and DB name: `mongodb://username:password@hostname:27017/mydatabase`
 - Connection with DB name and options: `mongodb://hostname:27017/mydatabase?retryWrites=true&w=majority`
 
-If no connection string is provided, the server will attempt to connect to MongoDB via local connection:
-
-```txt
-mongodb://localhost:27017
-```
+If no connection string is provided, the server will attempt to connect via local connection.
 
 ### Configuration: Logging
 
-To enable verbose server logging, set environment variable `VERBOSE_LOGGING` to `true`.
+To enable verbose logging, set environment variable `VERBOSE_LOGGING` to `true`.
 
-Example Node.js usage:
+Example NPX usage:
 
 ```console
-VERBOSE_LOGGING=true node mongodb-lens.js mongodb://your-connection-string
+VERBOSE_LOGGING=true npx -y mongodb-lens mongodb://your-connection-string
 ```
 
-Example Docker usage:
+Example Docker Hub usage:
 
 ```console
-docker run --rm -i --network=host -e VERBOSE_LOGGING='true' mongodb-lens mongodb://your-connection-string
+docker run --rm -i --network=host -e VERBOSE_LOGGING='true' furey/mongodb-lens mongodb://your-connection-string
 ```
 
 ### Configuration: Config File
 
-Create a JSON configuration file at `~/.mongodb-lens.json` to further customise MongoDB Lens.
+MongoDB Lens can also be configured via JSON config file: `~/.mongodb-lens.json`
 
-Alternatively, specify a custom path with `CONFIG_PATH` environment variable.
+Alternatively, set environment variable `CONFIG_PATH` to the path of your custom config file.
 
-Example configuration file:
+Example NPX usage:
+
+```console
+CONFIG_PATH='/path/to/config.json' npx -y mongodb-lens
+```
+
+Example Docker Hub usage:
+
+```console
+docker run --rm -i --network=host -v /path/to/config.json:/root/.mongodb-lens.json furey/mongodb-lens
+```
+
+Example configuration file contents:
 
 ```json
 {
@@ -252,12 +271,6 @@ Example configuration file:
     "connectTimeoutMS": 30000
   }
 }
-```
-
-Example Node.js usage:
-
-```console
-CONFIG_PATH='/path/to/config.json' node mongodb-lens.js
 ```
 
 ## Client Setup
@@ -288,7 +301,8 @@ To use MongoDB Lens with Claude Desktop:
 For each option:
 
 - Replace `mongodb://your-connection-string` with your MongoDB connection string or omit it to use the default `mongodb://localhost:27017`.
-- For `VERBOSE_LOGGING`, set to `true` to enable verbose logging or `false` to disable it.
+- Set `VERBOSE_LOGGING` to `true` or `false`.
+- To use a custom config file, see [Configuration: Config File](#configuration-config-file) and adapt option accordingly.
 
 ##### Option 1: NPX (Recommended)
 
@@ -296,7 +310,7 @@ For each option:
 {
   "mcpServers": {
     "mongodb-lens": {
-      "command": "npx",
+      "command": "/path/to/npx",
       "args": [
         "-y",
         "mongodb-lens",
@@ -377,7 +391,7 @@ For each option:
 
 [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is a tool designed for testing and debugging MCP servers.
 
-To use MongoDB Lens with MCP Inspector with Node.js from source:
+Example Node.js from source usage:
 
 1. Navigate to the cloned repository directory:<br>
     ```console
@@ -393,13 +407,13 @@ To use MongoDB Lens with MCP Inspector with Node.js from source:
       CLIENT_PORT=8080 SERVER_PORT=9000 npx -y @modelcontextprotocol/inspector node mongodb-lens.js
       ```
 1. Open Inspector web app: http://localhost:5173
-1. Inspector should supports the full range of MongoDB Lens capabilities, including autocompletion for collection names and query fields.
+1. Inspector should support the full range of MongoDB Lens capabilities, including autocompletion for collection names and query fields.
 
 For more, see: [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector)
 
 ### Client Setup: Other MCP Clients
 
-MongoDB Lens can be used with any MCP-compatible client.
+MongoDB Lens should be usable with any MCP-compatible client.
 
 For more, see: [MCP Documentation: Example Clients](https://modelcontextprotocol.io/clients)
 
@@ -407,17 +421,20 @@ For more, see: [MCP Documentation: Example Clients](https://modelcontextprotocol
 
 This following tutorial guides you through setting up a MongoDB container with sample data, then using MongoDB Lens to interact with it through natural language queries:
 
-- [Setting Up Sample Data Container](#tutorial-setting-up-sample-data-container)
-- [Importing Sample Data](#tutorial-importing-sample-data)
-- [Connecting MongoDB Lens](#tutorial-connecting-mongodb-lens)
-- [Example Queries](#tutorial-example-queries)
+1. [Start Sample Data Container](#tutorial-1-start-sample-data-container)
+2. [Import Sample Data](#tutorial-2-import-sample-data)
+3. [Connect MongoDB Lens](#tutorial-3-connect-mongodb-lens)
+4. [Example Queries](#tutorial-4-example-queries)
 
-### Tutorial: Setting Up Sample Data Container
+### Tutorial: 1. Start Sample Data Container
+
+> [!NOTE]<br>
+> This tutorial assumes you have [Docker](https://docs.docker.com/get-started/get-docker/) installed and running on your system.
 
 > [!IMPORTANT]<br>
-> If you already have a Docker container running on port 27017, stop it before proceeding.
+> If Docker is already running a container on port 27017, stop it before proceeding.
 
-1. Initialise sample data container (requires [Docker](https://docs.docker.com/get-started/get-docker/)):<br>
+1. Initialise sample data container:<br>
    ```console
    docker run --name mongodb-sampledata -d -p 27017:27017 mongo:6
    ```
@@ -426,7 +443,7 @@ This following tutorial guides you through setting up a MongoDB container with s
    docker ps | grep mongodb-sampledata
    ```
 
-### Tutorial: Importing Sample Data
+### Tutorial: 2. Import Sample Data
 
 MongoDB provides several [sample datasets](https://www.mongodb.com/docs/atlas/sample-data/#available-sample-datasets), which we'll use to explore MongoDB Lens.
 
@@ -438,12 +455,12 @@ MongoDB provides several [sample datasets](https://www.mongodb.com/docs/atlas/sa
    ```console
    docker cp sampledata.archive mongodb-sampledata:/tmp/
    ```
-3. Restore the sample data:<br>
+3. Restore the sample data into MongoDB:<br>
    ```console
    docker exec -it mongodb-sampledata mongorestore --archive=/tmp/sampledata.archive
    ```
 
-This will import several sample databases including:
+This will import several databases:
 
 - `sample_airbnb`: Airbnb listings and reviews
 - `sample_analytics`: Customer and account data
@@ -454,33 +471,24 @@ This will import several sample databases including:
 - `sample_training`: Training data for various applications
 - `sample_weatherdata`: Weather measurements
 
-### Tutorial: Connecting MongoDB Lens
+### Tutorial: 3. Connect MongoDB Lens
 
 Download and [install](#installation) MongoDB Lens as per the [Quick Start](#quick-start) instructions.
 
-Set your [MCP Client](#client-setup) to connect to MongoDB Lens with the connection string:
-
-```txt
-mongodb://localhost:27017
-```
+Set your [MCP Client](#client-setup) to connect to MongoDB Lens via: `mongodb://localhost:27017`
 
 > [!TIP]<br>
-> As the default connection string is `mongodb://localhost:27017`, simply omit it from the client configuration.
+> Omitting the connection string from your MCP Client configuration will default the connection string to `mongodb://localhost:27017`.
 
-For example, if using Claude Desktop set `claude_desktop_config.json` to:
+Example [Claude Desktop configuration](#client-setup-claude-desktop):
 
 ```json
 {
   "mcpServers": {
     "mongodb-lens": {
-      "command": "docker",
+      "command": "/path/to/npx",
       "args": [
-        "run",
-        "--rm",
-        "-i",
-        "--network=host",
-        "-e",
-        "VERBOSE_LOGGING=true",
+        "-y",
         "mongodb-lens"
       ]
     }
@@ -488,7 +496,7 @@ For example, if using Claude Desktop set `claude_desktop_config.json` to:
 }
 ```
 
-### Tutorial: Example Queries
+### Tutorial: 4. Example Queries
 
 With your MCP Client running and connected to MongoDB Lens, try these example queries that demonstrate the capabilities of the various tools, resources, and prompts available through MongoDB Lens:
 

@@ -18,8 +18,9 @@
   "scripts": {
     "start": "node mongodb-lens.js",
     "start:memory": "node --expose-gc mongodb-lens.js",
-    "docker:build": "docker build -t mongodb-lens .",
-    "docker:run": "docker run --rm -i --network=host mongodb-lens"
+    "docker:hub:run": "docker run --rm -i --network=host furey/mongodb-lens",
+    "docker:local:build": "docker build -t mongodb-lens .",
+    "docker:local:run": "docker run --rm -i --network=host mongodb-lens"
   },
   "keywords": [
     "ai",

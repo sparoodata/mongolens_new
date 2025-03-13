@@ -1,6 +1,6 @@
 {
   "name": "mongodb-lens",
-  "version": "4.2.0",
+  "version": "5.0.0",
   "author": "James Furey (https://about.me/jamesfurey)",
   "description": "MongoDB Lens: Full Featured MCP Server for MongoDB Databases",
   "license": "MIT",
@@ -17,7 +17,9 @@
   ],
   "scripts": {
     "start": "node mongodb-lens.js",
-    "docker:build": "docker build -t mongodb-lens ."
+    "docker:hub:run": "docker run --rm -i --network=host furey/mongodb-lens",
+    "docker:local:build": "docker build -t mongodb-lens .",
+    "docker:local:run": "docker run --rm -i --network=host mongodb-lens"
   },
   "keywords": [
     "ai",
@@ -29,7 +31,7 @@
     "mongodb"
   ],
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.1.0",
     "mongodb": "^3.7.4",
     "zod": "^3.24.2"
   },

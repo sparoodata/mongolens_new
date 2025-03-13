@@ -29,6 +29,7 @@
 - [Resources](#resources)
 - [Tools](#tools)
 - [Prompts](#prompts)
+- [Performance Features](#performance-features)
 
 ### Resources
 
@@ -47,10 +48,12 @@
 
 ### Tools
 
-- `aggregate-data`: Execute aggregation pipelines
+- `aggregate-data`: Execute aggregation pipelines (with streaming support for large result sets)
+- `analyze-query-patterns`: Analyze queries and suggest optimizations
 - `analyze-schema`: Automatically infer collection schemas
 - `bulk-operations`: Perform multiple operations efficiently
 - `collation-query`: Find documents with language-specific collation rules
+- `compare-schemas`: Compare schemas between two collections
 - `count-documents`: Count documents matching specified criteria
 - `create-collection`: Create new collections with custom options
 - `create-index`: Create new indexes for performance optimization
@@ -60,7 +63,8 @@
 - `drop-collection`: Remove collections from the database
 - `explain-query`: Analyze query execution plans
 - `export-data`: Export query results in JSON or CSV format
-- `find-documents`: Run queries with filters, projections, and sorting
+- `find-documents`: Run queries with filters, projections, and sorting (with streaming for large result sets)
+- `generate-schema-validator`: Generate JSON Schema validators
 - `geo-query`: Perform geospatial queries with various operators
 - `get-stats`: Retrieve database or collection statistics
 - `gridfs-operation`: Manage large files with GridFS buckets
@@ -93,6 +97,16 @@
 - `schema-versioning`: Manage schema evolution in MongoDB applications
 - `security-audit`: Database security analysis and improvement recommendations
 - `sql-to-mongodb`: Convert SQL queries to MongoDB aggregation pipelines
+
+### Performance Features
+
+- **Sanitized Inputs**: Security enhancements for query processing
+- **Connection Resilience**: Automatic reconnection with exponential backoff
+- **Configuration File**: Support for custom configuration via `~/.mongodb-lens.json`
+- **JSONRPC Error Handling**: Comprehensive error handling with proper error codes
+- **Memory Management**: Automatic memory monitoring and cleanup for large operations
+- **Smart Caching**: Enhanced caching for schemas, collection lists, and server status
+- **Streaming Support**: Stream large result sets for `find-documents` and `aggregate-data` operations
 
 ## Installation
 
@@ -184,6 +198,7 @@ MongoDB Lens is now installed and ready to accept MCP requests.
 
 - [MongoDB Connection String](#configuration-mongodb-connection-string)
 - [Logging](#configuration-logging)
+- [Config File](#configuration-config-file)
 
 ### Configuration: MongoDB Connection String
 
@@ -219,6 +234,30 @@ Example Docker usage:
 
 ```console
 docker run --rm -i --network=host -e VERBOSE_LOGGING='true' mongodb-lens mongodb://your-connection-string
+```
+
+### Configuration: Config File
+
+Create a JSON configuration file at `~/.mongodb-lens.json` to further customise MongoDB Lens.
+
+Alternatively, specify a custom path with `CONFIG_PATH` environment variable.
+
+Example configuration file:
+
+```json
+{
+  "mongoUri": "mongodb://username:password@hostname:27017/mydatabase",
+  "connectionOptions": {
+    "maxPoolSize": 20,
+    "connectTimeoutMS": 30000
+  }
+}
+```
+
+Example Node.js usage:
+
+```console
+CONFIG_PATH='/path/to/config.json' node mongodb-lens.js
 ```
 
 ## Client Setup
@@ -299,9 +338,9 @@ For each option:
 {
   "mcpServers": {
     "mongodb-lens": {
-      "command": "/absolute/path/to/node",
+      "command": "/path/to/node",
       "args": [
-        "/absolute/path/to/mongodb-lens.js",
+        "/path/to/mongodb-lens.js",
         "mongodb://your-connection-string"
       ],
       "env": {
@@ -609,7 +648,20 @@ With your MCP Client running and connected to MongoDB Lens, try these example qu
 - _"How would I migrate from MongoDB 4.4 to 6.0?"_<br>
   <sup>➥ Uses `migration-guide` prompt</sup>
 
-### Example Queries: Advanced Features
+#### Example Queries: Schema Management & Analysis
+
+- _"Compare schemas between the users and customers collections"_<br>
+  <sup>➥ Uses new `compare-schemas` tool to identify differences</sup>
+- _"Generate a JSON Schema validator for the profiles collection with moderate strictness"_<br>
+  <sup>➥ Uses new `generate-schema-validator` tool</sup>
+- _"Analyze query patterns for the orders collection"_<br>
+  <sup>➥ Uses new `analyze-query-patterns` tool</sup>
+- _"What fields are missing in the new customers collection compared to the old one?"_<br>
+  <sup>➥ Uses `compare-schemas` to analyze migration gaps</sup>
+- _"Are my indexes being used effectively for my queries?"_<br>
+  <sup>➥ Uses `analyze-query-patterns` to identify optimization opportunities</sup>
+
+#### Example Queries: Advanced Features
 
 - _"Switch to sample_mflix database"_<br>
   <sup>➥ Uses `use-database` tool</sup>

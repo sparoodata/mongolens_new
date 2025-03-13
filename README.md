@@ -67,18 +67,18 @@
 
 ### Resources
 
-- Collection metadata
-- Collection statistics
-- Collection validation rules
-- Database listings
-- Database triggers and event configurations
-- Database users and roles
-- Index information
-- Performance metrics and profiling data
-- Replica set configuration
-- Schema inference
-- Server status and metrics
-- Stored JavaScript functions
+- `collection-indexes`: Index information for a collection
+- `collection-schema`: Schema information for a collection
+- `collection-stats`: Performance statistics for a collection
+- `collection-validation`: Validation rules for a collection
+- `collections`: List of collections in the current database
+- `database-triggers`: Database change streams and event triggers configuration
+- `database-users`: Database users and roles in the current database
+- `databases`: List of all accessible databases
+- `performance-metrics`: Real-time performance metrics and profiling data
+- `replica-status`: Replica set status and configuration
+- `server-status`: Server status information
+- `stored-functions`: Stored JavaScript functions in the current database
 
 ### Prompts
 
@@ -228,11 +228,14 @@ MongoDB connection strings have the following format:
 mongodb://[username:password@]host[:port][/database][?options]
 ```
 
-Example URIs:
+Example connection strings:
 
-- Local connection: `mongodb://localhost:27017`
-- Connection with credentials and DB name: `mongodb://username:password@hostname:27017/mydatabase`
-- Connection with DB name and options: `mongodb://hostname:27017/mydatabase?retryWrites=true&w=majority`
+- Local connection:<br>
+  `mongodb://localhost:27017`
+- Connection to `mydatabase` with credentials from `admin` database:<br>
+  `mongodb://username:password@hostname:27017/mydatabase?authSource=admin`
+- Connection to `mydatabase` with various other options:<br>
+  `mongodb://hostname:27017/mydatabase?retryWrites=true&w=majority`
 
 If no connection string is provided, the server will attempt to connect via local connection.
 
@@ -276,7 +279,7 @@ Example configuration file contents:
 
 ```json
 {
-  "mongoUri": "mongodb://username:password@hostname:27017/mydatabase",
+  "mongoUri": "mongodb://username:password@hostname:27017/mydatabase?authSource=admin",
   "connectionOptions": {
     "maxPoolSize": 20,
     "connectTimeoutMS": 30000

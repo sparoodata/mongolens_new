@@ -141,6 +141,9 @@ Run MongoDB Lens directly from Docker Hub without building:
 # Using default connection string mongodb://localhost:27017
 docker run --rm -i --network=host furey/mongodb-lens
 
+# Using "--pull" to keep the Docker image up-to-date
+docker run --rm -i --network=host --pull=always furey/mongodb-lens
+
 # Using custom connection string
 docker run --rm -i --network=host furey/mongodb-lens mongodb://your-connection-string
 ```
@@ -344,6 +347,7 @@ For each option:
         "--rm",
         "-i",
         "--network=host",
+        "--pull=always",
         "-e",
         "VERBOSE_LOGGING=[true|false]",
         "furey/mongodb-lens",

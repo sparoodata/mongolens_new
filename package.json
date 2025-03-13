@@ -17,7 +17,7 @@
   ],
   "scripts": {
     "start": "node mongodb-lens.js",
-    "docker:hub:run": "docker run --rm -i --network=host furey/mongodb-lens",
+    "docker:hub:run": "docker run --rm -i --network=host --pull always furey/mongodb-lens",
     "docker:local:build": "docker build -t mongodb-lens .",
     "docker:local:run": "docker run --rm -i --network=host mongodb-lens"
   },

@@ -59,7 +59,7 @@ if (existsSync(CONFIG_PATH)) {
   try {
     configFile = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'))
   } catch (error) {
-    console.error(`Error loading config file: ${error.message}`)
+    log(`Error loading config file: ${error.message}`, true)
   }
 }
 
@@ -275,7 +275,7 @@ const connect = async (uri = 'mongodb://localhost:27017') => {
     log(`Connected to MongoDB successfully, using database: ${currentDbName}`)
     return true
   } catch (error) {
-    console.error(`MongoDB connection error: ${error.message}`)
+    log(`MongoDB connection error: ${error.message}`, true)
     return false
   }
 }
@@ -338,7 +338,7 @@ const registerResources = (server) => {
             }))
           }
         } catch (error) {
-          console.error('Error listing collection schemas:', error)
+          log(`Error listing collection schemas: ${error.message}`, true)
           return { resources: [] }
         }
       },
@@ -353,7 +353,7 @@ const registerResources = (server) => {
             log(`Resource: Found ${matches.length} matching collections.`)
             return matches
           } catch (error) {
-            console.error('Error completing collection names:', error)
+            log(`Error completing collection names: ${error.message}`, true)
             return []
           }
         }
@@ -389,7 +389,7 @@ const registerResources = (server) => {
             }))
           }
         } catch (error) {
-          console.error('Error listing collections for stats:', error)
+          log(`Error listing collections for stats: ${error.message}`, true)
           return { resources: [] }
         }
       },
@@ -404,7 +404,7 @@ const registerResources = (server) => {
             log(`Resource: Found ${matches.length} matching collections for stats.`)
             return matches
           } catch (error) {
-            console.error('Error completing collection names:', error)
+            log(`Error completing collection names: ${error.message}`, true)
             return []
           }
         }
@@ -440,7 +440,7 @@ const registerResources = (server) => {
             }))
           }
         } catch (error) {
-          console.error('Error listing collections for indexes:', error)
+          log(`Error listing collections for indexes: ${error.message}`, true)
           return { resources: [] }
         }
       },
@@ -455,7 +455,7 @@ const registerResources = (server) => {
             log(`Resource: Found ${matches.length} matching collections for indexes.`)
             return matches
           } catch (error) {
-            console.error('Error completing collection names:', error)
+            log(`Error completing collection names: ${error.message}`, true)
             return []
           }
         }
@@ -525,7 +525,7 @@ const registerResources = (server) => {
             }))
           }
         } catch (error) {
-          console.error('Error listing collections for validation:', error)
+          log(`Error listing collections for validation: ${error.message}`, true)
           return { resources: [] }
         }
       },
@@ -539,7 +539,7 @@ const registerResources = (server) => {
               .filter(name => name.toLowerCase().includes(value.toLowerCase()))
             return matches
           } catch (error) {
-            console.error('Error completing collection names:', error)
+            log(`Error completing collection names: ${error.message}`, true)
             return []
           }
         }
@@ -1267,7 +1267,7 @@ async function generateExampleFilter(collectionName) {
     
     return '{}'
   } catch (error) {
-    console.error('Error generating example filter:', error)
+    log(`Error generating example filter: ${error.message}`, true)
     return '{}'
   }
 }
@@ -1295,8 +1295,7 @@ const registerTools = (server) => {
       return await operation()
     } catch (error) {
       const formattedError = `${errorMessage}: ${error.message}`
-      console.error(formattedError)
-      log(formattedError)
+      log(formattedError, true)
       
       let errorCode = JSONRPC_ERROR_CODES.SERVER_ERROR_START
       
@@ -1378,7 +1377,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
-        console.error('Error switching database:', error)
+        log(`Error switching database: ${error.message}`, true)
         return {
           content: [{
             type: 'text',
@@ -1411,7 +1410,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
-        console.error('Error creating user:', error)
+        log(`Error creating user: ${error.message}`, true)
         return {
           content: [{
             type: 'text',
@@ -1441,7 +1440,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
-        console.error('Error dropping user:', error)
+        log(`Error dropping user: ${error.message}`, true)
         return {
           content: [{
             type: 'text',
@@ -1468,7 +1467,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
-        console.error('Error listing collections:', error)
+        log(`Error listing collections: ${error.message}`, true)
         return {
           content: [{
             type: 'text',
@@ -1539,7 +1538,7 @@ const registerTools = (server) => {
           }
         }
       } catch (error) {
-        console.error('Error finding documents:', error)
+        log(`Error finding documents: ${error.message}`, true)
         return {
           content: [{
             type: 'text',
@@ -1578,7 +1577,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
-        console.error('Error counting documents:', error)
+        log(`Error counting documents: ${error.message}`, true)
         return {
           content: [{
             type: 'text',
@@ -1641,7 +1640,7 @@ const registerTools = (server) => {
           }
         }
       } catch (error) {
-        console.error('Error running aggregation:', error)
+        log(`Error running aggregation: ${error.message}`, true)
         return {
           content: [{
             type: 'text',
@@ -1686,7 +1685,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
-        console.error('Error getting stats:', error)
+        log(`Error getting stats: ${error.message}`, true)
         return {
           content: [{
             type: 'text',
@@ -1717,7 +1716,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
-        console.error('Error inferring schema:', error)
+        log(`Error inferring schema: ${error.message}`, true)
         return {
           content: [{
             type: 'text',
@@ -1755,7 +1754,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
-        console.error('Error creating index:', error)
+        log(`Error creating index: ${error.message}`, true)
         return {
           content: [{
             type: 'text',
@@ -1786,7 +1785,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
-        console.error('Error dropping index:', error)
+        log(`Error dropping index: ${error.message}`, true)
         return {
           content: [{
             type: 'text',
@@ -1822,7 +1821,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
-        console.error('Error explaining query:', error)
+        log(`Error explaining query: ${error.message}`, true)
         return {
           content: [{
             type: 'text',
@@ -1857,7 +1856,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
-        console.error('Error getting distinct values:', error)
+        log(`Error getting distinct values: ${error.message}`, true)
         return {
           content: [{
             type: 'text',
@@ -1890,7 +1889,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
-        console.error('Error validating collection:', error)
+        log(`Error validating collection: ${error.message}`, true)
         return {
           content: [{
             type: 'text',
@@ -1924,7 +1923,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
-        console.error('Error creating collection:', error)
+        log(`Error creating collection: ${error.message}`, true)
         return {
           content: [{
             type: 'text',
@@ -1955,7 +1954,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
-        console.error('Error dropping collection:', error)
+        log(`Error dropping collection: ${error.message}`, true)
         return {
           content: [{
             type: 'text',
@@ -1989,7 +1988,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
-        console.error('Error renaming collection:', error)
+        log(`Error renaming collection: ${error.message}`, true)
         return {
           content: [{
             type: 'text',
@@ -2092,7 +2091,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
-        console.error('Error exporting data:', error)
+        log(`Error exporting data: ${error.message}`, true)
         return {
           content: [{
             type: 'text',
@@ -2131,7 +2130,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
-        console.error('Error running MapReduce:', error)
+        log(`Error running MapReduce: ${error.message}`, true)
         return {
           content: [{
             type: 'text',
@@ -2167,7 +2166,7 @@ const registerTools = (server) => {
           }]
         }
       } catch (error) {
-        console.error('Error in bulk operations:', error)
+        log(`Error in bulk operations: ${error.message}`, true)
         return {
           content: [{
             type: 'text',
@@ -2193,6 +2192,27 @@ const registerTools = (server) => {
     async ({ collection, operator, field, geometry, maxDistance, limit }) => {
       try {
         log(`Tool: Running geospatial query on collection '${collection}'…`)
+        
+        let indexMessage = ''
+        try {
+          const coll = currentDb.collection(collection)
+          const indexes = await coll.listIndexes().toArray()
+          
+          const hasGeoIndex = indexes.some(idx => {
+            if (!idx.key[field]) return false
+            const indexType = idx.key[field]
+            return indexType === '2dsphere' || indexType === '2d'
+          })
+          
+          if (!hasGeoIndex) {
+            log(`Warning: No geospatial index found for field '${field}' in collection '${collection}'`, true)
+            indexMessage = "\n\nNote: This query would be more efficient with a geospatial index. " +
+              `Consider creating a 2dsphere index with: create-index {"collection": "${collection}", "keys": "{\\"${field}\\": \\"2dsphere\\"}"}`
+          }
+        } catch (indexError) {
+          log(`Warning: Unable to check for geospatial indexes: ${indexError.message}`, true)
+        }
+        
         const geoJson = JSON.parse(geometry)
         let query = {}
         
@@ -2206,10 +2226,12 @@ const registerTools = (server) => {
         }
         
         const results = await findDocuments(collection, query, null, limit, 0)
+        const resultText = formatDocuments(results, limit) + indexMessage
+        
         return {
           content: [{
             type: 'text',
-            text: formatDocuments(results, limit)
+            text: resultText
           }]
         }
       } catch (error) {
@@ -2237,6 +2259,13 @@ const registerTools = (server) => {
     async ({ name, timeField, metaField, granularity, expireAfterSeconds }) => {
       try {
         log(`Tool: Creating time series collection '${name}'…`)
+
+        const adminDb = mongoClient.db('admin')
+        const serverInfo = await adminDb.command({ buildInfo: 1 })
+        const versionParts = serverInfo.version.split('.').map(Number)
+        if (versionParts[0] < 5) {
+          return { content: [{ type: 'text', text: `Time series collections require MongoDB 5.0+` }] }
+        }
         
         const options = {
           timeseries: {
@@ -2279,6 +2308,23 @@ const registerTools = (server) => {
     async ({ collection, operations, duration, fullDocument }) => {
       try {
         log(`Tool: Watching collection '${collection}' for changes…`)
+  
+        try {
+          const adminDb = mongoClient.db('admin')
+          await adminDb.command({ replSetGetStatus: 1 })
+        } catch (err) {
+          if (err.codeName === 'NotYetInitialized' || 
+              err.codeName === 'NoReplicationEnabled' || 
+              err.message.includes('not running with --replSet') ||
+              err.code === 76 || err.code === 40573) {
+            return {
+              content: [{
+                type: 'text',
+                text: `Change streams are not supported on your MongoDB deployment.\n\nChange streams require MongoDB to be running as a replica set or sharded cluster. You appear to be running a standalone server.\n\nAlternative: You can set up a single-node replica set for development purposes by following these steps:\n\n1. Stop your MongoDB server\n2. Start it with the --replSet option: \`mongod --replSet rs0\`\n3. Connect to it and initialize the replica set: \`rs.initiate()\`\n\nThen try the watch-changes tool again.`
+              }]
+            }
+          }
+        }
         
         const pipeline = [
           { $match: { 'operationType': { $in: operations } } }
@@ -2337,6 +2383,23 @@ const registerTools = (server) => {
       try {
         log(`Tool: Performing text search in collection '${collection}' for: "${searchText}"`)
         
+        try {
+          const coll = currentDb.collection(collection)
+          const indexes = await coll.listIndexes().toArray()
+          const hasTextIndex = indexes.some(idx => Object.values(idx.key).includes('text'))
+          
+          if (!hasTextIndex) {
+            return {
+              content: [{
+                type: 'text',
+                text: `No text index found on collection '${collection}'.\n\nText search requires a text index. Create one with:\n\ncreate-index {\n  "collection": "${collection}",\n  "keys": "{\\"fieldName\\": \\"text\\"}"\n}`
+              }]
+            }
+          }
+        } catch (indexError) {
+          log(`Warning: Unable to check for text indexes: ${indexError.message}`, true)
+        }
+        
         const textSearchOptions = {}
         if (language) textSearchOptions.language = language
         if (caseSensitive) textSearchOptions.caseSensitive = true
@@ -2375,6 +2438,23 @@ const registerTools = (server) => {
     async ({ operations }) => {
       try {
         log('Tool: Executing operations in a transaction…')
+        
+        try {
+          const session = mongoClient.startSession()
+          await session.endSession()
+        } catch (error) {
+          if (error.message.includes('not supported') || 
+              error.message.includes('requires replica set') || 
+              error.codeName === 'NotAReplicaSet') {
+            return {
+              content: [{
+                type: 'text',
+                text: `Transactions are not supported on your MongoDB deployment.\n\nTransactions require MongoDB to be running as a replica set or sharded cluster. You appear to be running a standalone server.\n\nAlternative: You can set up a single-node replica set for development purposes by following these steps:\n\n1. Stop your MongoDB server\n2. Start it with the --replSet option: \`mongod --replSet rs0\`\n3. Connect to it and initialize the replica set: \`rs.initiate()\`\n\nThen try the transaction tool again.`
+              }]
+            }
+          }
+          throw error
+        }
         
         const parsedOps = JSON.parse(operations)
         const session = mongoClient.startSession()
@@ -2435,6 +2515,7 @@ const registerTools = (server) => {
       }
     }
   )
+  
   
   server.tool(
     'gridfs-operation',
@@ -2543,6 +2624,22 @@ const registerTools = (server) => {
     async ({ target, collection }) => {
       return withErrorHandling(async () => {
         log(`Tool: Getting shard status for ${target}${collection ? ` '${collection}'` : ''}`)
+        
+        try {
+          const adminDb = mongoClient.db('admin')
+          await adminDb.command({ listShards: 1 })
+        } catch (error) {
+          if (error.code === 72 || error.message.includes('not running with sharding') || 
+              error.codeName === 'InvalidOptions') {
+            return {
+              content: [{
+                type: 'text',
+                text: `Sharding is not enabled on your MongoDB deployment.\n\nThis command requires MongoDB to be running as a sharded cluster.\nYou appear to be running a standalone server or replica set without sharding enabled.\n\nTo use sharding features, you need to set up a sharded cluster with:\n- Config servers\n- Mongos router(s)\n- Shard replica sets`
+              }]
+            }
+          }
+          throw error
+        }
         
         const adminDb = mongoClient.db('admin')
         let result
@@ -3109,7 +3206,8 @@ const getReplicaSetStatus = async () => {
     return {
       isReplicaSet: false,
       info: 'This server is not part of a replica set or you may not have permissions to view replica set status.',
-      error: error.message
+      error: error.message,
+      replicaSetRequired: true
     }
   }
 }
@@ -3197,21 +3295,40 @@ const getPerformanceMetrics = async () => {
 
 const getDatabaseTriggers = async () => {
   try {
-    const changeStreamInfo = {
-      supported: true,
-      resumeTokenSupported: true,
-      updateLookupSupported: true,
-      fullDocumentBeforeChangeSupported: true
-    }
-    
-    const triggerCollections = await currentDb.listCollections({ name: /trigger|event|notification/i }).toArray()
-    const system = currentDb.collection('system.js')
-    const triggerFunctions = await system.find({ _id: /trigger|event|watch|notify/i }).toArray()
-    
-    return {
-      changeStreams: changeStreamInfo,
-      triggerCollections,
-      triggerFunctions
+    try {
+      const coll = currentDb.collection('system.version')
+      const testStream = coll.watch()
+      await testStream.close()
+      
+      const changeStreamInfo = {
+        supported: true,
+        resumeTokenSupported: true,
+        updateLookupSupported: true,
+        fullDocumentBeforeChangeSupported: true
+      }
+      
+      const triggerCollections = await currentDb.listCollections({ name: /trigger|event|notification/i }).toArray()
+      const system = currentDb.collection('system.js')
+      const triggerFunctions = await system.find({ _id: /trigger|event|watch|notify/i }).toArray()
+      
+      return {
+        changeStreams: changeStreamInfo,
+        triggerCollections,
+        triggerFunctions
+      }
+    } catch (error) {
+      if (error.code === 40573 || error.message.includes('only supported on replica sets')) {
+        return { 
+          changeStreams: {
+            supported: false,
+            reason: "Change streams require a replica set or sharded cluster",
+            howToEnable: "To enable change streams for development, configure MongoDB as a single-node replica set"
+          },
+          triggerCollections: [],
+          triggerFunctions: []
+        }
+      }
+      throw error
     }
   } catch (error) {
     log(`Error getting database triggers: ${error.message}`)
@@ -3663,6 +3780,9 @@ const formatReplicaSetStatus = (status) => {
   if (!status) return 'Replica set status information not available'
   
   if (status.error) {
+    if (status.replicaSetRequired) {
+      return `Replica Set Status: Not available\n\n${status.info}\n\nYou can set up a single-node replica set for development purposes by following these steps:\n\n1. Stop your MongoDB server\n2. Start it with the --replSet option: \`mongod --replSet rs0\`\n3. Connect to it and initialize the replica set: \`rs.initiate()\``
+    }
     return `Replica Set Status: Not available (${status.info})\n\n${status.error}`
   }
   
@@ -4193,7 +4313,13 @@ const formatTriggerConfiguration = (triggers) => {
     result += `- Update lookup support: ${triggers.changeStreams.updateLookupSupported ? 'Yes' : 'No'}\n`
     result += `- Full document before change: ${triggers.changeStreams.fullDocumentBeforeChangeSupported ? 'Yes' : 'No'}\n`
   } else {
-    result += '- Change streams are not supported in this MongoDB version\n'
+    result += '- Change streams are not supported in this MongoDB deployment\n'
+    if (triggers.changeStreams.reason) {
+      result += `  Reason: ${triggers.changeStreams.reason}\n`
+    }
+    if (triggers.changeStreams.howToEnable) {
+      result += `  How to Enable: ${triggers.changeStreams.howToEnable}\n`
+    }
   }
 
   result += '\n## Potential Trigger Collections\n'
@@ -4216,10 +4342,6 @@ const formatTriggerConfiguration = (triggers) => {
   } else {
     result += '- No stored JavaScript functions with trigger-related naming found\n'
   }
-  
-  result += '\n## Usage\n'
-  result += '- To set up change streams monitoring, use the `watch-changes` tool\n'
-  result += '- Example: `watch-changes {"collection": "orders", "operations": ["insert", "update"], "duration": 30}`\n'
   
   return result
 }
@@ -4692,7 +4814,7 @@ const streamResultsToMcp = async (resultStream, resultFormatter, resourceUri, st
     stream.end()
     return count
   } catch (error) {
-    console.error('Error in streaming results:', error)
+    log(`Error in streaming results: ${error.message}`, true)
     throw error
   }
 }
@@ -4740,7 +4862,7 @@ const cleanup = async () => {
       await server.close()
       log('MCP server closed.')
     } catch (error) {
-      console.error('Error closing MCP server:', error)
+      log(`Error closing MCP server: ${error.message}`, true)
     }
   }
   
@@ -4750,7 +4872,7 @@ const cleanup = async () => {
       await transport.close()
       log('Transport closed.')
     } catch (error) {
-      console.error('Error closing transport:', error)
+      log(`Error closing transport: ${error.message}`, true)
     }
   }
   
@@ -4760,7 +4882,7 @@ const cleanup = async () => {
       await mongoClient.close()
       log('MongoDB client closed.')
     } catch (error) {
-      console.error('Error closing MongoDB client:', error)
+      log(`Error closing MongoDB client: ${error.message}`, true)
     }
   }
   

@@ -47,13 +47,13 @@ const VERBOSE_LOGGING = process.env.VERBOSE_LOGGING === 'true'
 const CONFIG_PATH = process.env.CONFIG_PATH || join(process.env.HOME || __dirname, '.mongodb-lens.json')
 
 let server = null
+let watchdog = null
 let transport = null
 let currentDb = null
+let configFile = null
 let mongoClient = null
 let currentDbName = null
 let connectionRetries = 0
-let watchdog = null
-let configFile = null
 
 if (existsSync(CONFIG_PATH)) {
   try {
@@ -1044,13 +1044,17 @@ Please provide:
     'database-health-check',
     'Comprehensive database health assessment',
     {
-      includePerformance: z.boolean().default(true).describe('Include performance metrics'),
-      includeSchema: z.boolean().default(true).describe('Include schema analysis'),  
-      includeSecurity: z.boolean().default(true).describe('Include security assessment')
+      includePerformance: z.string().default('true').describe('Include performance metrics'),
+      includeSchema: z.string().default('true').describe('Include schema analysis'),  
+      includeSecurity: z.string().default('true').describe('Include security assessment')
     },
     async ({ includePerformance, includeSchema, includeSecurity }) => {
+      const includePerformanceBool = includePerformance.toLowerCase() === 'true'
+      const includeSchemaBool = includeSchema.toLowerCase() === 'true'
+      const includeSecurityBool = includeSecurity.toLowerCase() === 'true'
+      
       log('Prompt: Initializing comprehensive database health check')
-
+   
       const dbStats = await getDatabaseStats()
       const collections = await listCollections()
       
@@ -1058,17 +1062,15 @@ Please provide:
       let indexes = {}
       let schemaAnalysis = {}
       
-      if (includePerformance) {
+      if (includePerformanceBool) {
         serverStatus = await getServerStatus()
-
         const collectionsToAnalyze = collections.slice(0, 5)
         for (const coll of collectionsToAnalyze) {
           indexes[coll.name] = await getCollectionIndexes(coll.name)
         }
       }
       
-      if (includeSchema) {
-
+      if (includeSchemaBool) {
         const collectionsToAnalyze = collections.slice(0, 3)
         for (const coll of collectionsToAnalyze) {
           schemaAnalysis[coll.name] = await inferSchema(coll.name, 10)
@@ -1076,7 +1078,7 @@ Please provide:
       }
       
       let securityInfo = null
-      if (includeSecurity) {
+      if (includeSecurityBool) {
         const users = await getDatabaseUsers()
         securityInfo = {
           users,
@@ -1092,59 +1094,61 @@ Please provide:
             content: {
               type: 'text',
               text: `Please perform a comprehensive health check on my MongoDB database "${currentDbName}" and provide recommendations for improvements.
-  
-  Database Statistics:
-  ${JSON.stringify(dbStats, null, 2)}
-  
-  Collections (${collections.length}):
-  ${collections.map(c => `- ${c.name}`).join('\n')}
-  
-  ${includePerformance ? `\nPerformance Metrics:
-  ${JSON.stringify(serverStatus ? {
-    connections: serverStatus.connections,
-    opcounters: serverStatus.opcounters,
-    mem: serverStatus.mem
-  } : {}, null, 2)}
-  
-  Indexes:
-  ${Object.entries(indexes).map(([coll, idxs]) => 
-    `- ${coll}: ${idxs.length} indexes`
-  ).join('\n')}` : ''}
-  
-  ${includeSchema ? `\nSchema Samples:
-  ${Object.keys(schemaAnalysis).join(', ')}` : ''}
-  
-  ${includeSecurity ? `\nSecurity Information:
-  - Users: ${securityInfo.users.users ? securityInfo.users.users.length : 'N/A'}
-  - Authentication: ${securityInfo.auth ? securityInfo.auth.authentication.mechanisms.join(', ') : 'N/A'}` : ''}
-  
-  Please provide:
-  1. Overall health assessment
-  2. Urgent issues that need addressing
-  3. Performance optimization recommendations
-  4. Schema design suggestions and improvements
-  5. Security best practices and concerns
-  6. Monitoring and maintenance recommendations
-  7. Specific MongoDB Lens tools to use for implementing your recommendations`
+    
+    Database Statistics:
+    ${JSON.stringify(dbStats, null, 2)}
+    
+    Collections (${collections.length}):
+    ${collections.map(c => `- ${c.name}`).join('\n')}
+    
+    ${includePerformanceBool ? `\nPerformance Metrics:
+    ${JSON.stringify(serverStatus ? {
+      connections: serverStatus.connections,
+      opcounters: serverStatus.opcounters,
+      mem: serverStatus.mem
+    } : {}, null, 2)}
+    
+    Indexes:
+    ${Object.entries(indexes).map(([coll, idxs]) => 
+      `- ${coll}: ${idxs.length} indexes`
+    ).join('\n')}` : ''}
+    
+    ${includeSchemaBool ? `\nSchema Samples:
+    ${Object.keys(schemaAnalysis).join(', ')}` : ''}
+    
+    ${includeSecurityBool ? `\nSecurity Information:
+    - Users: ${securityInfo.users.users ? securityInfo.users.users.length : 'N/A'}
+    - Authentication: ${securityInfo.auth && securityInfo.auth.authentication ? 
+    JSON.stringify(securityInfo.auth.authentication.mechanisms || securityInfo.auth.authentication) : 'N/A'}` : ''}
+    
+    Please provide:
+    1. Overall health assessment
+    2. Urgent issues that need addressing
+    3. Performance optimization recommendations
+    4. Schema design suggestions and improvements
+    5. Security best practices and concerns
+    6. Monitoring and maintenance recommendations
+    7. Specific MongoDB Lens tools to use for implementing your recommendations`
             }
           }
         ]
       }
     }
-  )
+   )
 
   server.prompt(
     'multi-tenant-design',
     'Design MongoDB multi-tenant database architecture',
     {
       tenantIsolation: z.enum(['database', 'collection', 'field']).describe('Level of tenant isolation required'),
-      estimatedTenants: z.number().int().min(1).describe('Estimated number of tenants'),
+      estimatedTenants: z.string().describe('Estimated number of tenants'),
       sharedFeatures: z.string().describe('Features/data that will be shared across tenants'),
       tenantSpecificFeatures: z.string().describe('Features/data unique to each tenant'),
       scalingPriorities: z.string().optional().describe('Primary scaling concerns (e.g., read-heavy, write-heavy)')
     },
     ({ tenantIsolation, estimatedTenants, sharedFeatures, tenantSpecificFeatures, scalingPriorities }) => {
-      log(`Prompt: Initializing multiTenantDesign with ${tenantIsolation} isolation level for ${estimatedTenants} tenants.`)
+      const estimatedTenantsNum = parseInt(estimatedTenants, 10) || 1
+      log(`Prompt: Initializing multiTenantDesign with ${tenantIsolation} isolation level for ${estimatedTenantsNum} tenants.`)
       return {
         description: 'MongoDB Multi-Tenant Architecture Design',
         messages: [

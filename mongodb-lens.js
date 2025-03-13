@@ -1298,15 +1298,15 @@ const registerTools = (server) => {
       console.error(formattedError)
       log(formattedError)
       
-      let errorCode = -32000
+      let errorCode = JSONRPC_ERROR_CODES.SERVER_ERROR_START
       
       if (error.name === 'MongoError' || error.name === 'MongoServerError') {
-        if (error.code === 13) errorCode = -32041
-        else if (error.code === 59 || error.code === 61) errorCode = -32050
-        else if (error.code === 121) errorCode = -32052
-        else errorCode = -32051
+        if (error.code === 13) errorCode = JSONRPC_ERROR_CODES.RESOURCE_ACCESS_DENIED
+        else if (error.code === 59 || error.code === 61) errorCode = JSONRPC_ERROR_CODES.MONGODB_CONNECTION_ERROR
+        else if (error.code === 121) errorCode = JSONRPC_ERROR_CODES.MONGODB_SCHEMA_ERROR
+        else errorCode = JSONRPC_ERROR_CODES.MONGODB_QUERY_ERROR
       } else if (error.message.includes('not found') || error.message.includes('does not exist')) {
-        errorCode = -32040
+        errorCode = JSONRPC_ERROR_CODES.RESOURCE_NOT_FOUND
       }
       
       const errorResponse = {
@@ -1547,7 +1547,7 @@ const registerTools = (server) => {
           }],
           isError: true,
           error: {
-            code: -32051,
+            code: JSONRPC_ERROR_CODES.MONGODB_QUERY_ERROR,
             message: error.message,
             data: { type: error.name }
           }
@@ -1649,7 +1649,7 @@ const registerTools = (server) => {
           }],
           isError: true,
           error: {
-            code: -32051,
+            code: JSONRPC_ERROR_CODES.MONGODB_QUERY_ERROR,
             message: error.message,
             data: { type: error.name }
           }

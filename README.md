@@ -3,6 +3,7 @@
 [![License](https://img.shields.io/github/license/furey/mongodb-lens)](./LICENSE)
 [![Docker Hub Version](https://img.shields.io/docker/v/furey/mongodb-lens)](https://hub.docker.com/r/furey/mongodb-lens)
 [![NPM Version](https://img.shields.io/npm/v/mongodb-lens)](https://www.npmjs.com/package/mongodb-lens)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-donate-orange.svg)](https://www.buymeacoffee.com/furey)
 
 **MongoDB Lens** is a local Model Context Protocol (MCP) server with full featured access to MongoDB databases using natural language via LLMs to perform queries, run aggregations, optimize performance, and more.
 
@@ -15,21 +16,21 @@
 - [Client Setup](#client-setup)
 - [Tutorial](#tutorial)
 - [Disclaimer](#disclaimer)
+- [Support](#support)
 
 ## Quick Start
 
-- Clone repository
-- [Install](#installation) dependencies
+- [Install](#installation) MongoDB Lens
 - [Configure](#configuration) MongoDB Lens
 - [Set up](#client-setup) your MCP Client (e.g. [Claude Desktop](#client-setup-claude-desktop))
-- Start exploring your MongoDB databases with [natural language queries](#tutorial-4-example-queries)
+- Exploring your MongoDB databases with [natural language queries](#tutorial-4-example-queries)
 
 ## Features
 
 - [Tools](#tools)
 - [Resources](#resources)
 - [Prompts](#prompts)
-- [Performance Features](#performance-features)
+- [Additional Features](#additional-features)
 
 ### Tools
 
@@ -98,14 +99,14 @@
 - `security-audit`: Database security analysis and improvement recommendations
 - `sql-to-mongodb`: Convert SQL queries to MongoDB aggregation pipelines
 
-### Performance Features
+### Additional Features
 
 - **Sanitized Inputs**: Security enhancements for query processing
-- **Connection Resilience**: Automatic reconnection with exponential backoff
 - **Configuration File**: Custom configuration via `~/.mongodb-lens.json`
+- **Connection Resilience**: Automatic reconnection with exponential backoff
+- **Smart Caching**: Enhanced caching for schemas, collection lists, and server status
 - **JSONRPC Error Handling**: Comprehensive error handling with proper error codes
 - **Memory Management**: Automatic memory monitoring and cleanup for large operations
-- **Smart Caching**: Enhanced caching for schemas, collection lists, and server status
 - **Streaming Support**: Stream large result sets for `find-documents` and `aggregate-data` operations
 
 ## Installation
@@ -120,7 +121,10 @@ MongoDB Lens can be installed and run in several ways:
 
 ### Installation: NPX
 
-The easiest way to run MongoDB Lens is using `npx` without installing anything:
+> [!NOTE]<br>
+> NPX requires [Node.js](https://nodejs.org/en/download) installed and running on your system (suggestion: use [Volta](https://volta.sh)).
+
+The easiest way to run MongoDB Lens is using `npx`:
 
 ```console
 # Using default connection string mongodb://localhost:27017
@@ -135,29 +139,38 @@ npx -y mongodb-lens mongodb://your-connection-string
 
 ### Installation: Docker Hub
 
-Run MongoDB Lens directly from Docker Hub without building:
+> [!NOTE]<br>
+> Docker Hub requires [Docker](https://docs.docker.com/get-started/get-docker) installed and running on your system.
+
+Run MongoDB Lens via Docker Hub:
 
 ```console
 # Using default connection string mongodb://localhost:27017
 docker run --rm -i --network=host furey/mongodb-lens
 
-# Using "--pull" to keep the Docker image up-to-date
-docker run --rm -i --network=host --pull=always furey/mongodb-lens
-
 # Using custom connection string
 docker run --rm -i --network=host furey/mongodb-lens mongodb://your-connection-string
+
+# Using "--pull" to keep the Docker image up-to-date
+docker run --rm -i --network=host --pull=always furey/mongodb-lens
 ```
 
 ### Installation: Node.js from Source
 
+> [!NOTE]<br>
+> Node.js from source requires [Node.js](https://nodejs.org/en/download) installed and running on your system (suggestion: use [Volta](https://volta.sh)).
+
+1. Clone the MongoDB Lens repository:<br>
+    ```console
+    git clone https://github.com/furey/mongodb-lens.git
+    ```
 1. Navigate to the cloned repository directory:<br>
     ```console
     cd /path/to/mongodb-lens
     ```
-1. Ensure [Node](https://nodejs.org/en/download) running (suggestion: use [Volta](https://volta.sh)):<br>
-    `$ node -v` >= `22.*`
 1. Install Node.js dependencies:<br>
     ```console
+    node --version # …ideally >= v22.*.*
     npm ci
     ```
 1. Start the server:<br>
@@ -171,6 +184,13 @@ docker run --rm -i --network=host furey/mongodb-lens mongodb://your-connection-s
 
 ### Installation: Docker from Source
 
+> [!NOTE]<br>
+> Docker from source requires [Docker](https://docs.docker.com/get-started/get-docker) installed and running on your system.
+
+1. Clone the MongoDB Lens repository:<br>
+    ```console
+    git clone https://github.com/furey/mongodb-lens.git
+    ```
 1. Navigate to the cloned repository directory:<br>
     ```console
     cd /path/to/mongodb-lens
@@ -203,8 +223,6 @@ The server should respond with a list of databases in your MongoDB instance, for
 ```
 
 MongoDB Lens is now installed and ready to accept MCP requests.
-
-Shut down the server by sending a `SIGINT` signal (<kbd>Ctrl</kbd>+<kbd>C</kbd>).
 
 ## Configuration
 
@@ -241,6 +259,8 @@ If no connection string is provided, the server will attempt to connect via loca
 
 ### Configuration: Verbose Logging
 
+With verbose logging enabled, the server will output additional information to the console.
+
 To enable verbose logging, set environment variable `VERBOSE_LOGGING` to `true`.
 
 Example NPX usage:
@@ -254,8 +274,6 @@ Example Docker Hub usage:
 ```console
 docker run --rm -i --network=host -e VERBOSE_LOGGING='true' furey/mongodb-lens mongodb://your-connection-string
 ```
-
-With verbose logging enabled, the server will output additional information to the console.
 
 ### Configuration: Config File
 
@@ -406,23 +424,27 @@ For each option:
 
 [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is a tool designed for testing and debugging MCP servers.
 
-Example Node.js from source usage:
+Example NPX usage:
 
-1. Navigate to the cloned repository directory:<br>
+1. Run Inspector:<br>
     ```console
-    cd /path/to/mongodb-lens
+    # Using default connection string mongodb://localhost:27017
+    npx -y @modelcontextprotocol/inspector npx mongodb-lens
+
+    # Using custom connection string
+    npx -y @modelcontextprotocol/inspector npx mongodb-lens mongodb://your-connection-string
+
+    # Using verbose logging
+    npx -y @modelcontextprotocol/inspector -e VERBOSE_LOGGING=true npx mongodb-lens
     ```
-1. Run Inspector via `npx`:<br>
+1. Inspector starts a proxy server (default port: 3000) and web app (default port: 5173). To optionally change the default ports:<br>
     ```console
-    npx -y @modelcontextprotocol/inspector node mongodb-lens.js mongodb://your-connection-string
+    CLIENT_PORT=1234 SERVER_PORT=5678 npx -y @modelcontextprotocol/inspector npx mongodb-lens
     ```
-1. Inspector starts a proxy server (default port: 3000) and web app (default port: 5173)
-    - To change the default ports:<br>
-      ```console
-      CLIENT_PORT=8080 SERVER_PORT=9000 npx -y @modelcontextprotocol/inspector node mongodb-lens.js
-      ```
-1. Open Inspector web app: http://localhost:5173
-1. Inspector should support the full range of MongoDB Lens capabilities, including autocompletion for collection names and query fields.
+1. Open Inspector: http://localhost:5173
+
+
+Inspector should support the full range of MongoDB Lens capabilities, including autocompletion for collection names and query fields.
 
 For more, see: [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector)
 
@@ -726,3 +748,13 @@ MongoDB Lens:
 - is written with the assistance of AI and may contain errors.
 - is intended for educational and experimental purposes only.
 - is provided as-is with no warranty or support—use at your own risk.
+
+## Support
+
+If you've found MongoDB Lens helpful consider supporting my work through:
+
+[Buy Me a Coffee](https://www.buymeacoffee.com/furey)
+
+Contributions help me continue developing and improving this tool, allowing me to dedicate more time to adding new features and ensuring it remains a valuable resource for the community.
+
+Thank you for even thinking about it.

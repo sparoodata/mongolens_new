@@ -24,7 +24,7 @@
 - [Install](#installation) MongoDB Lens
 - [Configure](#configuration) MongoDB Lens
 - [Set up](#client-setup) your MCP Client (e.g. [Claude Desktop](#client-setup-claude-desktop))
-- Exploring your MongoDB databases with [natural language queries](#tutorial-4-example-queries)
+- Explore your MongoDB databases with [natural language queries](#tutorial-4-example-queries)
 
 ## Features
 
@@ -458,103 +458,34 @@ For more, see: [MCP Documentation: Example Clients](https://modelcontextprotocol
 
 To protect your data while using MongoDB Lens, consider the following:
 
-- [Read-Only User Accounts](#data-protection-readonly-user-accounts)
+- [Read-Only User Accounts](#data-protection-read-only-user-accounts)
 - [Working with Database Backups](#data-protection-working-with-database-backups)
-- [Best Practices](#data-protection-best-practices)
 
 ### Data Protection: Read-Only User Accounts
 
-MongoDB Lens inherits all permissions of the user account specified in your connection string. For that reason, for data exploration and analysis it's recommended to use read-only database user credentials.
+When connecting MongoDB Lens to your database, the permissions granted to the user in your connection string dictate what actions can be performed. For exploration and analysis, a read-only user can prevent unintended writes or deletes, ensuring MongoDB Lens can query data but not alter it.
 
-To create read-only database user credentials:
+To set this up, create a user with the `'read'` role scoped to the database(s) you're targeting. In MongoDB shell, you'd run something like:
 
-1. Connect to your MongoDB instance with an admin user:<br>
-    ```console
-    mongosh --port 27017 -u admin -p password --authenticationDatabase admin
-    ```
+```js
+use admin
 
-2. Switch to the database you want to provide read-only access to:<br>
-    ```js
-    use mydatabase
-    ```
+db.createUser({
+  user: 'readonly',
+  pwd: 'eXaMpLePaSsWoRd',
+  roles: [{ role: 'read', db: 'mydatabase' }]
+})
+```
 
-3. Create a read-only user:<br>
-    ```js
-    db.createUser({
-      user: 'readonly',
-      pwd: 'password',
-      roles: [{ role: 'read', db: 'mydatabase' }]
-    })
-    ```
-
-4. For access to multiple databases, specify additional role documents:<br>
-    ```javascript
-    db.createUser({
-      user: 'readonly',
-      pwd: 'password',
-      roles: [
-        { role: 'read', db: 'mydatabase' },
-        { role: 'read', db: 'anotherdatabase' }
-      ]
-    })
-    ```
-
-5. Connect to MongoDB Lens using the readonly user connection string:<br>
-    ```console
-    npx -y mongodb-lens mongodb://readonly:password@hostname:27017/mydatabase?authSource=mydatabase
-    ```
-
-> [!TIP]<br>
-> Use the built-in `readAnyDatabase` role to grant readonly access to **all** databases:<br>`{ role: 'readAnyDatabase', db: 'admin' }`
+Then, plug those credentials into your MongoDB Lens connection string (e.g. `mongodb://readonly:eXaMpLePaSsWoRd@localhost:27017/mydatabase`). This restricts MongoDB Lens to read-only operations, safeguarding your data during development or testing. It's a simple yet effective way to enforce security boundaries, especially when you're poking around schemas or running ad-hoc queries.
 
 ### Data Protection: Working with Database Backups
 
-Using MongoDB Lens with a backup copy of your database eliminates the risk of accidental data modification completely.
+To keep your production data unmodified while leveraging MongoDB Lens for analysis, its suggested to use a backup copy hosted on a separate MongoDB instance. This setup isolates your live environment, letting you experiment with queries or aggregations without risking accidental corruption.
 
-- [Creating Database Backups](#creating-database-backups)
-- [Restoring Backups to a Separate Instance](#restoring-to-a-separate-instance)
+Start by generating a backup with `mongodump`. Next, spin up a fresh MongoDB instance (e.g. on a different port like `27018`) and restore the backup there using `mongorestore`. Once it's running, point MongoDB Lens to the backup instance's connection string (e.g. `mongodb://localhost:27018/mydatabase`).
 
-#### Creating Database Backups
-
-- Back up a specific database (e.g. `mydatabase`):<br>
-    ```console
-    mongodump --uri="mongodb://username:password@hostname:27017/mydatabase" --out=/path/to/backup/directory
-    ```
-
-- Back up multiple databases (e.g. `mydatabase`, `anotherdatabase`):<br>
-    ```console
-    mongodump --uri="mongodb://username:password@hostname:27017" --db=mydatabase --db=anotherdatabase --out=/path/to/backup/directory
-    ```
-
-- Back up all databases:<br>
-    ```console
-    mongodump --uri="mongodb://username:password@hostname:27017" --out=/path/to/backup/directory
-    ```
-
-#### Restoring Backups to a Separate Instance
-
-1. Start a separate MongoDB instance for analysis:<br>
-    ```console
-    mongod --dbpath=/data/analysis --port 27018
-    ```
-
-2. Restore the backup to the analysis instance:<br>
-    ```console
-    mongorestore --uri="mongodb://localhost:27018" --dir=/path/to/backup/directory
-    ```
-
-3. Connect MongoDB Lens to your backup instance connection string:<br>
-    ```console
-    npx -y mongodb-lens mongodb://localhost:27018
-    ```
-
-### Data Protection: Best Practices
-
-- Consider encrypting sensitive data at rest
-- Periodically refresh backup copies to maintain data relevance
-- Use the principle of least privilege when connecting to databases
-- For production environments, set up dedicated MongoDB instances for analysis
-- Apply network-level protection such as firewalls or VPNs for remote connections
+This approach gives you a sandbox to test complex operations—like pipeline-heavy aggregations or schema tweaks—without touching your production data. It's a practical choice when you need to dig into your dataset safely, especially in scenarios where live modifications aren't an option.
 
 ## Tutorial
 

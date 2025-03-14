@@ -14,6 +14,7 @@
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Client Setup](#client-setup)
+- [Data Protection](#data-protection)
 - [Tutorial](#tutorial)
 - [Disclaimer](#disclaimer)
 - [Support](#support)
@@ -30,7 +31,7 @@
 - [Tools](#tools)
 - [Resources](#resources)
 - [Prompts](#prompts)
-- [Additional Features](#additional-features)
+- [Other](#other-features)
 
 ### Tools
 
@@ -99,7 +100,7 @@
 - `security-audit`: Database security analysis and improvement recommendations
 - `sql-to-mongodb`: Convert SQL queries to MongoDB aggregation pipelines
 
-### Additional Features
+### Other Features
 
 - **Sanitized Inputs**: Security enhancements for query processing
 - **Configuration File**: Custom configuration via `~/.mongodb-lens.json`
@@ -429,17 +430,17 @@ Example NPX usage:
 1. Run Inspector:<br>
     ```console
     # Using default connection string mongodb://localhost:27017
-    npx -y @modelcontextprotocol/inspector npx mongodb-lens
+    npx -y @modelcontextprotocol/inspector npx -y mongodb-lens
 
     # Using custom connection string
-    npx -y @modelcontextprotocol/inspector npx mongodb-lens mongodb://your-connection-string
+    npx -y @modelcontextprotocol/inspector npx -y mongodb-lens mongodb://your-connection-string
 
     # Using verbose logging
-    npx -y @modelcontextprotocol/inspector -e VERBOSE_LOGGING=true npx mongodb-lens
+    npx -y @modelcontextprotocol/inspector -e VERBOSE_LOGGING=true npx -y mongodb-lens
     ```
 1. Inspector starts a proxy server (default port: 3000) and web app (default port: 5173). To optionally change the default ports:<br>
     ```console
-    CLIENT_PORT=1234 SERVER_PORT=5678 npx -y @modelcontextprotocol/inspector npx mongodb-lens
+    CLIENT_PORT=1234 SERVER_PORT=5678 npx -y @modelcontextprotocol/inspector npx -y mongodb-lens
     ```
 1. Open Inspector: http://localhost:5173
 
@@ -452,6 +453,108 @@ For more, see: [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspec
 MongoDB Lens should be usable with any MCP-compatible client.
 
 For more, see: [MCP Documentation: Example Clients](https://modelcontextprotocol.io/clients)
+
+## Data Protection
+
+To protect your data while using MongoDB Lens, consider the following:
+
+- [Read-Only User Accounts](#data-protection-readonly-user-accounts)
+- [Working with Database Backups](#data-protection-working-with-database-backups)
+- [Best Practices](#data-protection-best-practices)
+
+### Data Protection: Read-Only User Accounts
+
+MongoDB Lens inherits all permissions of the user account specified in your connection string. For that reason, for data exploration and analysis it's recommended to use read-only database user credentials.
+
+To create read-only database user credentials:
+
+1. Connect to your MongoDB instance with an admin user:<br>
+    ```console
+    mongosh --port 27017 -u admin -p password --authenticationDatabase admin
+    ```
+
+2. Switch to the database you want to provide read-only access to:<br>
+    ```js
+    use mydatabase
+    ```
+
+3. Create a read-only user:<br>
+    ```js
+    db.createUser({
+      user: 'readonly',
+      pwd: 'password',
+      roles: [{ role: 'read', db: 'mydatabase' }]
+    })
+    ```
+
+4. For access to multiple databases, specify additional role documents:<br>
+    ```javascript
+    db.createUser({
+      user: 'readonly',
+      pwd: 'password',
+      roles: [
+        { role: 'read', db: 'mydatabase' },
+        { role: 'read', db: 'anotherdatabase' }
+      ]
+    })
+    ```
+
+5. Connect to MongoDB Lens using the readonly user connection string:<br>
+    ```console
+    npx -y mongodb-lens mongodb://readonly:password@hostname:27017/mydatabase?authSource=mydatabase
+    ```
+
+> [!TIP]<br>
+> Use the built-in `readAnyDatabase` role to grant readonly access to **all** databases:<br>`{ role: 'readAnyDatabase', db: 'admin' }`
+
+### Data Protection: Working with Database Backups
+
+Using MongoDB Lens with a backup copy of your database eliminates the risk of accidental data modification completely.
+
+- [Creating Database Backups](#creating-database-backups)
+- [Restoring Backups to a Separate Instance](#restoring-to-a-separate-instance)
+
+#### Creating Database Backups
+
+- Back up a specific database (e.g. `mydatabase`):<br>
+    ```console
+    mongodump --uri="mongodb://username:password@hostname:27017/mydatabase" --out=/path/to/backup/directory
+    ```
+
+- Back up multiple databases (e.g. `mydatabase`, `anotherdatabase`):<br>
+    ```console
+    mongodump --uri="mongodb://username:password@hostname:27017" --db=mydatabase --db=anotherdatabase --out=/path/to/backup/directory
+    ```
+
+- Back up all databases:<br>
+    ```console
+    mongodump --uri="mongodb://username:password@hostname:27017" --out=/path/to/backup/directory
+    ```
+
+#### Restoring Backups to a Separate Instance
+
+1. Start a separate MongoDB instance for analysis:<br>
+    ```console
+    mongod --dbpath=/data/analysis --port 27018
+    ```
+
+2. Restore the backup to the analysis instance:<br>
+    ```console
+    mongorestore --uri="mongodb://localhost:27018" --dir=/path/to/backup/directory
+    ```
+
+3. Connect MongoDB Lens to your backup instance connection string:<br>
+    ```console
+    npx -y mongodb-lens mongodb://localhost:27018
+    ```
+
+### Data Protection: Best Practices
+
+- Consider encrypting sensitive data at rest
+- Periodically refresh backup copies to maintain data relevance
+- Use the principle of least privilege when connecting to databases
+- For production environments, set up dedicated MongoDB instances for analysis
+- Apply network-level protection such as firewalls or VPNs for remote connections
 
 ## Tutorial
 
@@ -471,30 +574,30 @@ This following tutorial guides you through setting up a MongoDB container with s
 > If Docker is already running a container on port 27017, stop it before proceeding.
 
 1. Initialise sample data container:<br>
-   ```console
-   docker run --name mongodb-sampledata -d -p 27017:27017 mongo:6
-   ```
+    ```console
+    docker run --name mongodb-sampledata -d -p 27017:27017 mongo:6
+    ```
 1. Verify the container is running without issue:<br>
-   ```console
-   docker ps | grep mongodb-sampledata
-   ```
+    ```console
+    docker ps | grep mongodb-sampledata
+    ```
 
 ### Tutorial: 2. Import Sample Data
 
 MongoDB provides several [sample datasets](https://www.mongodb.com/docs/atlas/sample-data/#available-sample-datasets), which we'll use to explore MongoDB Lens.
 
 1. Download the sample datasets:
-   ```console<br>
-   curl -LO https://atlas-education.s3.amazonaws.com/sampledata.archive
-   ```
+    ```console<br>
+    curl -LO https://atlas-education.s3.amazonaws.com/sampledata.archive
+    ```
 2. Copy the sample datasets into your sample data container:<br>
-   ```console
-   docker cp sampledata.archive mongodb-sampledata:/tmp/
-   ```
+    ```console
+    docker cp sampledata.archive mongodb-sampledata:/tmp/
+    ```
 3. Restore the sample data into MongoDB:<br>
-   ```console
-   docker exec -it mongodb-sampledata mongorestore --archive=/tmp/sampledata.archive
-   ```
+    ```console
+    docker exec -it mongodb-sampledata mongorestore --archive=/tmp/sampledata.archive
+    ```
 
 This will import several databases:
 

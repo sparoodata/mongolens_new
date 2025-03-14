@@ -855,8 +855,6 @@ MongoDB Lens:
 
 If you've found MongoDB Lens helpful consider supporting my work through:
 
-[Buy Me a Coffee](https://www.buymeacoffee.com/furey)
+[Buy Me a Coffee](https://www.buymeacoffee.com/furey) | [GitHub Sponsorship](https://github.com/sponsors/furey)
 
-Contributions help me continue developing and improving this tool, allowing me to dedicate more time to adding new features and ensuring it remains a valuable resource for the community.
-
-Thank you for even thinking about it.
+Contributions help me continue developing and improving this tool, allowing me to dedicate more time to add new features and ensuring it remains a valuable resource for the community.

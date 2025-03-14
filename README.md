@@ -443,7 +443,6 @@ Example NPX usage:
     ```
 1. Open Inspector: http://localhost:5173
 
-
 Inspector should support the full range of MongoDB Lens capabilities, including autocompletion for collection names and query fields.
 
 For more, see: [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector)
@@ -747,7 +746,7 @@ MongoDB Lens:
 - is not affiliated with or endorsed by MongoDB, Inc.
 - is written with the assistance of AI and may contain errors.
 - is intended for educational and experimental purposes only.
-- is provided as-is with no warranty or support—use at your own risk.
+- is provided as-is with no warranty—please use at your own risk.
 
 ## Support
 

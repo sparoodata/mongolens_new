@@ -3,6 +3,7 @@
 [![License](https://img.shields.io/github/license/furey/mongodb-lens)](./LICENSE)
 [![Docker Hub Version](https://img.shields.io/docker/v/furey/mongodb-lens)](https://hub.docker.com/r/furey/mongodb-lens)
 [![NPM Version](https://img.shields.io/npm/v/mongodb-lens)](https://www.npmjs.com/package/mongodb-lens)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-donate-orange.svg)](https://www.buymeacoffee.com/furey)
 
 **MongoDB Lens** is a local Model Context Protocol (MCP) server with full featured access to MongoDB databases using natural language via LLMs to perform queries, run aggregations, optimize performance, and more.
 
@@ -13,23 +14,24 @@
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Client Setup](#client-setup)
+- [Data Protection](#data-protection)
 - [Tutorial](#tutorial)
 - [Disclaimer](#disclaimer)
+- [Support](#support)
 
 ## Quick Start
 
-- Clone repository
-- [Install](#installation) dependencies
+- [Install](#installation) MongoDB Lens
 - [Configure](#configuration) MongoDB Lens
 - [Set up](#client-setup) your MCP Client (e.g. [Claude Desktop](#client-setup-claude-desktop))
-- Start exploring your MongoDB databases with [natural language queries](#tutorial-4-example-queries)
+- Exploring your MongoDB databases with [natural language queries](#tutorial-4-example-queries)
 
 ## Features
 
 - [Tools](#tools)
 - [Resources](#resources)
 - [Prompts](#prompts)
-- [Performance Features](#performance-features)
+- [Other](#other-features)
 
 ### Tools
 
@@ -98,14 +100,14 @@
 - `security-audit`: Database security analysis and improvement recommendations
 - `sql-to-mongodb`: Convert SQL queries to MongoDB aggregation pipelines
 
-### Performance Features
+### Other Features
 
 - **Sanitized Inputs**: Security enhancements for query processing
-- **Connection Resilience**: Automatic reconnection with exponential backoff
 - **Configuration File**: Custom configuration via `~/.mongodb-lens.json`
+- **Connection Resilience**: Automatic reconnection with exponential backoff
+- **Smart Caching**: Enhanced caching for schemas, collection lists, and server status
 - **JSONRPC Error Handling**: Comprehensive error handling with proper error codes
 - **Memory Management**: Automatic memory monitoring and cleanup for large operations
-- **Smart Caching**: Enhanced caching for schemas, collection lists, and server status
 - **Streaming Support**: Stream large result sets for `find-documents` and `aggregate-data` operations
 
 ## Installation
@@ -120,7 +122,10 @@ MongoDB Lens can be installed and run in several ways:
 
 ### Installation: NPX
 
-The easiest way to run MongoDB Lens is using `npx` without installing anything:
+> [!NOTE]<br>
+> NPX requires [Node.js](https://nodejs.org/en/download) installed and running on your system (suggestion: use [Volta](https://volta.sh)).
+
+The easiest way to run MongoDB Lens is using `npx`:
 
 ```console
 # Using default connection string mongodb://localhost:27017
@@ -135,29 +140,38 @@ npx -y mongodb-lens mongodb://your-connection-string
 
 ### Installation: Docker Hub
 
-Run MongoDB Lens directly from Docker Hub without building:
+> [!NOTE]<br>
+> Docker Hub requires [Docker](https://docs.docker.com/get-started/get-docker) installed and running on your system.
+
+Run MongoDB Lens via Docker Hub:
 
 ```console
 # Using default connection string mongodb://localhost:27017
 docker run --rm -i --network=host furey/mongodb-lens
 
-# Using "--pull" to keep the Docker image up-to-date
-docker run --rm -i --network=host --pull=always furey/mongodb-lens
-
 # Using custom connection string
 docker run --rm -i --network=host furey/mongodb-lens mongodb://your-connection-string
+
+# Using "--pull" to keep the Docker image up-to-date
+docker run --rm -i --network=host --pull=always furey/mongodb-lens
 ```
 
 ### Installation: Node.js from Source
 
+> [!NOTE]<br>
+> Node.js from source requires [Node.js](https://nodejs.org/en/download) installed and running on your system (suggestion: use [Volta](https://volta.sh)).
+
+1. Clone the MongoDB Lens repository:<br>
+    ```console
+    git clone https://github.com/furey/mongodb-lens.git
+    ```
 1. Navigate to the cloned repository directory:<br>
     ```console
     cd /path/to/mongodb-lens
     ```
-1. Ensure [Node](https://nodejs.org/en/download) running (suggestion: use [Volta](https://volta.sh)):<br>
-    `$ node -v` >= `22.*`
 1. Install Node.js dependencies:<br>
     ```console
+    node --version # …ideally >= v22.*.*
     npm ci
     ```
 1. Start the server:<br>
@@ -171,6 +185,13 @@ docker run --rm -i --network=host furey/mongodb-lens mongodb://your-connection-s
 
 ### Installation: Docker from Source
 
+> [!NOTE]<br>
+> Docker from source requires [Docker](https://docs.docker.com/get-started/get-docker) installed and running on your system.
+
+1. Clone the MongoDB Lens repository:<br>
+    ```console
+    git clone https://github.com/furey/mongodb-lens.git
+    ```
 1. Navigate to the cloned repository directory:<br>
     ```console
     cd /path/to/mongodb-lens
@@ -203,8 +224,6 @@ The server should respond with a list of databases in your MongoDB instance, for
 ```
 
 MongoDB Lens is now installed and ready to accept MCP requests.
-
-Shut down the server by sending a `SIGINT` signal (<kbd>Ctrl</kbd>+<kbd>C</kbd>).
 
 ## Configuration
 
@@ -241,6 +260,8 @@ If no connection string is provided, the server will attempt to connect via loca
 
 ### Configuration: Verbose Logging
 
+With verbose logging enabled, the server will output additional information to the console.
+
 To enable verbose logging, set environment variable `VERBOSE_LOGGING` to `true`.
 
 Example NPX usage:
@@ -254,8 +275,6 @@ Example Docker Hub usage:
 ```console
 docker run --rm -i --network=host -e VERBOSE_LOGGING='true' furey/mongodb-lens mongodb://your-connection-string
 ```
-
-With verbose logging enabled, the server will output additional information to the console.
 
 ### Configuration: Config File
 
@@ -406,23 +425,26 @@ For each option:
 
 [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is a tool designed for testing and debugging MCP servers.
 
-Example Node.js from source usage:
+Example NPX usage:
 
-1. Navigate to the cloned repository directory:<br>
+1. Run Inspector:<br>
     ```console
-    cd /path/to/mongodb-lens
+    # Using default connection string mongodb://localhost:27017
+    npx -y @modelcontextprotocol/inspector npx -y mongodb-lens
+
+    # Using custom connection string
+    npx -y @modelcontextprotocol/inspector npx -y mongodb-lens mongodb://your-connection-string
+
+    # Using verbose logging
+    npx -y @modelcontextprotocol/inspector -e VERBOSE_LOGGING=true npx -y mongodb-lens
     ```
-1. Run Inspector via `npx`:<br>
+1. Inspector starts a proxy server (default port: 3000) and web app (default port: 5173). To optionally change the default ports:<br>
     ```console
-    npx -y @modelcontextprotocol/inspector node mongodb-lens.js mongodb://your-connection-string
+    CLIENT_PORT=1234 SERVER_PORT=5678 npx -y @modelcontextprotocol/inspector npx -y mongodb-lens
     ```
-1. Inspector starts a proxy server (default port: 3000) and web app (default port: 5173)
-    - To change the default ports:<br>
-      ```console
-      CLIENT_PORT=8080 SERVER_PORT=9000 npx -y @modelcontextprotocol/inspector node mongodb-lens.js
-      ```
-1. Open Inspector web app: http://localhost:5173
-1. Inspector should support the full range of MongoDB Lens capabilities, including autocompletion for collection names and query fields.
+1. Open Inspector: http://localhost:5173
+
+Inspector should support the full range of MongoDB Lens capabilities, including autocompletion for collection names and query fields.
 
 For more, see: [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector)
 
@@ -431,6 +453,108 @@ For more, see: [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspec
 MongoDB Lens should be usable with any MCP-compatible client.
 
 For more, see: [MCP Documentation: Example Clients](https://modelcontextprotocol.io/clients)
+
+## Data Protection
+
+To protect your data while using MongoDB Lens, consider the following:
+
+- [Read-Only User Accounts](#data-protection-readonly-user-accounts)
+- [Working with Database Backups](#data-protection-working-with-database-backups)
+- [Best Practices](#data-protection-best-practices)
+
+### Data Protection: Read-Only User Accounts
+
+MongoDB Lens inherits all permissions of the user account specified in your connection string. For that reason, for data exploration and analysis it's recommended to use read-only database user credentials.
+
+To create read-only database user credentials:
+
+1. Connect to your MongoDB instance with an admin user:<br>
+    ```console
+    mongosh --port 27017 -u admin -p password --authenticationDatabase admin
+    ```
+
+2. Switch to the database you want to provide read-only access to:<br>
+    ```js
+    use mydatabase
+    ```
+
+3. Create a read-only user:<br>
+    ```js
+    db.createUser({
+      user: 'readonly',
+      pwd: 'password',
+      roles: [{ role: 'read', db: 'mydatabase' }]
+    })
+    ```
+
+4. For access to multiple databases, specify additional role documents:<br>
+    ```javascript
+    db.createUser({
+      user: 'readonly',
+      pwd: 'password',
+      roles: [
+        { role: 'read', db: 'mydatabase' },
+        { role: 'read', db: 'anotherdatabase' }
+      ]
+    })
+    ```
+
+5. Connect to MongoDB Lens using the readonly user connection string:<br>
+    ```console
+    npx -y mongodb-lens mongodb://readonly:password@hostname:27017/mydatabase?authSource=mydatabase
+    ```
+
+> [!TIP]<br>
+> Use the built-in `readAnyDatabase` role to grant readonly access to **all** databases:<br>`{ role: 'readAnyDatabase', db: 'admin' }`
+
+### Data Protection: Working with Database Backups
+
+Using MongoDB Lens with a backup copy of your database eliminates the risk of accidental data modification completely.
+
+- [Creating Database Backups](#creating-database-backups)
+- [Restoring Backups to a Separate Instance](#restoring-to-a-separate-instance)
+
+#### Creating Database Backups
+
+- Back up a specific database (e.g. `mydatabase`):<br>
+    ```console
+    mongodump --uri="mongodb://username:password@hostname:27017/mydatabase" --out=/path/to/backup/directory
+    ```
+
+- Back up multiple databases (e.g. `mydatabase`, `anotherdatabase`):<br>
+    ```console
+    mongodump --uri="mongodb://username:password@hostname:27017" --db=mydatabase --db=anotherdatabase --out=/path/to/backup/directory
+    ```
+
+- Back up all databases:<br>
+    ```console
+    mongodump --uri="mongodb://username:password@hostname:27017" --out=/path/to/backup/directory
+    ```
+
+#### Restoring Backups to a Separate Instance
+
+1. Start a separate MongoDB instance for analysis:<br>
+    ```console
+    mongod --dbpath=/data/analysis --port 27018
+    ```
+
+2. Restore the backup to the analysis instance:<br>
+    ```console
+    mongorestore --uri="mongodb://localhost:27018" --dir=/path/to/backup/directory
+    ```
+
+3. Connect MongoDB Lens to your backup instance connection string:<br>
+    ```console
+    npx -y mongodb-lens mongodb://localhost:27018
+    ```
+
+### Data Protection: Best Practices
+
+- Consider encrypting sensitive data at rest
+- Periodically refresh backup copies to maintain data relevance
+- Use the principle of least privilege when connecting to databases
+- For production environments, set up dedicated MongoDB instances for analysis
+- Apply network-level protection such as firewalls or VPNs for remote connections
 
 ## Tutorial
 
@@ -450,30 +574,30 @@ This following tutorial guides you through setting up a MongoDB container with s
 > If Docker is already running a container on port 27017, stop it before proceeding.
 
 1. Initialise sample data container:<br>
-   ```console
-   docker run --name mongodb-sampledata -d -p 27017:27017 mongo:6
-   ```
+    ```console
+    docker run --name mongodb-sampledata -d -p 27017:27017 mongo:6
+    ```
 1. Verify the container is running without issue:<br>
-   ```console
-   docker ps | grep mongodb-sampledata
-   ```
+    ```console
+    docker ps | grep mongodb-sampledata
+    ```
 
 ### Tutorial: 2. Import Sample Data
 
 MongoDB provides several [sample datasets](https://www.mongodb.com/docs/atlas/sample-data/#available-sample-datasets), which we'll use to explore MongoDB Lens.
 
 1. Download the sample datasets:
-   ```console<br>
-   curl -LO https://atlas-education.s3.amazonaws.com/sampledata.archive
-   ```
+    ```console<br>
+    curl -LO https://atlas-education.s3.amazonaws.com/sampledata.archive
+    ```
 2. Copy the sample datasets into your sample data container:<br>
-   ```console
-   docker cp sampledata.archive mongodb-sampledata:/tmp/
-   ```
+    ```console
+    docker cp sampledata.archive mongodb-sampledata:/tmp/
+    ```
 3. Restore the sample data into MongoDB:<br>
-   ```console
-   docker exec -it mongodb-sampledata mongorestore --archive=/tmp/sampledata.archive
-   ```
+    ```console
+    docker exec -it mongodb-sampledata mongorestore --archive=/tmp/sampledata.archive
+    ```
 
 This will import several databases:
 
@@ -725,4 +849,12 @@ MongoDB Lens:
 - is not affiliated with or endorsed by MongoDB, Inc.
 - is written with the assistance of AI and may contain errors.
 - is intended for educational and experimental purposes only.
-- is provided as-is with no warranty or support—use at your own risk.
+- is provided as-is with no warranty—please use at your own risk.
+
+## Support
+
+If you've found MongoDB Lens helpful consider supporting my work through:
+
+[Buy Me a Coffee](https://www.buymeacoffee.com/furey) | [GitHub Sponsorship](https://github.com/sponsors/furey)
+
+Contributions help me continue developing and improving this tool, allowing me to dedicate more time to add new features and ensuring it remains a valuable resource for the community.

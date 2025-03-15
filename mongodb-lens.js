@@ -11,6 +11,22 @@ import { Transform } from 'stream'
 
 const { MongoClient, ObjectId, GridFSBucket } = mongodb
 
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+const packageJson = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'))
+const PACKAGE_VERSION = packageJson.version
+const VERBOSE_LOGGING = process.env.VERBOSE_LOGGING === 'true'
+const DISABLE_DESTRUCTIVE_OPERATION_TOKENS = process.env.DISABLE_DESTRUCTIVE_OPERATION_TOKENS === 'true'
+const CONFIG_PATH = process.env.CONFIG_PATH || join(process.env.HOME || __dirname, '.mongodb-lens.json')
+
+if (existsSync(CONFIG_PATH)) {
+  try {
+    configFile = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'))
+  } catch (error) {
+    log(`Error loading config file: ${error.message}`, true)
+  }
+}
+
 const CACHE_TTL = {
   SCHEMAS: 60 * 1000,
   COLLECTIONS: 30 * 1000,
@@ -28,6 +44,14 @@ const memoryCache = {
   fields: new Map()
 }
 
+const dropDatabaseTokens = new Map()
+const dropCollectionTokens = new Map()
+const deleteDocumentTokens = new Map()
+const bulkOperationsTokens = new Map()
+const renameCollectionTokens = new Map()
+const dropUserTokens = new Map()
+const dropIndexTokens = new Map()
+
 const connectionOptions = {
   useUnifiedTopology: true, 
   maxPoolSize: 20,
@@ -39,12 +63,20 @@ const connectionOptions = {
   useNewUrlParser: true
 }
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
-const packageJson = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'))
-const PACKAGE_VERSION = packageJson.version
-const VERBOSE_LOGGING = process.env.VERBOSE_LOGGING === 'true'
-const CONFIG_PATH = process.env.CONFIG_PATH || join(process.env.HOME || __dirname, '.mongodb-lens.json')
+const JSONRPC_ERROR_CODES = {
+  PARSE_ERROR: -32700,
+  INVALID_REQUEST: -32600,
+  METHOD_NOT_FOUND: -32601,
+  INVALID_PARAMS: -32602,
+  INTERNAL_ERROR: -32603,
+  SERVER_ERROR_START: -32000,
+  SERVER_ERROR_END: -32099,
+  MONGODB_CONNECTION_ERROR: -32050,
+  MONGODB_QUERY_ERROR: -32051,
+  MONGODB_SCHEMA_ERROR: -32052,
+  RESOURCE_NOT_FOUND: -32040,
+  RESOURCE_ACCESS_DENIED: -32041
+}
 
 let server = null
 let watchdog = null
@@ -54,14 +86,6 @@ let configFile = null
 let mongoClient = null
 let currentDbName = null
 let connectionRetries = 0
-
-if (existsSync(CONFIG_PATH)) {
-  try {
-    configFile = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'))
-  } catch (error) {
-    log(`Error loading config file: ${error.message}`, true)
-  }
-}
 
 const instructions = `
 MongoDB Lens is an MCP server that lets you interact with MongoDB databases through natural language.
@@ -78,10 +102,145 @@ Use tools like \`list-databases\`, \`find-documents\`, \`aggregate-data\`, \`cre
 
 For complex tasks, use prompts like \`query-builder\`, \`schema-analysis\`, \`data-modeling\`, and \`sql-to-mongodb\` to get expert assistance.
 
-Stream large result sets with \`streaming: true\` parameter and monitor real-time database changes with \`watch-changes\`.
+Monitor real-time database changes with \`watch-changes\`.
 
 For full documentation and examples, see: https://github.com/furey/mongodb-lens
 `
+
+const main = async mongoUri => {
+  log(`MongoDB Lens v${PACKAGE_VERSION} starting…`, true)
+  
+  const connected = await connect(mongoUri)
+  if (!connected) {
+    log('Failed to connect to MongoDB database.', true)
+    return false
+  }
+  
+  startWatchdog()
+  
+  log('Initializing MCP server…')
+  server = new McpServer({
+    name: 'MongoDB Lens',
+    version: PACKAGE_VERSION,
+    description: 'MongoDB MCP server for natural language database interaction',
+    homepage: 'https://github.com/furey/mongodb-lens',
+    license: 'MIT',
+    vendor: {
+      name: 'James Furey',
+      url: 'https://about.me/jamesfurey'
+    }
+  }, {
+    instructions
+  })
+
+  server.fallbackRequestHandler = async request => {
+    log(`Received request for undefined method: ${request.method}`, true)
+    const error = new Error(`Method '${request.method}' not found`)
+    error.code = JSONRPC_ERROR_CODES.METHOD_NOT_FOUND
+    throw error
+  }
+  
+  log('Registering MCP resources…')
+  registerResources(server)
+  
+  log('Registering MCP tools…')
+  registerTools(server)
+  
+  log('Registering MCP prompts…')
+  registerPrompts(server)
+  
+  log('Creating transport…')
+  transport = await createTransport()
+  
+  log('Connecting MCP server transport…')
+  await server.connect(transport)
+  
+  log('MongoDB Lens server running.', true)
+  return true
+}
+
+const createTransport = async () => {
+  log('Starting stdio transport…', true)
+  transport = new StdioServerTransport()
+  
+  return transport
+}
+
+const connect = async (uri = 'mongodb://localhost:27017') => {
+  try {
+    log(`Connecting to MongoDB at: ${uri}`)
+    
+    const finalUri = configFile?.mongoUri || uri
+    const finalOptions = {
+      ...connectionOptions,
+      ...(configFile?.connectionOptions || {})
+    }
+    
+    mongoClient = new MongoClient(finalUri, finalOptions)
+    
+    let retryCount = 0
+    const maxRetries = 5
+    
+    while (retryCount < maxRetries) {
+      try {
+        await mongoClient.connect()
+        break
+      } catch (connectionError) {
+        retryCount++
+        if (retryCount >= maxRetries) throw connectionError
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 30000)
+        log(`Connection attempt ${retryCount} failed, retrying in ${delay/1000} seconds…`)
+        await new Promise(resolve => setTimeout(resolve, delay))
+      }
+    }
+    
+    const adminDb = mongoClient.db('admin')
+    let serverInfo
+    
+    try {
+      serverInfo = await adminDb.command({ buildInfo: 1 })
+      log(`Connected to MongoDB server version: ${serverInfo.version}`)
+      
+      const cacheKey = 'server_info'
+      memoryCache.serverStatus.set(cacheKey, {
+        data: serverInfo,
+        timestamp: Date.now()
+      })
+    } catch (infoError) {
+      log(`Warning: Unable to get server info: ${infoError.message}`)
+    }
+    
+    currentDbName = extractDbNameFromConnectionString(finalUri)
+    currentDb = mongoClient.db(currentDbName)
+    
+    try {
+      await currentDb.stats()
+    } catch (statsError) {
+      log(`Warning: Unable to get database stats: ${statsError.message}`)
+    }
+    
+    mongoClient.on('error', err => {
+      log(`MongoDB connection error: ${err.message}. Will attempt to reconnect.`, true)
+    })
+    
+    mongoClient.on('close', () => {
+      log('MongoDB connection closed. Will attempt to reconnect.', true)
+    })
+    
+    log(`Connected to MongoDB successfully, using database: ${currentDbName}`)
+    return true
+  } catch (error) {
+    log(`MongoDB connection error: ${error.message}`, true)
+    return false
+  }
+}
+
+const extractDbNameFromConnectionString = (uri) => {
+  const pathParts = uri.split('/').filter(part => part)
+  const lastPart = pathParts[pathParts.length - 1]?.split('?')[0]
+  currentDbName = (lastPart && !lastPart.includes(':')) ? lastPart : 'admin'
+  return currentDbName
+}
 
 const startWatchdog = () => {
   if (watchdog) clearInterval(watchdog)
@@ -133,158 +292,6 @@ const reconnect = async () => {
     log(`Reconnection failed: ${error.message}`, true)
     return false
   }
-}
-
-const createTransport = async () => {
-  log('Starting stdio transport…', true)
-  transport = new StdioServerTransport()
-  
-  return transport
-}
-
-const main = async (mongoUri) => {
-  log(`MongoDB Lens v${PACKAGE_VERSION} starting…`, true)
-  
-  const connected = await connect(mongoUri)
-  if (!connected) {
-    log('Failed to connect to MongoDB database.', true)
-    return false
-  }
-  
-  startWatchdog()
-  
-  log('Initializing MCP server…')
-  server = new McpServer({
-    name: 'MongoDB Lens',
-    version: PACKAGE_VERSION,
-    description: 'MongoDB MCP server for natural language database interaction',
-    homepage: 'https://github.com/furey/mongodb-lens',
-    license: 'MIT',
-    vendor: {
-      name: 'James Furey',
-      url: 'https://about.me/jamesfurey'
-    }
-  }, {
-    instructions
-  })
-
-  const JSONRPC_ERROR_CODES = {
-    PARSE_ERROR: -32700,
-    INVALID_REQUEST: -32600,
-    METHOD_NOT_FOUND: -32601,
-    INVALID_PARAMS: -32602,
-    INTERNAL_ERROR: -32603,
-    SERVER_ERROR_START: -32000,
-    SERVER_ERROR_END: -32099,
-    MONGODB_CONNECTION_ERROR: -32050,
-    MONGODB_QUERY_ERROR: -32051,
-    MONGODB_SCHEMA_ERROR: -32052,
-    RESOURCE_NOT_FOUND: -32040,
-    RESOURCE_ACCESS_DENIED: -32041
-  }
-
-  server.fallbackRequestHandler = async (request) => {
-    log(`Received request for undefined method: ${request.method}`, true)
-    const error = new Error(`Method '${request.method}' not found`)
-    error.code = JSONRPC_ERROR_CODES.METHOD_NOT_FOUND
-    throw error
-  }
-  
-  log('Registering MCP resources…')
-  registerResources(server)
-  
-  log('Registering MCP tools…')
-  registerTools(server)
-  
-  log('Registering MCP prompts…')
-  registerPrompts(server)
-  
-  log('Creating transport…')
-  transport = await createTransport()
-  
-  log('Connecting MCP server transport…')
-  await server.connect(transport)
-  
-  log('MongoDB Lens server running.', true)
-  return true
-}
-
-const connect = async (uri = 'mongodb://localhost:27017') => {
-  try {
-    log(`Connecting to MongoDB at: ${uri}`)
-    
-    const finalUri = configFile?.mongoUri || uri
-    const finalOptions = {
-      ...connectionOptions,
-      ...(configFile?.connectionOptions || {})
-    }
-    
-    mongoClient = new MongoClient(finalUri, finalOptions)
-    
-    let retryCount = 0
-    const maxRetries = 5
-    
-    while (retryCount < maxRetries) {
-      try {
-        await mongoClient.connect()
-        break
-      } catch (connectionError) {
-        retryCount++
-        if (retryCount >= maxRetries) {
-          throw connectionError
-        }
-        const delay = Math.min(1000 * Math.pow(2, retryCount), 30000)
-        log(`Connection attempt ${retryCount} failed, retrying in ${delay/1000} seconds…`)
-        await new Promise(resolve => setTimeout(resolve, delay))
-      }
-    }
-    
-    const adminDb = mongoClient.db('admin')
-    let serverInfo
-    
-    try {
-      serverInfo = await adminDb.command({ buildInfo: 1 })
-      log(`Connected to MongoDB server version: ${serverInfo.version}`)
-      
-      const cacheKey = 'server_info'
-      memoryCache.serverStatus.set(cacheKey, {
-        data: serverInfo,
-        timestamp: Date.now()
-      })
-    } catch (infoError) {
-      log(`Warning: Unable to get server info: ${infoError.message}`)
-    }
-    
-    currentDbName = extractDbNameFromConnectionString(finalUri)
-    currentDb = mongoClient.db(currentDbName)
-    
-    try {
-      await currentDb.stats()
-    } catch (statsError) {
-      log(`Warning: Unable to get database stats: ${statsError.message}`)
-    }
-    
-    mongoClient.on('error', (err) => {
-      log(`MongoDB connection error: ${err.message}. Will attempt to reconnect.`, true)
-    })
-    
-    mongoClient.on('close', () => {
-      log('MongoDB connection closed. Will attempt to reconnect.', true)
-    })
-    
-    log(`Connected to MongoDB successfully, using database: ${currentDbName}`)
-    return true
-  } catch (error) {
-    log(`MongoDB connection error: ${error.message}`, true)
-    return false
-  }
-}
-
-const extractDbNameFromConnectionString = (uri) => {
-  const pathParts = uri.split('/').filter(part => part)
-  const lastPart = pathParts[pathParts.length - 1]?.split('?')[0]
-  currentDbName = (lastPart && !lastPart.includes(':')) ? lastPart : 'admin'
-  return currentDbName
 }
 
 const registerResources = (server) => {
@@ -1360,6 +1367,50 @@ const registerTools = (server) => {
   )
   
   server.tool(
+    'create-database',
+    'Create a new MongoDB database',
+    {
+      name: z.string().min(1).describe('Database name to create'),
+      validateName: createBooleanSchema('Whether to validate database name')
+    },
+    async ({ name, validateName }) => {
+      return withErrorHandling(async () => {
+        log(`Tool: Creating database '${name}'…`)
+        await createDatabase(name, validateName)
+        return {
+          content: [{
+            type: 'text',
+            text: `Database '${name}' created successfully. Current database is still '${currentDbName}'.`
+          }]
+        }
+      }, `Error creating database '${name}'`)
+    }
+  )
+  
+  server.tool(
+    'create-database-and-switch',
+    'Create a new MongoDB database and switch to it',
+    {
+      name: z.string().min(1).describe('Database name to create and use'),
+      validateName: createBooleanSchema('Whether to validate database name')
+    },
+    async ({ name, validateName }) => {
+      return withErrorHandling(async () => {
+        log(`Tool: Creating and switching to database '${name}'…`)
+        const db = await createDatabase(name, validateName)
+        currentDbName = name
+        currentDb = db
+        return {
+          content: [{
+            type: 'text',
+            text: `Database '${name}' created successfully and connected.`
+          }]
+        }
+      }, `Error creating and switching to database '${name}'`)
+    }
+  )
+  
+  server.tool(
     'use-database',
     'Switch to a specific database',
     {
@@ -1386,6 +1437,56 @@ const registerTools = (server) => {
           isError: true
         }
       }
+    }
+  )
+
+  server.tool(
+    'drop-database',
+    'Drop a database (requires confirmation)',
+    {
+      name: z.string().min(1).describe('Database name to drop'),
+      token: z.string().optional().describe('Confirmation token from previous request')
+    },
+    async ({ name, token }) => {
+      return withErrorHandling(async () => {
+        log(`Tool: Processing drop database request for '${name}'...`)
+        
+        if (DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
+          const result = await dropDatabase(name)
+          return {
+            content: [{
+              type: 'text',
+              text: result.message
+            }]
+          }
+        }
+        
+        if (token) {
+          if (!validateDropDatabaseToken(name, token)) {
+            throw new Error(`Invalid or expired confirmation token for dropping '${name}'. Please try again without a token to generate a new confirmation code.`)
+          }
+          const result = await dropDatabase(name)
+          return {
+            content: [{
+              type: 'text',
+              text: result.message
+            }]
+          }
+        }
+        
+        const dbs = await listDatabases()
+        const dbExists = dbs.some(db => db.name === name)
+        if (!dbExists) {
+          throw new Error(`Database '${name}' does not exist`)
+        }     
+        const newToken = storeDropDatabaseToken(name)
+        return {
+          content: [{
+            type: 'text',
+            text: `⚠️ DESTRUCTIVE OPERATION WARNING ⚠️\n\nYou've requested to drop the database '${name}'.\n\nThis operation is irreversible and will permanently delete all collections and data in this database.\n\nTo confirm, you must type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.\n\nIMPORTANT NOTICE TO AI ASSISTANT: You must NEVER correct, auto-complete, or suggest the confirmation code if the user enters it incorrectly. The user MUST type the exact code shown above, with no assistance, to proceed with the database deletion. This is a critical security measure to prevent accidental database deletion.`
+          }]
+        }
+      }, `Error processing database drop for '${name}'`)
     }
   )
 
@@ -1426,29 +1527,44 @@ const registerTools = (server) => {
     'drop-user',
     'Drop an existing database user',
     {
-      username: z.string().min(1).describe('Username to drop')
+      username: z.string().min(1).describe('Username to drop'),
+      token: z.string().optional().describe('Confirmation token from previous request')
     },
-    async ({ username }) => {
-      try {
-        log(`Tool: Dropping user '${username}'…`)
-        await dropUser(username)
-        log(`Tool: User dropped successfully.`)
+    async ({ username, token }) => {
+      return withErrorHandling(async () => {
+        log(`Tool: Processing drop user request for '${username}'...`)
+        
+        if (DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
+          await dropUser(username)
+          return {
+            content: [{
+              type: 'text',
+              text: `User '${username}' dropped successfully.`
+            }]
+          }
+        }
+        
+        if (token) {
+          if (!validateDropUserToken(username, token)) {
+            throw new Error(`Invalid or expired confirmation token. Please try again without a token to generate a new confirmation code.`)
+          }
+          await dropUser(username)
+          return {
+            content: [{
+              type: 'text',
+              text: `User '${username}' dropped successfully.`
+            }]
+          }
+        }
+        
+        const newToken = storeDropUserToken(username)
         return {
           content: [{
             type: 'text',
-            text: `User '${username}' dropped successfully`
+            text: `⚠️ SECURITY OPERATION WARNING ⚠️\n\nYou've requested to drop the user '${username}'.\n\nThis operation will remove all access permissions for this user and is irreversible.\n\nTo confirm, type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.`
           }]
         }
-      } catch (error) {
-        log(`Error dropping user: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error dropping user: ${error.message}`
-          }],
-          isError: true
-        }
-      }
+      }, `Error processing user drop for '${username}'`)
     }
   )
   
@@ -1489,7 +1605,7 @@ const registerTools = (server) => {
       limit: z.number().int().min(1).default(10).describe('Maximum number of documents to return'),
       skip: z.number().int().min(0).default(0).describe('Number of documents to skip'),
       sort: z.string().optional().describe('Sort specification (JSON string)'),
-      streaming: z.boolean().default(false).describe('Enable streaming for large result sets')
+      streaming: createBooleanSchema('Enable streaming for large result sets', 'false')
     },
     async ({ collection, filter, projection, limit, skip, sort, streaming }) => {
       try {
@@ -1503,39 +1619,13 @@ const registerTools = (server) => {
         const parsedProjection = projection ? JSON.parse(projection) : null
         const parsedSort = sort ? JSON.parse(sort) : null
         
-        if (streaming) {
-          await throwIfCollectionNotExists(collection)
-          const coll = currentDb.collection(collection)
-          
-          let query = coll.find(parsedFilter)
-          if (parsedProjection) query = query.project(parsedProjection)
-          if (skip) query = query.skip(skip)
-          if (parsedSort) query = query.sort(parsedSort)
-          query = query.limit(limit).batchSize(20)
-          
-          const resourceUri = `mongodb://find/${collection}`
-          const count = await streamResultsToMcp(
-            query, 
-            doc => JSON.stringify(serializeDocument(doc), null, 2),
-            resourceUri,
-            limit
-          )
-          
-          return {
-            content: [{
-              type: 'text',
-              text: `Streaming ${count} document${count === 1 ? '' : 's'} from collection '${collection}'.`
-            }]
-          }
-        } else {
-          const documents = await findDocuments(collection, parsedFilter, parsedProjection, limit, skip, parsedSort)
-          log(`Tool: Found ${documents.length} documents in collection '${collection}'.`)
-          return {
-            content: [{
-              type: 'text',
-              text: formatDocuments(documents, limit)
-            }]
-          }
+        const documents = await findDocuments(collection, parsedFilter, parsedProjection, limit, skip, parsedSort)
+        log(`Tool: Found ${documents.length} documents in collection '${collection}'.`)
+        return {
+          content: [{
+            type: 'text',
+            text: formatDocuments(documents, limit)
+          }]
         }
       } catch (error) {
         log(`Error finding documents: ${error.message}`, true)
@@ -1595,7 +1685,7 @@ const registerTools = (server) => {
     {
       collection: z.string().min(1).describe('Collection name'),
       pipeline: z.string().describe('Aggregation pipeline as JSON string array'),
-      streaming: z.boolean().default(false).describe('Enable streaming results for large datasets'),
+      streaming: createBooleanSchema('Enable streaming results for large datasets', 'false'),
       limit: z.number().int().min(1).default(1000).describe('Maximum number of results to return when streaming')
     },
     async ({ collection, pipeline, streaming, limit }) => {
@@ -1607,37 +1697,13 @@ const registerTools = (server) => {
         const parsedPipeline = JSON.parse(pipeline)
         const processedPipeline = processAggregationPipeline(parsedPipeline)
         
-        if (streaming) {
-          await throwIfCollectionNotExists(collection)
-          const coll = currentDb.collection(collection)
-          const cursor = coll.aggregate(processedPipeline, { 
-            allowDiskUse: true,
-            cursor: { batchSize: 20 }
-          })
-          
-          const resourceUri = `mongodb://aggregation/${collection}`
-          const count = await streamResultsToMcp(
-            cursor, 
-            doc => JSON.stringify(serializeDocument(doc), null, 2),
-            resourceUri,
-            limit
-          )
-          
-          return {
-            content: [{
-              type: 'text',
-              text: `Streaming ${count} aggregation results from collection '${collection}'.${count === limit ? " Results limited to first " + limit + " documents." : ""}`
-            }]
-          }
-        } else {
-          const results = await aggregateData(collection, processedPipeline)
-          log(`Tool: Aggregation returned ${results.length} results.`)
-          return {
-            content: [{
-              type: 'text',
-              text: formatDocuments(results, 100)
-            }]
-          }
+        const results = await aggregateData(collection, processedPipeline)
+        log(`Tool: Aggregation returned ${results.length} results.`)
+        return {
+          content: [{
+            type: 'text',
+            text: formatDocuments(results, 100)
+          }]
         }
       } catch (error) {
         log(`Error running aggregation: ${error.message}`, true)
@@ -1771,29 +1837,52 @@ const registerTools = (server) => {
     'Drop an existing index from a collection',
     {
       collection: z.string().min(1).describe('Collection name'),
-      indexName: z.string().min(1).describe('Name of the index to drop')
+      indexName: z.string().min(1).describe('Name of the index to drop'),
+      token: z.string().optional().describe('Confirmation token from previous request')
     },
-    async ({ collection, indexName }) => {
-      try {
-        log(`Tool: Dropping index '${indexName}' from collection '${collection}'…`)
-        await dropIndex(collection, indexName)
-        log(`Tool: Index dropped successfully.`)
+    async ({ collection, indexName, token }) => {
+      return withErrorHandling(async () => {
+        log(`Tool: Processing drop index request for '${indexName}' on collection '${collection}'...`)
+        
+        if (DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
+          await dropIndex(collection, indexName)
+          return {
+            content: [{
+              type: 'text',
+              text: `Index '${indexName}' dropped from collection '${collection}' successfully.`
+            }]
+          }
+        }
+        
+        if (token) {
+          if (!validateDropIndexToken(collection, indexName, token)) {
+            throw new Error(`Invalid or expired confirmation token. Please try again without a token to generate a new confirmation code.`)
+          }
+          await dropIndex(collection, indexName)
+          return {
+            content: [{
+              type: 'text',
+              text: `Index '${indexName}' dropped from collection '${collection}' successfully.`
+            }]
+          }
+        }
+        
+        await throwIfCollectionNotExists(collection)
+        const indexes = await getCollectionIndexes(collection)
+        const indexExists = indexes.some(idx => idx.name === indexName)
+        
+        if (!indexExists) {
+          throw new Error(`Index '${indexName}' does not exist on collection '${collection}'`)
+        }
+        
+        const newToken = storeDropIndexToken(collection, indexName)
         return {
           content: [{
             type: 'text',
-            text: `Index '${indexName}' dropped from collection '${collection}'`
+            text: `⚠️ PERFORMANCE IMPACT WARNING ⚠️\n\nYou've requested to drop the index '${indexName}' from collection '${collection}'.\n\nDropping this index may impact query performance. To confirm, type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.`
           }]
         }
-      } catch (error) {
-        log(`Error dropping index: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error dropping index: ${error.message}`
-          }],
-          isError: true
-        }
-      }
+      }, `Error processing index drop for '${indexName}' on collection '${collection}'`)
     }
   )
   
@@ -1873,7 +1962,7 @@ const registerTools = (server) => {
     'Run validation on a collection to check for inconsistencies',
     {
       collection: z.string().min(1).describe('Collection name'),
-      full: z.boolean().default(false).describe('Perform full validation (slower but more thorough)')
+      full: createBooleanSchema('Perform full validation (slower but more thorough)', 'false')
     },
     async ({ collection, full }) => {
       try {
@@ -1937,32 +2026,47 @@ const registerTools = (server) => {
 
   server.tool(
     'drop-collection',
-    'Remove a collection',
+    'Drop a collection (requires confirmation)',
     {
-      name: z.string().min(1).describe('Collection name')
+      name: z.string().min(1).describe('Collection name to drop'),
+      token: z.string().optional().describe('Confirmation token from previous request')
     },
-    async ({ name }) => {
-      try {
-        log(`Tool: Dropping collection '${name}'…`)
+    async ({ name, token }) => {
+      return withErrorHandling(async () => {
+        log(`Tool: Processing drop collection request for '${name}'...`)
         
-        const result = await dropCollection(name)
-        log(`Tool: Collection dropped successfully.`)
+        if (DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
+          await dropCollection(name)
+          return {
+            content: [{
+              type: 'text',
+              text: `Collection '${name}' has been permanently deleted.`
+            }]
+          }
+        }
+        
+        if (token) {
+          if (!validateDropCollectionToken(name, token)) {
+            throw new Error(`Invalid or expired confirmation token for dropping '${name}'. Please try again without a token to generate a new confirmation code.`)
+          }
+          await dropCollection(name)
+          return {
+            content: [{
+              type: 'text',
+              text: `Collection '${name}' has been permanently deleted.`
+            }]
+          }
+        }
+        
+        await throwIfCollectionNotExists(name)
+        const newToken = storeDropCollectionToken(name)
         return {
           content: [{
             type: 'text',
-            text: `Collection '${name}' dropped successfully.`
+            text: `⚠️ DESTRUCTIVE OPERATION WARNING ⚠️\n\nYou've requested to drop the collection '${name}'.\n\nThis operation is irreversible and will permanently delete all data in this collection.\n\nTo confirm, you must type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.`
           }]
         }
-      } catch (error) {
-        log(`Error dropping collection: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error dropping collection: ${error.message}`
-          }],
-          isError: true
-        }
-      }
+      }, `Error processing collection drop for '${name}'`)
     }
   )
 
@@ -1972,42 +2076,59 @@ const registerTools = (server) => {
     {
       oldName: z.string().min(1).describe('Current collection name'),
       newName: z.string().min(1).describe('New collection name'),
-      dropTarget: z.boolean().default(false).describe('Whether to drop target collection if it exists')
+      dropTarget: createBooleanSchema('Whether to drop target collection if it exists', 'false'),
+      token: z.string().optional().describe('Confirmation token from previous request')
     },
-    async ({ oldName, newName, dropTarget }) => {
-      try {
-        log(`Tool: Renaming collection from '${oldName}' to '${newName}'…`)
-        log(`Tool: Drop target if exists: ${dropTarget}`)
+    async ({ oldName, newName, dropTarget, token }) => {
+      return withErrorHandling(async () => {
+        log(`Tool: Processing rename collection from '${oldName}' to '${newName}'...`)
+        await throwIfCollectionNotExists(oldName)
         
-        const result = await renameCollection(oldName, newName, dropTarget)
-        log(`Tool: Collection renamed successfully.`)
+        const collections = await listCollections()
+        const targetExists = collections.some(c => c.name === newName)
+        
+        if (!targetExists || dropTarget !== 'true' || DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
+          const result = await renameCollection(oldName, newName, dropTarget === 'true')
+          return {
+            content: [{
+              type: 'text',
+              text: `Collection '${oldName}' renamed to '${newName}' successfully.`
+            }]
+          }
+        }
+        
+        if (token) {
+          if (!validateRenameCollectionToken(oldName, newName, dropTarget, token)) {
+            throw new Error(`Invalid or expired confirmation token. Please try again without a token to generate a new confirmation code.`)
+          }
+          const result = await renameCollection(oldName, newName, true)
+          return {
+            content: [{
+              type: 'text',
+              text: `Collection '${oldName}' renamed to '${newName}' successfully.`
+            }]
+          }
+        }
+        
+        const newToken = storeRenameCollectionToken(oldName, newName, dropTarget)
         return {
           content: [{
             type: 'text',
-            text: `Collection '${oldName}' renamed to '${newName}' successfully.`
+            text: `⚠️ DESTRUCTIVE OPERATION WARNING ⚠️\n\nYou've requested to rename collection '${oldName}' to '${newName}' and drop the existing target collection.\n\nDropping a collection is irreversible. To confirm, type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.`
           }]
         }
-      } catch (error) {
-        log(`Error renaming collection: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error renaming collection: ${error.message}`
-          }],
-          isError: true
-        }
-      }
+      }, `Error processing rename for collection '${oldName}'`)
     }
   )
 
   server.tool(
     'modify-document',
-    'Insert, update, or delete specific documents',
+    'Insert or update specific documents',
     {
       collection: z.string().min(1).describe('Collection name'),
-      operation: z.enum(['insert', 'update', 'delete']).describe('Operation type'),
+      operation: z.enum(['insert', 'update']).describe('Operation type'),
       document: z.string().describe('Document as JSON string (for insert)'),
-      filter: z.string().optional().describe('Filter as JSON string (for update/delete)'),
+      filter: z.string().optional().describe('Filter as JSON string (for update)'),
       update: z.string().optional().describe('Update operations as JSON string (for update)'),
       options: z.string().optional().describe('Options as JSON string')
     },
@@ -2023,6 +2144,12 @@ const registerTools = (server) => {
           const parsedDocument = JSON.parse(document)
           result = await insertDocument(collection, parsedDocument, parsedOptions)
           log(`Tool: Document inserted successfully.`)
+          return {
+            content: [{
+              type: 'text',
+              text: formatModifyResult(operation, result)
+            }]
+          }
         } else if (operation === 'update') {
           if (!filter) throw new Error('Filter is required for update operation')
           if (!update) throw new Error('Update is required for update operation')
@@ -2030,18 +2157,12 @@ const registerTools = (server) => {
           const parsedUpdate = JSON.parse(update)
           result = await updateDocument(collection, parsedFilter, parsedUpdate, parsedOptions)
           log(`Tool: Document(s) updated successfully.`)
-        } else if (operation === 'delete') {
-          if (!filter) throw new Error('Filter is required for delete operation')
-          const parsedFilter = JSON.parse(filter)
-          result = await deleteDocument(collection, parsedFilter, parsedOptions)
-          log(`Tool: Document(s) deleted successfully.`)
-        }
-        
-        return {
-          content: [{
-            type: 'text',
-            text: formatModifyResult(operation, result)
-          }]
+          return {
+            content: [{
+              type: 'text',
+              text: formatModifyResult(operation, result)
+            }]
+          }
         }
       } catch (error) {
         console.error(`Error in ${operation} operation:`, error)
@@ -2053,6 +2174,58 @@ const registerTools = (server) => {
           isError: true
         }
       }
+    }
+  )
+
+  server.tool(
+    'delete-document',
+    'Delete document(s) (requires confirmation)',
+    {
+      collection: z.string().min(1).describe('Collection name'),
+      filter: z.string().min(1).describe('Filter as JSON string'),
+      many: createBooleanSchema('Delete multiple documents if true', 'false'),
+      token: z.string().optional().describe('Confirmation token from previous request')
+    },
+    async ({ collection, filter, many, token }) => {
+      return withErrorHandling(async () => {
+        log(`Tool: Processing delete document request for collection '${collection}'...`)
+        const parsedFilter = JSON.parse(filter)
+        
+        if (DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
+          const options = { many: many === 'true' }
+          const result = await deleteDocument(collection, parsedFilter, options)
+          return {
+            content: [{
+              type: 'text',
+              text: `Successfully deleted ${result.deletedCount} document(s) from collection '${collection}'.`
+            }]
+          }
+        }
+        
+        if (token) {
+          if (!validateDeleteDocumentToken(collection, parsedFilter, token)) {
+            throw new Error(`Invalid or expired confirmation token. Please try again without a token to generate a new confirmation code.`)
+          }
+          const options = { many: many === 'true' }
+          const result = await deleteDocument(collection, parsedFilter, options)
+          return {
+            content: [{
+              type: 'text',
+              text: `Successfully deleted ${result.deletedCount} document(s) from collection '${collection}'.`
+            }]
+          }
+        }
+        
+        await throwIfCollectionNotExists(collection)
+        const count = await countDocuments(collection, parsedFilter)
+        const newToken = storeDeleteDocumentToken(collection, parsedFilter)
+        return {
+          content: [{
+            type: 'text',
+            text: `⚠️ DESTRUCTIVE OPERATION WARNING ⚠️\n\nYou've requested to delete ${many === 'true' ? 'all' : 'one'} document(s) from collection '${collection}' matching:\n${filter}\n\nThis matches approximately ${count} document(s).\n\nThis operation is irreversible. To confirm, type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.`
+          }]
+        }
+      }, `Error processing document delete for collection '${collection}'`)
     }
   )
 
@@ -2148,33 +2321,50 @@ const registerTools = (server) => {
     {
       collection: z.string().min(1).describe('Collection name'),
       operations: z.string().describe('Array of operations as JSON string'),
-      ordered: z.boolean().default(true).describe('Whether operations should be performed in order')
+      ordered: createBooleanSchema('Whether operations should be performed in order', 'true'),
+      token: z.string().optional().describe('Confirmation token from previous request')
     },
-    async ({ collection, operations, ordered }) => {
-      try {
-        log(`Tool: Performing bulk operations on collection '${collection}'…`)
-        log(`Tool: Ordered: ${ordered}`)
-        
+    async ({ collection, operations, ordered, token }) => {
+      return withErrorHandling(async () => {
+        log(`Tool: Processing bulk operations on collection '${collection}'...`)
         const parsedOperations = JSON.parse(operations)
-        const result = await bulkOperations(collection, parsedOperations, ordered)
-        log(`Tool: Bulk operations complete.`)
         
+        const deleteOps = parsedOperations.filter(op => 
+          op.deleteOne || op.deleteMany
+        )
+        
+        if (deleteOps.length === 0 || DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
+          const result = await bulkOperations(collection, parsedOperations, ordered === 'true')
+          return {
+            content: [{
+              type: 'text',
+              text: formatBulkResult(result)
+            }]
+          }
+        }
+        
+        if (token) {
+          if (!validateBulkOperationsToken(collection, parsedOperations, token)) {
+            throw new Error(`Invalid or expired confirmation token. Please try again without a token to generate a new confirmation code.`)
+          }
+          const result = await bulkOperations(collection, parsedOperations, ordered === 'true')
+          return {
+            content: [{
+              type: 'text',
+              text: formatBulkResult(result)
+            }]
+          }
+        }
+        
+        await throwIfCollectionNotExists(collection)
+        const newToken = storeBulkOperationsToken(collection, parsedOperations)
         return {
           content: [{
             type: 'text',
-            text: formatBulkResult(result)
+            text: `⚠️ DESTRUCTIVE OPERATION WARNING ⚠️\n\nYou've requested to perform bulk operations on collection '${collection}' including ${deleteOps.length} delete operation(s).\n\nDelete operations are irreversible. To confirm, type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.`
           }]
         }
-      } catch (error) {
-        log(`Error in bulk operations: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error in bulk operations: ${error.message}`
-          }],
-          isError: true
-        }
-      }
+      }, `Error processing bulk operations for collection '${collection}'`)
     }
   )
 
@@ -2303,7 +2493,7 @@ const registerTools = (server) => {
       collection: z.string().min(1).describe('Collection name'),
       operations: z.array(z.enum(['insert', 'update', 'delete', 'replace'])).default(['insert', 'update', 'delete']).describe('Operations to watch'),
       duration: z.number().int().min(1).max(60).default(10).describe('Duration to watch in seconds'),
-      fullDocument: z.boolean().default(false).describe('Include full document in update events')
+      fullDocument: createBooleanSchema('Include full document in update events', 'false')
     },
     async ({ collection, operations, duration, fullDocument }) => {
       try {
@@ -2375,8 +2565,8 @@ const registerTools = (server) => {
       collection: z.string().min(1).describe('Collection name'),
       searchText: z.string().min(1).describe('Text to search for'),
       language: z.string().optional().describe('Optional language for text search'),
-      caseSensitive: z.boolean().default(false).describe('Case sensitive search'),
-      diacriticSensitive: z.boolean().default(false).describe('Diacritic sensitive search'),
+      caseSensitive: createBooleanSchema('Case sensitive search', 'false'),
+      diacriticSensitive: createBooleanSchema('Diacritic sensitive search', 'false'),
       limit: z.number().int().min(1).default(10).describe('Maximum results to return')
     },
     async ({ collection, searchText, language, caseSensitive, diacriticSensitive, limit }) => {
@@ -2573,7 +2763,7 @@ const registerTools = (server) => {
       filter: z.string().default('{}').describe('Query filter as JSON string'),
       locale: z.string().min(2).describe('Locale code (e.g., "en", "fr", "de")'),
       strength: z.number().int().min(1).max(5).default(3).describe('Collation strength (1-5)'),
-      caseLevel: z.boolean().default(false).describe('Consider case in first-level differences'),
+      caseLevel: createBooleanSchema('Consider case in first-level differences', 'false'),
       sort: z.string().optional().describe('Sort specification as JSON string')
     },
     async ({ collection, filter, locale, strength, caseLevel, sort }) => {
@@ -2819,6 +3009,62 @@ const listDatabases = async () => {
   return result.databases
 }
 
+const createDatabase = async (dbName, validateName = true) => {
+  log(`DB Operation: Creating database '${dbName}'…`)
+  if (validateName.toLowerCase() === 'true') {
+    const invalidChars = /[\/\\.\s"$*<>:|?]/
+    if (invalidChars.test(dbName)) {
+      throw new Error(`Invalid database name: '${dbName}'. Database names cannot contain spaces or special characters like /, \\, ., ", $, *, <, >, :, |, ?`)
+    }
+    if (dbName.length > 63) {
+      throw new Error(`Invalid database name: '${dbName}'. Database names must be shorter than 64 characters.`)
+    }
+  }
+  
+  const db = mongoClient.db(dbName)
+  const metadataCollectionName = 'metadata'
+  const timestamp = new Date()
+  const serverInfo = await mongoClient.db('admin').command({ buildInfo: 1 }).catch(() => ({ version: 'Unknown' }))
+  const clientInfo = await mongoClient.db('admin').command({ connectionStatus: 1 }).catch(() => ({ authInfo: { authenticatedUsers: [] } }))
+  const metadata = {
+    created: {
+      timestamp,
+      tool: `MongoDB Lens v${PACKAGE_VERSION}`,
+      user: clientInfo.authInfo?.authenticatedUsers[0]?.user || 'anonymous'
+    },
+    mongodb: {
+      version: serverInfo.version,
+      connectionInfo: {
+        host: mongoClient.s?.options?.hosts?.map(h => `${h.host}:${h.port}`).join(',') || 'unknown',
+        readPreference: mongoClient.s?.readPreference?.mode || 'primary'
+      }
+    },
+    database: {
+      name: dbName,
+      description: 'Created via MongoDB Lens'
+    },
+    system: {
+      hostname: process.env.HOSTNAME || 'unknown',
+      platform: process.platform,
+      nodeVersion: process.version
+    },
+    lens: {
+      version: PACKAGE_VERSION,
+      startTimestamp: new Date(Date.now() - (process.uptime() * 1000))
+    }
+  }
+  
+  try {
+    await db.createCollection(metadataCollectionName)
+    await db.collection(metadataCollectionName).insertOne(metadata)
+    log(`Tool: Database '${dbName}' created successfully with metadata collection.`)
+  } catch (error) {
+    log(`Warning: Created database '${dbName}' but metadata insertion failed: ${error.message}`, true)
+  }
+  
+  return db
+}
+
 const switchDatabase = async (dbName) => {
   log(`DB Operation: Switching to database '${dbName}'…`)
   try {
@@ -2831,6 +3077,31 @@ const switchDatabase = async (dbName) => {
     return currentDb
   } catch (error) {
     log(`DB Operation: Failed to switch to database '${dbName}': ${error.message}`)
+    throw error
+  }
+}
+
+const dropDatabase = async (dbName) => {
+  log(`DB Operation: Dropping database '${dbName}'…`)
+  if (dbName.toLowerCase() === 'admin') throw new Error(`Dropping the 'admin' database is prohibited.`)
+  try {
+    const wasConnected = currentDbName === dbName
+    const db = mongoClient.db(dbName)
+    await db.dropDatabase()
+    if (wasConnected) {
+      currentDbName = 'admin'
+      currentDb = mongoClient.db('admin')
+      log(`DB Operation: Switched to 'admin' database after dropping '${dbName}'`)
+    }
+    log(`DB Operation: Database '${dbName}' dropped successfully.`)
+    
+    const message = `Database '${dbName}' has been permanently deleted.${
+      wasConnected ? '\n\nYou were previously connected to this database, you have been automatically switched to the \'admin\' database.' : ''
+    }`
+    
+    return { success: true, name: dbName, message }
+  } catch (error) {
+    log(`DB Operation: Database drop failed: ${error.message}`)
     throw error
   }
 }
@@ -3588,6 +3859,166 @@ const bulkOperations = async (collectionName, operations, ordered = true) => {
     log(`DB Operation: Bulk operations failed: ${error.message}`)
     throw error
   }
+}
+
+const generateDropToken = () => {
+  return String(Math.floor(Math.random() * 10000)).padStart(4, '0')
+}
+
+const storeDropDatabaseToken = (dbName) => {
+  const token = generateDropToken()
+  dropDatabaseTokens.set(dbName, {
+    token,
+    expires: Date.now() + 5 * 60 * 1000 // 5 minutes
+  })
+  return token
+}
+
+const validateDropDatabaseToken = (dbName, token) => {
+  const storedData = dropDatabaseTokens.get(dbName)
+  if (!storedData) return false
+  if (Date.now() > storedData.expires) {
+    dropDatabaseTokens.delete(dbName)
+    return false
+  }
+  if (storedData.token !== token) return false
+  dropDatabaseTokens.delete(dbName)
+  return true
+}
+
+const storeDropCollectionToken = (collectionName) => {
+  const token = generateDropToken()
+  dropCollectionTokens.set(collectionName, {
+    token,
+    expires: Date.now() + 5 * 60 * 1000
+  })
+  return token
+}
+
+const validateDropCollectionToken = (collectionName, token) => {
+  const storedData = dropCollectionTokens.get(collectionName)
+  if (!storedData) return false
+  if (Date.now() > storedData.expires) {
+    dropCollectionTokens.delete(collectionName)
+    return false
+  }
+  if (storedData.token !== token) return false
+  dropCollectionTokens.delete(collectionName)
+  return true
+}
+
+const storeDeleteDocumentToken = (collectionName, filter) => {
+  const key = `${collectionName}:${JSON.stringify(filter)}`
+  const token = generateDropToken()
+  deleteDocumentTokens.set(key, {
+    token,
+    expires: Date.now() + 5 * 60 * 1000
+  })
+  return token
+}
+
+const validateDeleteDocumentToken = (collectionName, filter, token) => {
+  const key = `${collectionName}:${JSON.stringify(filter)}`
+  const storedData = deleteDocumentTokens.get(key)
+  if (!storedData) return false
+  if (Date.now() > storedData.expires) {
+    deleteDocumentTokens.delete(key)
+    return false
+  }
+  if (storedData.token !== token) return false
+  deleteDocumentTokens.delete(key)
+  return true
+}
+
+const storeBulkOperationsToken = (collectionName, operations) => {
+  const key = `${collectionName}:${operations.length}`
+  const token = generateDropToken()
+  bulkOperationsTokens.set(key, {
+    token,
+    expires: Date.now() + 5 * 60 * 1000,
+    operations
+  })
+  return token
+}
+
+const validateBulkOperationsToken = (collectionName, operations, token) => {
+  const key = `${collectionName}:${operations.length}`
+  const storedData = bulkOperationsTokens.get(key)
+  if (!storedData) return false
+  if (Date.now() > storedData.expires) {
+    bulkOperationsTokens.delete(key)
+    return false
+  }
+  if (storedData.token !== token) return false
+  bulkOperationsTokens.delete(key)
+  return true
+}
+
+const storeRenameCollectionToken = (oldName, newName, dropTarget) => {
+  const key = `${oldName}:${newName}:${dropTarget}`
+  const token = generateDropToken()
+  renameCollectionTokens.set(key, {
+    token,
+    expires: Date.now() + 5 * 60 * 1000
+  })
+  return token
+}
+
+const validateRenameCollectionToken = (oldName, newName, dropTarget, token) => {
+  const key = `${oldName}:${newName}:${dropTarget}`
+  const storedData = renameCollectionTokens.get(key)
+  if (!storedData) return false
+  if (Date.now() > storedData.expires) {
+    renameCollectionTokens.delete(key)
+    return false
+  }
+  if (storedData.token !== token) return false
+  renameCollectionTokens.delete(key)
+  return true
+}
+
+const storeDropUserToken = (username) => {
+  const token = generateDropToken()
+  dropUserTokens.set(username, {
+    token,
+    expires: Date.now() + 5 * 60 * 1000
+  })
+  return token
+}
+
+const validateDropUserToken = (username, token) => {
+  const storedData = dropUserTokens.get(username)
+  if (!storedData) return false
+  if (Date.now() > storedData.expires) {
+    dropUserTokens.delete(username)
+    return false
+  }
+  if (storedData.token !== token) return false
+  dropUserTokens.delete(username)
+  return true
+}
+
+const storeDropIndexToken = (collectionName, indexName) => {
+  const key = `${collectionName}:${indexName}`
+  const token = generateDropToken()
+  dropIndexTokens.set(key, {
+    token,
+    expires: Date.now() + 5 * 60 * 1000
+  })
+  return token
+}
+
+const validateDropIndexToken = (collectionName, indexName, token) => {
+  const key = `${collectionName}:${indexName}`
+  const storedData = dropIndexTokens.get(key)
+  if (!storedData) return false
+  if (Date.now() > storedData.expires) {
+    dropIndexTokens.delete(key)
+    return false
+  }
+  if (storedData.token !== token) return false
+  dropIndexTokens.delete(key)
+  return true
 }
 
 const throwIfCollectionNotExists = async (collectionName) => {
@@ -4756,22 +5187,6 @@ const generateJsonSchemaValidator = (schema, strictness) => {
   return validator
 }
 
-const log = (message, forceLog = false) => {
-  if (forceLog || VERBOSE_LOGGING) console.error(message)
-}
-
-process.on('SIGTERM', async () => {
-  log('Received SIGTERM, shutting down…')
-  await cleanup()
-  exit()
-})
-
-process.on('SIGINT', async () => {
-  log('Received SIGINT, shutting down…')
-  await cleanup()
-  exit()
-})
-
 const createStreamingResultStream = () => {
   return new Transform({
     objectMode: true,
@@ -4779,44 +5194,6 @@ const createStreamingResultStream = () => {
       callback(null, chunk)
     }
   })
-}
-
-const streamResultsToMcp = async (resultStream, resultFormatter, resourceUri, streamingLimit = 10000) => {
-  let count = 0
-  const streamId = Math.random().toString(36).substring(2, 15)
-  
-  try {
-    const stream = server.createStreamingResource(`${resourceUri}?stream=${streamId}`)
-    
-    for await (const item of resultStream) {
-      count++
-      
-      if (count > streamingLimit) {
-        stream.write({
-          contents: [{
-            uri: resourceUri,
-            text: `Reached streaming limit of ${streamingLimit} items. Use a more specific query to reduce result size.`
-          }]
-        })
-        break
-      }
-      
-      const formattedItem = resultFormatter(item)
-      
-      stream.write({
-        contents: [{
-          uri: resourceUri,
-          text: formattedItem
-        }]
-      })
-    }
-    
-    stream.end()
-    return count
-  } catch (error) {
-    log(`Error in streaming results: ${error.message}`, true)
-    throw error
-  }
 }
 
 const processAggregationPipeline = (pipeline) => {
@@ -4849,6 +5226,29 @@ const monitorBinarySize = (size) => {
   }
   return mb < 50
 }
+
+const createBooleanSchema = (description, defaultValue = 'true') => 
+  z.string()
+    .transform(val => val?.toLowerCase())
+    .pipe(z.enum(['true', 'false']))
+    .default(defaultValue)
+    .describe(description)
+
+const log = (message, forceLog = false) => {
+  if (forceLog || VERBOSE_LOGGING) console.error(message)
+}
+
+process.on('SIGTERM', async () => {
+  log('Received SIGTERM, shutting down…')
+  await cleanup()
+  exit()
+})
+
+process.on('SIGINT', async () => {
+  log('Received SIGINT, shutting down…')
+  await cleanup()
+  exit()
+})
 
 const cleanup = async () => {
   if (watchdog) {

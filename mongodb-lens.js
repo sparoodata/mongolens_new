@@ -16,6 +16,7 @@ const __dirname = dirname(__filename)
 const packageJson = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'))
 const PACKAGE_VERSION = packageJson.version
 const VERBOSE_LOGGING = process.env.VERBOSE_LOGGING === 'true'
+const DISABLE_DESTRUCTIVE_OPERATION_TOKENS = process.env.DISABLE_DESTRUCTIVE_OPERATION_TOKENS === 'true'
 const CONFIG_PATH = process.env.CONFIG_PATH || join(process.env.HOME || __dirname, '.mongodb-lens.json')
 
 if (existsSync(CONFIG_PATH)) {
@@ -44,6 +45,12 @@ const memoryCache = {
 }
 
 const dropDatabaseTokens = new Map()
+const dropCollectionTokens = new Map()
+const deleteDocumentTokens = new Map()
+const bulkOperationsTokens = new Map()
+const renameCollectionTokens = new Map()
+const dropUserTokens = new Map()
+const dropIndexTokens = new Map()
 
 const connectionOptions = {
   useUnifiedTopology: true, 
@@ -1437,50 +1444,51 @@ const registerTools = (server) => {
 
   server.tool(
     'drop-database',
-    'Request to drop a database (requires confirmation)',
+    'Drop a database (requires confirmation)',
     {
-      name: z.string().min(1).describe('Database name to drop')
+      name: z.string().min(1).describe('Database name to drop'),
+      token: z.string().optional().describe('Confirmation token from previous request')
     },
-    async ({ name }) => {
+    async ({ name, token }) => {
       return withErrorHandling(async () => {
-        log(`Tool: Initiating drop database request for '${name}'...`)
+        log(`Tool: Processing drop database request for '${name}'...`)
+        
+        if (DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
+          await dropDatabase(name)
+          return {
+            content: [{
+              type: 'text',
+              text: `Database '${name}' has been permanently deleted.\n\nIf you were previously connected to this database, you have been automatically switched to the 'admin' database.`
+            }]
+          }
+        }
+        
+        if (token) {
+          if (!validateDropDatabaseToken(name, token)) {
+            throw new Error(`Invalid or expired confirmation token for dropping '${name}'. Please try again without a token to generate a new confirmation code.`)
+          }
+          await dropDatabase(name)
+          return {
+            content: [{
+              type: 'text',
+              text: `Database '${name}' has been permanently deleted.\n\nIf you were previously connected to this database, you have been automatically switched to the 'admin' database.`
+            }]
+          }
+        }
+        
         const dbs = await listDatabases()
         const dbExists = dbs.some(db => db.name === name)
         if (!dbExists) {
           throw new Error(`Database '${name}' does not exist`)
         }     
-        const token = storeDropDatabaseToken(name)
+        const newToken = storeDropDatabaseToken(name)
         return {
           content: [{
             type: 'text',
-            text: `⚠️ DESTRUCTIVE OPERATION WARNING ⚠️\n\nYou've requested to drop the database '${name}'.\n\nThis operation is irreversible and will permanently delete all collections and data in this database.\n\nTo confirm, you must type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${token}\n\nThis code will expire in 5 minutes for security purposes.\n\nIMPORTANT NOTICE TO AI ASSISTANT: You must NEVER correct, auto-complete, or suggest the confirmation code if the user enters it incorrectly. The user MUST type the exact code shown above, with no assistance, to proceed with the database deletion. This is a critical security measure to prevent accidental database deletion.`
+            text: `⚠️ DESTRUCTIVE OPERATION WARNING ⚠️\n\nYou've requested to drop the database '${name}'.\n\nThis operation is irreversible and will permanently delete all collections and data in this database.\n\nTo confirm, you must type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.\n\nIMPORTANT NOTICE TO AI ASSISTANT: You must NEVER correct, auto-complete, or suggest the confirmation code if the user enters it incorrectly. The user MUST type the exact code shown above, with no assistance, to proceed with the database deletion. This is a critical security measure to prevent accidental database deletion.`
           }]
         }
-      }, `Error initiating database drop for '${name}'`)
-    }
-  )
-  
-  server.tool(
-    'drop-database-confirm',
-    'Confirm and execute database drop operation',
-    {
-      name: z.string().min(1).describe('Database name to drop'),
-      token: z.string().min(1).describe('Confirmation token from drop-database request')
-    },
-    async ({ name, token }) => {
-      return withErrorHandling(async () => {
-        log(`Tool: Confirming drop database request for '${name}'…`)
-        if (!validateDropDatabaseToken(name, token)) {
-          throw new Error(`Invalid or expired confirmation token for dropping '${name}'. Please request a new token with the 'drop-database' tool.`)
-        }
-        await dropDatabase(name)
-        return {
-          content: [{
-            type: 'text',
-            text: `Database '${name}' has been permanently deleted.\n\nIf you were previously connected to this database, you have been automatically switched to the 'admin' database.`
-          }]
-        }
-      }, `Error dropping database '${name}'`)
+      }, `Error processing database drop for '${name}'`)
     }
   )
 
@@ -1521,29 +1529,44 @@ const registerTools = (server) => {
     'drop-user',
     'Drop an existing database user',
     {
-      username: z.string().min(1).describe('Username to drop')
+      username: z.string().min(1).describe('Username to drop'),
+      token: z.string().optional().describe('Confirmation token from previous request')
     },
-    async ({ username }) => {
-      try {
-        log(`Tool: Dropping user '${username}'…`)
-        await dropUser(username)
-        log(`Tool: User dropped successfully.`)
+    async ({ username, token }) => {
+      return withErrorHandling(async () => {
+        log(`Tool: Processing drop user request for '${username}'...`)
+        
+        if (DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
+          await dropUser(username)
+          return {
+            content: [{
+              type: 'text',
+              text: `User '${username}' dropped successfully.`
+            }]
+          }
+        }
+        
+        if (token) {
+          if (!validateDropUserToken(username, token)) {
+            throw new Error(`Invalid or expired confirmation token. Please try again without a token to generate a new confirmation code.`)
+          }
+          await dropUser(username)
+          return {
+            content: [{
+              type: 'text',
+              text: `User '${username}' dropped successfully.`
+            }]
+          }
+        }
+        
+        const newToken = storeDropUserToken(username)
         return {
           content: [{
             type: 'text',
-            text: `User '${username}' dropped successfully`
+            text: `⚠️ SECURITY OPERATION WARNING ⚠️\n\nYou've requested to drop the user '${username}'.\n\nThis operation will remove all access permissions for this user and is irreversible.\n\nTo confirm, type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.`
           }]
         }
-      } catch (error) {
-        log(`Error dropping user: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error dropping user: ${error.message}`
-          }],
-          isError: true
-        }
-      }
+      }, `Error processing user drop for '${username}'`)
     }
   )
   
@@ -1866,29 +1889,52 @@ const registerTools = (server) => {
     'Drop an existing index from a collection',
     {
       collection: z.string().min(1).describe('Collection name'),
-      indexName: z.string().min(1).describe('Name of the index to drop')
+      indexName: z.string().min(1).describe('Name of the index to drop'),
+      token: z.string().optional().describe('Confirmation token from previous request')
     },
-    async ({ collection, indexName }) => {
-      try {
-        log(`Tool: Dropping index '${indexName}' from collection '${collection}'…`)
-        await dropIndex(collection, indexName)
-        log(`Tool: Index dropped successfully.`)
+    async ({ collection, indexName, token }) => {
+      return withErrorHandling(async () => {
+        log(`Tool: Processing drop index request for '${indexName}' on collection '${collection}'...`)
+        
+        if (DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
+          await dropIndex(collection, indexName)
+          return {
+            content: [{
+              type: 'text',
+              text: `Index '${indexName}' dropped from collection '${collection}' successfully.`
+            }]
+          }
+        }
+        
+        if (token) {
+          if (!validateDropIndexToken(collection, indexName, token)) {
+            throw new Error(`Invalid or expired confirmation token. Please try again without a token to generate a new confirmation code.`)
+          }
+          await dropIndex(collection, indexName)
+          return {
+            content: [{
+              type: 'text',
+              text: `Index '${indexName}' dropped from collection '${collection}' successfully.`
+            }]
+          }
+        }
+        
+        await throwIfCollectionNotExists(collection)
+        const indexes = await getCollectionIndexes(collection)
+        const indexExists = indexes.some(idx => idx.name === indexName)
+        
+        if (!indexExists) {
+          throw new Error(`Index '${indexName}' does not exist on collection '${collection}'`)
+        }
+        
+        const newToken = storeDropIndexToken(collection, indexName)
         return {
           content: [{
             type: 'text',
-            text: `Index '${indexName}' dropped from collection '${collection}'`
+            text: `⚠️ PERFORMANCE IMPACT WARNING ⚠️\n\nYou've requested to drop the index '${indexName}' from collection '${collection}'.\n\nDropping this index may impact query performance. To confirm, type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.`
           }]
         }
-      } catch (error) {
-        log(`Error dropping index: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error dropping index: ${error.message}`
-          }],
-          isError: true
-        }
-      }
+      }, `Error processing index drop for '${indexName}' on collection '${collection}'`)
     }
   )
   
@@ -2032,32 +2078,47 @@ const registerTools = (server) => {
 
   server.tool(
     'drop-collection',
-    'Remove a collection',
+    'Drop a collection (requires confirmation)',
     {
-      name: z.string().min(1).describe('Collection name')
+      name: z.string().min(1).describe('Collection name to drop'),
+      token: z.string().optional().describe('Confirmation token from previous request')
     },
-    async ({ name }) => {
-      try {
-        log(`Tool: Dropping collection '${name}'…`)
+    async ({ name, token }) => {
+      return withErrorHandling(async () => {
+        log(`Tool: Processing drop collection request for '${name}'...`)
         
-        const result = await dropCollection(name)
-        log(`Tool: Collection dropped successfully.`)
+        if (DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
+          await dropCollection(name)
+          return {
+            content: [{
+              type: 'text',
+              text: `Collection '${name}' has been permanently deleted.`
+            }]
+          }
+        }
+        
+        if (token) {
+          if (!validateDropCollectionToken(name, token)) {
+            throw new Error(`Invalid or expired confirmation token for dropping '${name}'. Please try again without a token to generate a new confirmation code.`)
+          }
+          await dropCollection(name)
+          return {
+            content: [{
+              type: 'text',
+              text: `Collection '${name}' has been permanently deleted.`
+            }]
+          }
+        }
+        
+        await throwIfCollectionNotExists(name)
+        const newToken = storeDropCollectionToken(name)
         return {
           content: [{
             type: 'text',
-            text: `Collection '${name}' dropped successfully.`
+            text: `⚠️ DESTRUCTIVE OPERATION WARNING ⚠️\n\nYou've requested to drop the collection '${name}'.\n\nThis operation is irreversible and will permanently delete all data in this collection.\n\nTo confirm, you must type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.`
           }]
         }
-      } catch (error) {
-        log(`Error dropping collection: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error dropping collection: ${error.message}`
-          }],
-          isError: true
-        }
-      }
+      }, `Error processing collection drop for '${name}'`)
     }
   )
 
@@ -2067,31 +2128,48 @@ const registerTools = (server) => {
     {
       oldName: z.string().min(1).describe('Current collection name'),
       newName: z.string().min(1).describe('New collection name'),
-      dropTarget: createBooleanSchema('Whether to drop target collection if it exists', 'false')
+      dropTarget: createBooleanSchema('Whether to drop target collection if it exists', 'false'),
+      token: z.string().optional().describe('Confirmation token from previous request')
     },
-    async ({ oldName, newName, dropTarget }) => {
-      try {
-        log(`Tool: Renaming collection from '${oldName}' to '${newName}'…`)
-        log(`Tool: Drop target if exists: ${dropTarget}`)
+    async ({ oldName, newName, dropTarget, token }) => {
+      return withErrorHandling(async () => {
+        log(`Tool: Processing rename collection from '${oldName}' to '${newName}'...`)
+        await throwIfCollectionNotExists(oldName)
         
-        const result = await renameCollection(oldName, newName, dropTarget)
-        log(`Tool: Collection renamed successfully.`)
+        const collections = await listCollections()
+        const targetExists = collections.some(c => c.name === newName)
+        
+        if (!targetExists || dropTarget !== 'true' || DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
+          const result = await renameCollection(oldName, newName, dropTarget === 'true')
+          return {
+            content: [{
+              type: 'text',
+              text: `Collection '${oldName}' renamed to '${newName}' successfully.`
+            }]
+          }
+        }
+        
+        if (token) {
+          if (!validateRenameCollectionToken(oldName, newName, dropTarget, token)) {
+            throw new Error(`Invalid or expired confirmation token. Please try again without a token to generate a new confirmation code.`)
+          }
+          const result = await renameCollection(oldName, newName, true)
+          return {
+            content: [{
+              type: 'text',
+              text: `Collection '${oldName}' renamed to '${newName}' successfully.`
+            }]
+          }
+        }
+        
+        const newToken = storeRenameCollectionToken(oldName, newName, dropTarget)
         return {
           content: [{
             type: 'text',
-            text: `Collection '${oldName}' renamed to '${newName}' successfully.`
+            text: `⚠️ DESTRUCTIVE OPERATION WARNING ⚠️\n\nYou've requested to rename collection '${oldName}' to '${newName}' and drop the existing target collection.\n\nDropping a collection is irreversible. To confirm, type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.`
           }]
         }
-      } catch (error) {
-        log(`Error renaming collection: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error renaming collection: ${error.message}`
-          }],
-          isError: true
-        }
-      }
+      }, `Error processing rename for collection '${oldName}'`)
     }
   )
 
@@ -2118,6 +2196,12 @@ const registerTools = (server) => {
           const parsedDocument = JSON.parse(document)
           result = await insertDocument(collection, parsedDocument, parsedOptions)
           log(`Tool: Document inserted successfully.`)
+          return {
+            content: [{
+              type: 'text',
+              text: formatModifyResult(operation, result)
+            }]
+          }
         } else if (operation === 'update') {
           if (!filter) throw new Error('Filter is required for update operation')
           if (!update) throw new Error('Update is required for update operation')
@@ -2125,18 +2209,19 @@ const registerTools = (server) => {
           const parsedUpdate = JSON.parse(update)
           result = await updateDocument(collection, parsedFilter, parsedUpdate, parsedOptions)
           log(`Tool: Document(s) updated successfully.`)
+          return {
+            content: [{
+              type: 'text',
+              text: formatModifyResult(operation, result)
+            }]
+          }
         } else if (operation === 'delete') {
-          if (!filter) throw new Error('Filter is required for delete operation')
-          const parsedFilter = JSON.parse(filter)
-          result = await deleteDocument(collection, parsedFilter, parsedOptions)
-          log(`Tool: Document(s) deleted successfully.`)
-        }
-        
-        return {
-          content: [{
-            type: 'text',
-            text: formatModifyResult(operation, result)
-          }]
+          return {
+            content: [{
+              type: 'text',
+              text: `For safety reasons, delete operations now require a separate confirmation. Please use the 'delete-document' tool instead.`
+            }]
+          }
         }
       } catch (error) {
         console.error(`Error in ${operation} operation:`, error)
@@ -2148,6 +2233,58 @@ const registerTools = (server) => {
           isError: true
         }
       }
+    }
+  )
+
+  server.tool(
+    'delete-document',
+    'Delete document(s) (requires confirmation)',
+    {
+      collection: z.string().min(1).describe('Collection name'),
+      filter: z.string().min(1).describe('Filter as JSON string'),
+      many: createBooleanSchema('Delete multiple documents if true', 'false'),
+      token: z.string().optional().describe('Confirmation token from previous request')
+    },
+    async ({ collection, filter, many, token }) => {
+      return withErrorHandling(async () => {
+        log(`Tool: Processing delete document request for collection '${collection}'...`)
+        const parsedFilter = JSON.parse(filter)
+        
+        if (DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
+          const options = { many: many === 'true' }
+          const result = await deleteDocument(collection, parsedFilter, options)
+          return {
+            content: [{
+              type: 'text',
+              text: `Successfully deleted ${result.deletedCount} document(s) from collection '${collection}'.`
+            }]
+          }
+        }
+        
+        if (token) {
+          if (!validateDeleteDocumentToken(collection, parsedFilter, token)) {
+            throw new Error(`Invalid or expired confirmation token. Please try again without a token to generate a new confirmation code.`)
+          }
+          const options = { many: many === 'true' }
+          const result = await deleteDocument(collection, parsedFilter, options)
+          return {
+            content: [{
+              type: 'text',
+              text: `Successfully deleted ${result.deletedCount} document(s) from collection '${collection}'.`
+            }]
+          }
+        }
+        
+        await throwIfCollectionNotExists(collection)
+        const count = await countDocuments(collection, parsedFilter)
+        const newToken = storeDeleteDocumentToken(collection, parsedFilter)
+        return {
+          content: [{
+            type: 'text',
+            text: `⚠️ DESTRUCTIVE OPERATION WARNING ⚠️\n\nYou've requested to delete ${many === 'true' ? 'all' : 'one'} document(s) from collection '${collection}' matching:\n${filter}\n\nThis matches approximately ${count} document(s).\n\nThis operation is irreversible. To confirm, type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.`
+          }]
+        }
+      }, `Error processing document delete for collection '${collection}'`)
     }
   )
 
@@ -2243,33 +2380,50 @@ const registerTools = (server) => {
     {
       collection: z.string().min(1).describe('Collection name'),
       operations: z.string().describe('Array of operations as JSON string'),
-      ordered: createBooleanSchema('Whether operations should be performed in order', 'true')
+      ordered: createBooleanSchema('Whether operations should be performed in order', 'true'),
+      token: z.string().optional().describe('Confirmation token from previous request')
     },
-    async ({ collection, operations, ordered }) => {
-      try {
-        log(`Tool: Performing bulk operations on collection '${collection}'…`)
-        log(`Tool: Ordered: ${ordered}`)
-        
+    async ({ collection, operations, ordered, token }) => {
+      return withErrorHandling(async () => {
+        log(`Tool: Processing bulk operations on collection '${collection}'...`)
         const parsedOperations = JSON.parse(operations)
-        const result = await bulkOperations(collection, parsedOperations, ordered)
-        log(`Tool: Bulk operations complete.`)
         
+        const deleteOps = parsedOperations.filter(op => 
+          op.deleteOne || op.deleteMany
+        )
+        
+        if (deleteOps.length === 0 || DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
+          const result = await bulkOperations(collection, parsedOperations, ordered === 'true')
+          return {
+            content: [{
+              type: 'text',
+              text: formatBulkResult(result)
+            }]
+          }
+        }
+        
+        if (token) {
+          if (!validateBulkOperationsToken(collection, parsedOperations, token)) {
+            throw new Error(`Invalid or expired confirmation token. Please try again without a token to generate a new confirmation code.`)
+          }
+          const result = await bulkOperations(collection, parsedOperations, ordered === 'true')
+          return {
+            content: [{
+              type: 'text',
+              text: formatBulkResult(result)
+            }]
+          }
+        }
+        
+        await throwIfCollectionNotExists(collection)
+        const newToken = storeBulkOperationsToken(collection, parsedOperations)
         return {
           content: [{
             type: 'text',
-            text: formatBulkResult(result)
+            text: `⚠️ DESTRUCTIVE OPERATION WARNING ⚠️\n\nYou've requested to perform bulk operations on collection '${collection}' including ${deleteOps.length} delete operation(s).\n\nDelete operations are irreversible. To confirm, type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.`
           }]
         }
-      } catch (error) {
-        log(`Error in bulk operations: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error in bulk operations: ${error.message}`
-          }],
-          isError: true
-        }
-      }
+      }, `Error processing bulk operations for collection '${collection}'`)
     }
   )
 
@@ -3003,31 +3157,6 @@ const dropDatabase = async (dbName) => {
     log(`DB Operation: Database drop failed: ${error.message}`)
     throw error
   }
-}
-
-const storeDropDatabaseToken = (dbName) => {
-  const token = generateDropToken()
-  dropDatabaseTokens.set(dbName, {
-    token,
-    expires: Date.now() + 5 * 60 * 1000 // 5 minutes
-  })
-  return token
-}
-
-const generateDropToken = () => {
-  return String(Math.floor(Math.random() * 10000)).padStart(4, '0')
-}
-
-const validateDropDatabaseToken = (dbName, token) => {
-  const storedData = dropDatabaseTokens.get(dbName)
-  if (!storedData) return false
-  if (Date.now() > storedData.expires) {
-    dropDatabaseTokens.delete(dbName)
-    return false
-  }
-  if (storedData.token !== token) return false
-  dropDatabaseTokens.delete(dbName)
-  return true
 }
 
 const createUser = async (username, password, roles) => {
@@ -3783,6 +3912,166 @@ const bulkOperations = async (collectionName, operations, ordered = true) => {
     log(`DB Operation: Bulk operations failed: ${error.message}`)
     throw error
   }
+}
+
+const generateDropToken = () => {
+  return String(Math.floor(Math.random() * 10000)).padStart(4, '0')
+}
+
+const storeDropDatabaseToken = (dbName) => {
+  const token = generateDropToken()
+  dropDatabaseTokens.set(dbName, {
+    token,
+    expires: Date.now() + 5 * 60 * 1000 // 5 minutes
+  })
+  return token
+}
+
+const validateDropDatabaseToken = (dbName, token) => {
+  const storedData = dropDatabaseTokens.get(dbName)
+  if (!storedData) return false
+  if (Date.now() > storedData.expires) {
+    dropDatabaseTokens.delete(dbName)
+    return false
+  }
+  if (storedData.token !== token) return false
+  dropDatabaseTokens.delete(dbName)
+  return true
+}
+
+const storeDropCollectionToken = (collectionName) => {
+  const token = generateDropToken()
+  dropCollectionTokens.set(collectionName, {
+    token,
+    expires: Date.now() + 5 * 60 * 1000
+  })
+  return token
+}
+
+const validateDropCollectionToken = (collectionName, token) => {
+  const storedData = dropCollectionTokens.get(collectionName)
+  if (!storedData) return false
+  if (Date.now() > storedData.expires) {
+    dropCollectionTokens.delete(collectionName)
+    return false
+  }
+  if (storedData.token !== token) return false
+  dropCollectionTokens.delete(collectionName)
+  return true
+}
+
+const storeDeleteDocumentToken = (collectionName, filter) => {
+  const key = `${collectionName}:${JSON.stringify(filter)}`
+  const token = generateDropToken()
+  deleteDocumentTokens.set(key, {
+    token,
+    expires: Date.now() + 5 * 60 * 1000
+  })
+  return token
+}
+
+const validateDeleteDocumentToken = (collectionName, filter, token) => {
+  const key = `${collectionName}:${JSON.stringify(filter)}`
+  const storedData = deleteDocumentTokens.get(key)
+  if (!storedData) return false
+  if (Date.now() > storedData.expires) {
+    deleteDocumentTokens.delete(key)
+    return false
+  }
+  if (storedData.token !== token) return false
+  deleteDocumentTokens.delete(key)
+  return true
+}
+
+const storeBulkOperationsToken = (collectionName, operations) => {
+  const key = `${collectionName}:${operations.length}`
+  const token = generateDropToken()
+  bulkOperationsTokens.set(key, {
+    token,
+    expires: Date.now() + 5 * 60 * 1000,
+    operations
+  })
+  return token
+}
+
+const validateBulkOperationsToken = (collectionName, operations, token) => {
+  const key = `${collectionName}:${operations.length}`
+  const storedData = bulkOperationsTokens.get(key)
+  if (!storedData) return false
+  if (Date.now() > storedData.expires) {
+    bulkOperationsTokens.delete(key)
+    return false
+  }
+  if (storedData.token !== token) return false
+  bulkOperationsTokens.delete(key)
+  return true
+}
+
+const storeRenameCollectionToken = (oldName, newName, dropTarget) => {
+  const key = `${oldName}:${newName}:${dropTarget}`
+  const token = generateDropToken()
+  renameCollectionTokens.set(key, {
+    token,
+    expires: Date.now() + 5 * 60 * 1000
+  })
+  return token
+}
+
+const validateRenameCollectionToken = (oldName, newName, dropTarget, token) => {
+  const key = `${oldName}:${newName}:${dropTarget}`
+  const storedData = renameCollectionTokens.get(key)
+  if (!storedData) return false
+  if (Date.now() > storedData.expires) {
+    renameCollectionTokens.delete(key)
+    return false
+  }
+  if (storedData.token !== token) return false
+  renameCollectionTokens.delete(key)
+  return true
+}
+
+const storeDropUserToken = (username) => {
+  const token = generateDropToken()
+  dropUserTokens.set(username, {
+    token,
+    expires: Date.now() + 5 * 60 * 1000
+  })
+  return token
+}
+
+const validateDropUserToken = (username, token) => {
+  const storedData = dropUserTokens.get(username)
+  if (!storedData) return false
+  if (Date.now() > storedData.expires) {
+    dropUserTokens.delete(username)
+    return false
+  }
+  if (storedData.token !== token) return false
+  dropUserTokens.delete(username)
+  return true
+}
+
+const storeDropIndexToken = (collectionName, indexName) => {
+  const key = `${collectionName}:${indexName}`
+  const token = generateDropToken()
+  dropIndexTokens.set(key, {
+    token,
+    expires: Date.now() + 5 * 60 * 1000
+  })
+  return token
+}
+
+const validateDropIndexToken = (collectionName, indexName, token) => {
+  const key = `${collectionName}:${indexName}`
+  const storedData = dropIndexTokens.get(key)
+  if (!storedData) return false
+  if (Date.now() > storedData.expires) {
+    dropIndexTokens.delete(key)
+    return false
+  }
+  if (storedData.token !== token) return false
+  dropIndexTokens.delete(key)
+  return true
 }
 
 const throwIfCollectionNotExists = async (collectionName) => {
@@ -4951,22 +5240,6 @@ const generateJsonSchemaValidator = (schema, strictness) => {
   return validator
 }
 
-const log = (message, forceLog = false) => {
-  if (forceLog || VERBOSE_LOGGING) console.error(message)
-}
-
-process.on('SIGTERM', async () => {
-  log('Received SIGTERM, shutting down…')
-  await cleanup()
-  exit()
-})
-
-process.on('SIGINT', async () => {
-  log('Received SIGINT, shutting down…')
-  await cleanup()
-  exit()
-})
-
 const createStreamingResultStream = () => {
   return new Transform({
     objectMode: true,
@@ -5051,6 +5324,22 @@ const createBooleanSchema = (description, defaultValue = 'true') =>
     .pipe(z.enum(['true', 'false']))
     .default(defaultValue)
     .describe(description)
+
+const log = (message, forceLog = false) => {
+  if (forceLog || VERBOSE_LOGGING) console.error(message)
+}
+
+process.on('SIGTERM', async () => {
+  log('Received SIGTERM, shutting down…')
+  await cleanup()
+  exit()
+})
+
+process.on('SIGINT', async () => {
+  log('Received SIGINT, shutting down…')
+  await cleanup()
+  exit()
+})
 
 const cleanup = async () => {
   if (watchdog) {

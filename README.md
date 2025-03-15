@@ -38,7 +38,7 @@
 - `aggregate-data`: Execute aggregation pipelines (with streaming support for large result sets)
 - `analyze-query-patterns`: Analyze queries and suggest optimizations
 - `analyze-schema`: Automatically infer collection schemas
-- `bulk-operations`: Perform multiple operations efficiently
+- `bulk-operations`: Perform multiple operations efficiently (requires confirmation for destructive operations)
 - `collation-query`: Find documents with language-specific collation rules
 - `compare-schemas`: Compare schemas between two collections
 - `count-documents`: Count documents matching specified criteria
@@ -48,10 +48,12 @@
 - `create-index`: Create new indexes for performance optimization
 - `create-timeseries`: Create time series collections for temporal data
 - `current-database`: Show the current database context
+- `delete-document`: Delete documents matching specified criteria (requires confirmation)
 - `distinct-values`: Extract unique values for any field
-- `drop-collection`: Remove collections from the database
-- `drop-database`: Request to drop a database (requires confirmation token for safety)
-- `drop-database-confirm`: Confirm and execute database drop operation with token
+- `drop-collection`: Remove collections from the database (requires confirmation)
+- `drop-database`: Drop a database (requires confirmation)
+- `drop-index`: Remove indexes from collections (requires confirmation)
+- `drop-user`: Remove database users (requires confirmation)
 - `explain-query`: Analyze query execution plans
 - `export-data`: Export query results in JSON or CSV format
 - `find-documents`: Run queries with filters, projections, and sorting (with streaming for large result sets)
@@ -63,7 +65,7 @@
 - `list-databases`: View all accessible MongoDB databases
 - `map-reduce`: Run MapReduce operations for complex data processing
 - `modify-document`: Insert, update, or delete specific documents
-- `rename-collection`: Rename existing collections
+- `rename-collection`: Rename existing collections (requires confirmation when dropping targets)
 - `shard-status`: View sharding configuration for databases and collections
 - `text-search`: Perform full-text search across text-indexed fields
 - `transaction`: Execute multiple operations in a single ACID transaction
@@ -488,6 +490,7 @@ To protect your data while using MongoDB Lens, consider the following:
 
 - [Read-Only User Accounts](#data-protection-read-only-user-accounts)
 - [Working with Database Backups](#data-protection-working-with-database-backups)
+- [Confirmation for Destructive Operations](#data-protection-confirmation-for-destructive-operations)
 
 ### Data Protection: Read-Only User Accounts
 
@@ -515,6 +518,42 @@ Start by generating a backup with `mongodump`. Next, spin up a fresh MongoDB ins
 
 This approach gives you a sandbox to test complex operations—like pipeline-heavy aggregations or schema tweaks—without touching your production data. It's a practical choice when you need to dig into your dataset safely, especially in scenarios where live modifications aren't an option.
 
+### Data Protection: Confirmation for Destructive Operations
+
+MongoDB Lens implements a token-based confirmation system for potentially destructive operations. This system requires a two-step process for executing commands that could result in data loss:
+
+1. First command invocation: Returns a 4-digit confirmation token that expires after 5 minutes
+2. Second command invocation: Executes the operation if provided with the valid token
+
+Operations that require confirmation include:
+
+- `bulk-operations`: When including delete operations
+- `delete-document`: Delete one or multiple documents
+- `drop-collection`: Delete a collection and all its documents
+- `drop-database`: Permanently delete a database
+- `drop-index`: Remove an index (potential performance impact)
+- `drop-user`: Remove a database user
+- `rename-collection`: When the target collection exists and will be dropped
+
+This protection mechanism prevents accidental data loss from typos, unintended commands, or other mistakes. It's a safety net that ensures you're fully aware of the consequences before proceeding with potentially harmful actions.
+
+#### Bypassing Confirmation for Destructive Operations
+
+You might want to bypass the token confirmation system.
+
+Set the environment variable `DISABLE_DESTRUCTIVE_OPERATION_TOKENS` to `true` to execute destructive operations immediately without confirmation:
+
+```console
+# Using NPX
+DISABLE_DESTRUCTIVE_OPERATION_TOKENS=true npx -y mongodb-lens
+
+# Using Docker
+docker run --rm -i --network=host -e DISABLE_DESTRUCTIVE_OPERATION_TOKENS='true' furey/mongodb-lens
+```
+
+> [!WARNING]<br>
+> Disabling confirmation tokens removes an important safety mechanism. It's strongly recommended to only use this option in controlled environments where data loss is acceptable, such as development or testing. Disable at your own risk.
+
 ## Tutorial
 
 This following tutorial guides you through setting up a MongoDB container with sample data, then using MongoDB Lens to interact with it through natural language queries:
@@ -523,6 +562,7 @@ This following tutorial guides you through setting up a MongoDB container with s
 2. [Import Sample Data](#tutorial-2-import-sample-data)
 3. [Connect MongoDB Lens](#tutorial-3-connect-mongodb-lens)
 4. [Example Queries](#tutorial-4-example-queries)
+5. [Working With Confirmation Protection](#tutorial-5-working-with-confirmation-protection)
 
 ### Tutorial: 1. Start Sample Data Container
 
@@ -620,16 +660,20 @@ With your MCP Client running and connected to MongoDB Lens, try the folowing exa
   <sup>➥ Uses `list-collections` tool</sup>
 - _"Get statistics for the sample_mflix database"_<br>
   <sup>➥ Uses `get-stats` tool with database target</sup>
-- _"Create a new collection called `temp_collection`, then drop it"_<br>
-  <sup>➥ Uses `create-collection` & `drop-collection` tool</sup>
+- _"Create a new collection called `temp_collection`"_<br>
+  <sup>➥ Uses `create-collection` tool</sup>
+- _"Drop the collection `temp_collection`"_<br>
+  <sup>➥ Uses `drop-collection` tool with confirmation flow</sup>
 - _"Create a new database called `other_database`, but stay in the current database"_<br>
   <sup>➥ Uses `create-database` tool</sup>
 - _"Create a new database called `switch_database` and switch to it"_<br>
   <sup>➥ Uses `create-database-and-switch` tool</sup>
-- _"I need to drop the test_database"_<br>
+- _"I need to drop the other_database"_<br>
   <sup>➥ Uses `drop-database` tool to get a confirmation token</sup>
-- _"Confirm dropping test_database with token 1234"_<br>
-  <sup>➥ Uses `drop-database-confirm` tool with the provided token</sup>
+- _"Drop other_database with token 1234"_<br>
+  <sup>➥ Uses `drop-database` tool with the token parameter</sup>
+- _"Delete all documents where status equals 'inactive' from the users collection"_<br>
+  <sup>➥ Uses `delete-document` tool with confirmation flow</sup>
 
 #### Example Queries: Movie Data Analysis
 
@@ -807,6 +851,41 @@ With your MCP Client running and connected to MongoDB Lens, try the folowing exa
   <sup>➥ Uses `multi-tenant-design` prompt</sup>
 - _"I need to add user address fields to my schema. How should I version and migrate?"_<br>
   <sup>➥ Uses `schema-versioning` prompt</sup>
+
+### Tutorial: 5. Working With Confirmation Protection
+
+MongoDB Lens includes a safety mechanism for potentially destructive operations. Here's how it works in practice:
+
+1. Request to drop a collection:<br>
+    ```
+    "Drop the collection named test_collection"
+    ```
+1. MongoDB Lens responds with a warning and confirmation token:<br>
+    ```
+    ⚠️ DESTRUCTIVE OPERATION WARNING ⚠️
+
+    You've requested to drop the collection 'test_collection'.
+
+    This operation is irreversible and will permanently delete all data in this collection.
+
+    To confirm, you must type the 4-digit confirmation code EXACTLY as shown below:
+
+    Confirmation code: 9876
+
+    This code will expire in 5 minutes for security purposes.
+    ```
+1. Confirm the operation by including the confirmation token:<br>
+    ```
+    "Drop test_collection with token 1234"
+    ```
+1. MongoDB Lens executes the operation:<br>
+    ```
+    Collection 'test_collection' has been permanently deleted.
+    ```
+
+This two-step process prevents accidental data loss by requiring explicit confirmation.
+
+For development environments, this can be bypassed by setting the `DISABLE_DESTRUCTIVE_OPERATION_TOKENS` environment variable to `true`.
 
 ## Disclaimer
 

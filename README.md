@@ -128,6 +128,9 @@ MongoDB Lens can be installed and run in several ways:
 The easiest way to run MongoDB Lens is using `npx`:
 
 ```console
+# Ensure Node.js is installed 
+node --version # Ideally >= v22.x but MongoDB Lens is >= v18.x compatible
+
 # Using default connection string mongodb://localhost:27017
 npx -y mongodb-lens
 
@@ -136,7 +139,7 @@ npx -y mongodb-lens mongodb://your-connection-string
 ```
 
 > [!TIP]<br>
-> If you encounter permissions errors with `npx`, try running `npx clear-npx-cache` prior to running `npx -y mongodb-lens` (this clears the cache and re-downloads the package).
+> If you encounter permissions errors with `npx` try running `npx clear-npx-cache` prior to running `npx -y mongodb-lens` (this clears the cache and re-downloads the package).
 
 ### Installation: Docker Hub
 
@@ -169,9 +172,12 @@ docker run --rm -i --network=host --pull=always furey/mongodb-lens
     ```console
     cd /path/to/mongodb-lens
     ```
+1. Ensure Node.js is installed:<br>
+    ```console
+    node --version # Ideally >= v22.x but MongoDB Lens is >= v18.x compatible
+    ```
 1. Install Node.js dependencies:<br>
     ```console
-    node --version # …ideally >= v22.*.*
     npm ci
     ```
 1. Start the server:<br>
@@ -425,9 +431,12 @@ For each option:
 
 [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is a tool designed for testing and debugging MCP servers.
 
+> [!NOTE]<br>
+> MCP Inspector starts a proxy server on port 3000 and web client on port 5173.
+
 Example NPX usage:
 
-1. Run Inspector:<br>
+1. Run MCP Inspector:<br>
     ```console
     # Using default connection string mongodb://localhost:27017
     npx -y @modelcontextprotocol/inspector npx -y mongodb-lens
@@ -437,14 +446,13 @@ Example NPX usage:
 
     # Using verbose logging
     npx -y @modelcontextprotocol/inspector -e VERBOSE_LOGGING=true npx -y mongodb-lens
+    
+    # Using custom ports
+    SERVER_PORT=1234 CLIENT_PORT=5678 npx -y @modelcontextprotocol/inspector npx -y mongodb-lens
     ```
-1. Inspector starts a proxy server (default port: 3000) and web app (default port: 5173). To optionally change the default ports:<br>
-    ```console
-    CLIENT_PORT=1234 SERVER_PORT=5678 npx -y @modelcontextprotocol/inspector npx -y mongodb-lens
-    ```
-1. Open Inspector: http://localhost:5173
+1. Open MCP Inspector: http://localhost:5173
 
-Inspector should support the full range of MongoDB Lens capabilities, including autocompletion for collection names and query fields.
+MCP Inspector should support the full range of MongoDB Lens capabilities, including autocompletion for collection names and query fields.
 
 For more, see: [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector)
 
@@ -504,7 +512,7 @@ This following tutorial guides you through setting up a MongoDB container with s
 > [!IMPORTANT]<br>
 > If Docker is already running a container on port 27017, stop it before proceeding.
 
-1. Initialise sample data container:<br>
+1. Initialise the sample data container:<br>
     ```console
     docker run --name mongodb-sampledata -d -p 27017:27017 mongo:6
     ```
@@ -515,7 +523,7 @@ This following tutorial guides you through setting up a MongoDB container with s
 
 ### Tutorial: 2. Import Sample Data
 
-MongoDB provides several [sample datasets](https://www.mongodb.com/docs/atlas/sample-data/#available-sample-datasets), which we'll use to explore MongoDB Lens.
+MongoDB provides several [sample datasets](https://www.mongodb.com/docs/atlas/sample-data/#available-sample-datasets) which we'll use to explore MongoDB Lens.
 
 1. Download the sample datasets:
     ```console<br>
@@ -525,7 +533,7 @@ MongoDB provides several [sample datasets](https://www.mongodb.com/docs/atlas/sa
     ```console
     docker cp sampledata.archive mongodb-sampledata:/tmp/
     ```
-3. Restore the sample data into MongoDB:<br>
+3. Import the sample datasets into MongoDB:<br>
     ```console
     docker exec -it mongodb-sampledata mongorestore --archive=/tmp/sampledata.archive
     ```
@@ -543,7 +551,7 @@ This will import several databases:
 
 ### Tutorial: 3. Connect MongoDB Lens
 
-Download and [install](#installation) MongoDB Lens as per the [Quick Start](#quick-start) instructions.
+[Install](#installation) MongoDB Lens as per the [Quick Start](#quick-start) instructions.
 
 Set your [MCP Client](#client-setup) to connect to MongoDB Lens via: `mongodb://localhost:27017`
 
@@ -568,7 +576,7 @@ Example [Claude Desktop configuration](#client-setup-claude-desktop):
 
 ### Tutorial: 4. Example Queries
 
-With your MCP Client running and connected to MongoDB Lens, try these example queries that demonstrate the capabilities of the various tools, resources, and prompts available through MongoDB Lens:
+With your MCP Client running and connected to MongoDB Lens, try the folowing example queries demonstrating MongoDB Lens's  tools, resources, and prompts:
 
 - [Example Queries: Basic Database Operations](#example-queries-basic-database-operations)
 - [Example Queries: Movie Data Analysis](#example-queries-movie-data-analysis)

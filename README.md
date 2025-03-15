@@ -43,10 +43,11 @@
 - `compare-schemas`: Compare schemas between two collections
 - `count-documents`: Count documents matching specified criteria
 - `create-collection`: Create new collections with custom options
-- `create-database`: Create a new MongoDB database (without switching to it)
-- `create-database-and-switch`: Create a new MongoDB database and switch to it
+- `create-database`: Create a new database (without switching to it)
+- `create-database-and-switch`: Create a new database and switch to it
 - `create-index`: Create new indexes for performance optimization
 - `create-timeseries`: Create time series collections for temporal data
+- `create-user`: Create new database users with specific roles
 - `current-database`: Show the current database context
 - `delete-document`: Delete documents matching specified criteria (requires confirmation)
 - `distinct-values`: Extract unique values for any field
@@ -62,7 +63,7 @@
 - `get-stats`: Retrieve database or collection statistics
 - `gridfs-operation`: Manage large files with GridFS buckets
 - `list-collections`: Explore collections in the current database
-- `list-databases`: View all accessible MongoDB databases
+- `list-databases`: View all accessible databases
 - `map-reduce`: Run MapReduce operations for complex data processing
 - `modify-document`: Insert, update, or delete specific documents
 - `rename-collection`: Rename existing collections (requires confirmation when dropping targets)

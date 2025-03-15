@@ -35,7 +35,7 @@
 
 ### Tools
 
-- `aggregate-data`: Execute aggregation pipelines (with streaming support for large result sets)
+- `aggregate-data`: Execute aggregation pipelines
 - `analyze-query-patterns`: Analyze queries and suggest optimizations
 - `analyze-schema`: Automatically infer collection schemas
 - `bulk-operations`: Perform multiple operations efficiently ([requires confirmation](#data-protection-confirmation-for-destructive-operations) for destructive operations)
@@ -57,7 +57,7 @@
 - `drop-user`: Remove database users ([requires confirmation](#data-protection-confirmation-for-destructive-operations))
 - `explain-query`: Analyze query execution plans
 - `export-data`: Export query results in JSON or CSV format
-- `find-documents`: Run queries with filters, projections, and sorting (with streaming for large result sets)
+- `find-documents`: Run queries with filters, projections, and sorting
 - `generate-schema-validator`: Generate JSON Schema validators
 - `geo-query`: Perform geospatial queries with various operators
 - `get-stats`: Retrieve database or collection statistics
@@ -122,7 +122,6 @@ MongoDB Lens includes several additional features:
 - **JSONRPC Error Handling**: Comprehensive error handling with proper error codes
 - **Memory Management**: Automatic memory monitoring and cleanup for large operations
 - **Smart Caching**: Enhanced caching for schemas, collection lists, and server status
-- **Streaming Support**: Stream large result sets for `find-documents` and `aggregate-data` operations
 
 #### Other Features: New Database Metadata
 

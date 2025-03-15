@@ -102,7 +102,7 @@ Use tools like \`list-databases\`, \`find-documents\`, \`aggregate-data\`, \`cre
 
 For complex tasks, use prompts like \`query-builder\`, \`schema-analysis\`, \`data-modeling\`, and \`sql-to-mongodb\` to get expert assistance.
 
-Stream large result sets with \`streaming: true\` parameter and monitor real-time database changes with \`watch-changes\`.
+Monitor real-time database changes with \`watch-changes\`.
 
 For full documentation and examples, see: https://github.com/furey/mongodb-lens
 `
@@ -1452,11 +1452,11 @@ const registerTools = (server) => {
         log(`Tool: Processing drop database request for '${name}'...`)
         
         if (DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
-          await dropDatabase(name)
+          const result = await dropDatabase(name)
           return {
             content: [{
               type: 'text',
-              text: `Database '${name}' has been permanently deleted.\n\nIf you were previously connected to this database, you have been automatically switched to the 'admin' database.`
+              text: result.message
             }]
           }
         }
@@ -1465,11 +1465,11 @@ const registerTools = (server) => {
           if (!validateDropDatabaseToken(name, token)) {
             throw new Error(`Invalid or expired confirmation token for dropping '${name}'. Please try again without a token to generate a new confirmation code.`)
           }
-          await dropDatabase(name)
+          const result = await dropDatabase(name)
           return {
             content: [{
               type: 'text',
-              text: `Database '${name}' has been permanently deleted.\n\nIf you were previously connected to this database, you have been automatically switched to the 'admin' database.`
+              text: result.message
             }]
           }
         }
@@ -1619,39 +1619,13 @@ const registerTools = (server) => {
         const parsedProjection = projection ? JSON.parse(projection) : null
         const parsedSort = sort ? JSON.parse(sort) : null
         
-        if (streaming) {
-          await throwIfCollectionNotExists(collection)
-          const coll = currentDb.collection(collection)
-          
-          let query = coll.find(parsedFilter)
-          if (parsedProjection) query = query.project(parsedProjection)
-          if (skip) query = query.skip(skip)
-          if (parsedSort) query = query.sort(parsedSort)
-          query = query.limit(limit).batchSize(20)
-          
-          const resourceUri = `mongodb://find/${collection}`
-          const count = await streamResultsToMcp(
-            query, 
-            doc => JSON.stringify(serializeDocument(doc), null, 2),
-            resourceUri,
-            limit
-          )
-          
-          return {
-            content: [{
-              type: 'text',
-              text: `Streaming ${count} document${count === 1 ? '' : 's'} from collection '${collection}'.`
-            }]
-          }
-        } else {
-          const documents = await findDocuments(collection, parsedFilter, parsedProjection, limit, skip, parsedSort)
-          log(`Tool: Found ${documents.length} documents in collection '${collection}'.`)
-          return {
-            content: [{
-              type: 'text',
-              text: formatDocuments(documents, limit)
-            }]
-          }
+        const documents = await findDocuments(collection, parsedFilter, parsedProjection, limit, skip, parsedSort)
+        log(`Tool: Found ${documents.length} documents in collection '${collection}'.`)
+        return {
+          content: [{
+            type: 'text',
+            text: formatDocuments(documents, limit)
+          }]
         }
       } catch (error) {
         log(`Error finding documents: ${error.message}`, true)
@@ -1723,37 +1697,13 @@ const registerTools = (server) => {
         const parsedPipeline = JSON.parse(pipeline)
         const processedPipeline = processAggregationPipeline(parsedPipeline)
         
-        if (streaming) {
-          await throwIfCollectionNotExists(collection)
-          const coll = currentDb.collection(collection)
-          const cursor = coll.aggregate(processedPipeline, { 
-            allowDiskUse: true,
-            cursor: { batchSize: 20 }
-          })
-          
-          const resourceUri = `mongodb://aggregation/${collection}`
-          const count = await streamResultsToMcp(
-            cursor, 
-            doc => JSON.stringify(serializeDocument(doc), null, 2),
-            resourceUri,
-            limit
-          )
-          
-          return {
-            content: [{
-              type: 'text',
-              text: `Streaming ${count} aggregation results from collection '${collection}'.${count === limit ? " Results limited to first " + limit + " documents." : ""}`
-            }]
-          }
-        } else {
-          const results = await aggregateData(collection, processedPipeline)
-          log(`Tool: Aggregation returned ${results.length} results.`)
-          return {
-            content: [{
-              type: 'text',
-              text: formatDocuments(results, 100)
-            }]
-          }
+        const results = await aggregateData(collection, processedPipeline)
+        log(`Tool: Aggregation returned ${results.length} results.`)
+        return {
+          content: [{
+            type: 'text',
+            text: formatDocuments(results, 100)
+          }]
         }
       } catch (error) {
         log(`Error running aggregation: ${error.message}`, true)
@@ -3135,15 +3085,21 @@ const dropDatabase = async (dbName) => {
   log(`DB Operation: Dropping database '${dbName}'…`)
   if (dbName.toLowerCase() === 'admin') throw new Error(`Dropping the 'admin' database is prohibited.`)
   try {
+    const wasConnected = currentDbName === dbName
     const db = mongoClient.db(dbName)
     await db.dropDatabase()
-    if (currentDbName === dbName) {
+    if (wasConnected) {
       currentDbName = 'admin'
       currentDb = mongoClient.db('admin')
       log(`DB Operation: Switched to 'admin' database after dropping '${dbName}'`)
     }
     log(`DB Operation: Database '${dbName}' dropped successfully.`)
-    return { success: true, name: dbName }
+    
+    const message = `Database '${dbName}' has been permanently deleted.${
+      wasConnected ? '\n\nYou were previously connected to this database, you have been automatically switched to the \'admin\' database.' : ''
+    }`
+    
+    return { success: true, name: dbName, message }
   } catch (error) {
     log(`DB Operation: Database drop failed: ${error.message}`)
     throw error
@@ -5238,44 +5194,6 @@ const createStreamingResultStream = () => {
       callback(null, chunk)
     }
   })
-}
-
-const streamResultsToMcp = async (resultStream, resultFormatter, resourceUri, streamingLimit = 10000) => {
-  let count = 0
-  const streamId = Math.random().toString(36).substring(2, 15)
-  
-  try {
-    const stream = server.createStreamingResource(`${resourceUri}?stream=${streamId}`)
-    
-    for await (const item of resultStream) {
-      count++
-      
-      if (count > streamingLimit) {
-        stream.write({
-          contents: [{
-            uri: resourceUri,
-            text: `Reached streaming limit of ${streamingLimit} items. Use a more specific query to reduce result size.`
-          }]
-        })
-        break
-      }
-      
-      const formattedItem = resultFormatter(item)
-      
-      stream.write({
-        contents: [{
-          uri: resourceUri,
-          text: formattedItem
-        }]
-      })
-    }
-    
-    stream.end()
-    return count
-  } catch (error) {
-    log(`Error in streaming results: ${error.message}`, true)
-    throw error
-  }
 }
 
 const processAggregationPipeline = (pipeline) => {

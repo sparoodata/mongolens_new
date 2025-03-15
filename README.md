@@ -38,7 +38,7 @@
 - `aggregate-data`: Execute aggregation pipelines (with streaming support for large result sets)
 - `analyze-query-patterns`: Analyze queries and suggest optimizations
 - `analyze-schema`: Automatically infer collection schemas
-- `bulk-operations`: Perform multiple operations efficiently (requires confirmation for destructive operations)
+- `bulk-operations`: Perform multiple operations efficiently ([requires confirmation](#data-protection-confirmation-for-destructive-operations) for destructive operations)
 - `collation-query`: Find documents with language-specific collation rules
 - `compare-schemas`: Compare schemas between two collections
 - `count-documents`: Count documents matching specified criteria
@@ -49,12 +49,12 @@
 - `create-timeseries`: Create time series collections for temporal data
 - `create-user`: Create new database users with specific roles
 - `current-database`: Show the current database context
-- `delete-document`: Delete documents matching specified criteria (requires confirmation)
+- `delete-document`: Delete documents matching specified criteria ([requires confirmation](#data-protection-confirmation-for-destructive-operations))
 - `distinct-values`: Extract unique values for any field
-- `drop-collection`: Remove collections from the database (requires confirmation)
-- `drop-database`: Drop a database (requires confirmation)
-- `drop-index`: Remove indexes from collections (requires confirmation)
-- `drop-user`: Remove database users (requires confirmation)
+- `drop-collection`: Remove collections from the database ([requires confirmation](#data-protection-confirmation-for-destructive-operations))
+- `drop-database`: Drop a database ([requires confirmation](#data-protection-confirmation-for-destructive-operations))
+- `drop-index`: Remove indexes from collections ([requires confirmation](#data-protection-confirmation-for-destructive-operations))
+- `drop-user`: Remove database users ([requires confirmation](#data-protection-confirmation-for-destructive-operations))
 - `explain-query`: Analyze query execution plans
 - `export-data`: Export query results in JSON or CSV format
 - `find-documents`: Run queries with filters, projections, and sorting (with streaming for large result sets)
@@ -66,7 +66,7 @@
 - `list-databases`: View all accessible databases
 - `map-reduce`: Run MapReduce operations for complex data processing
 - `modify-document`: Insert or update specific documents
-- `rename-collection`: Rename existing collections (requires confirmation when dropping targets)
+- `rename-collection`: Rename existing collections ([requires confirmation](#data-protection-confirmation-for-destructive-operations) when dropping targets)
 - `shard-status`: View sharding configuration for databases and collections
 - `text-search`: Perform full-text search across text-indexed fields
 - `transaction`: Execute multiple operations in a single ACID transaction

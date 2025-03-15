@@ -535,7 +535,7 @@ Operations that require confirmation include:
 - `drop-user`: Remove a database user
 - `rename-collection`: When the target collection exists and will be dropped
 
-This protection mechanism prevents accidental data loss from typos, unintended commands, or other mistakes. It's a safety net that ensures you're fully aware of the consequences before proceeding with potentially harmful actions.
+This protection mechanism prevents accidental data loss from typos and unintended commands. It's a safety net ensuring you're aware of the consequences before proceeding with potentially harmful actions.
 
 #### Bypassing Confirmation for Destructive Operations
 

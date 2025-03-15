@@ -126,8 +126,7 @@ MongoDB Lens includes several additional features:
 
 #### Other Features: New Database Metadata
 
-When MongoDB Lens creates a new database via `create-database` or `create-database-and-switch` tools
-, it automatically adds a `metadata` collection containing a single document. This serves several purposes:
+When MongoDB Lens creates a new database via `create-database` or `create-database-and-switch` tools, it automatically adds a `metadata` collection containing a single document. This serves several purposes:
 
 - MongoDB only persists databases containing at least one collection
 - Records database creation details (timestamp, tool version, user)

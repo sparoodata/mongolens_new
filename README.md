@@ -885,7 +885,7 @@ MongoDB Lens includes a safety mechanism for potentially destructive operations.
 
 This two-step process prevents accidental data loss by requiring explicit confirmation.
 
-For development environments, this can be bypassed by setting the `DISABLE_DESTRUCTIVE_OPERATION_TOKENS` environment variable to `true`.
+For development environments, this can be [bypassed](#bypassing-confirmation-for-destructive-operations) by setting the `DISABLE_DESTRUCTIVE_OPERATION_TOKENS` environment variable to `true`.
 
 ## Disclaimer
 

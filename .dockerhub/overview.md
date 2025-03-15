@@ -1,13 +1,15 @@
 # MongoDB Lens
 
 [![Docker Pulls](https://img.shields.io/docker/pulls/furey/mongodb-lens)](https://hub.docker.com/r/furey/mongodb-lens)<br>
-[![Docker Image Size (latest by date)](https://img.shields.io/docker/image-size/furey/mongodb-lens)](https://hub.docker.com/r/furey/mongodb-lens)
+[![Docker Image Size (latest by date)](https://img.shields.io/docker/image-size/furey/mongodb-lens)](https://hub.docker.com/r/furey/mongodb-lens)<br>
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-donate-orange.svg)](https://www.buymeacoffee.com/furey)
 
 - [Overview](#overview)
 - [Features](#features)
 - [Usage](#usage)
 - [Links](#links)
 - [Disclaimer](#disclaimer)
+- [Support](#support)
 
 ## Overview
 
@@ -45,3 +47,11 @@ MongoDB Lens:
 - is written with the assistance of AI and may contain errors.
 - is intended for educational and experimental purposes only.
 - is provided as-is with no warranty or support—use at your own risk.
+
+## Support
+
+If you've found MongoDB Lens helpful consider supporting my work through:
+
+[Buy Me a Coffee](https://www.buymeacoffee.com/furey) | [GitHub Sponsorship](https://github.com/sponsors/furey)
+
+Contributions help me continue developing and improving this tool, allowing me to dedicate more time to add new features and ensuring it remains a valuable resource for the community.

@@ -107,7 +107,7 @@ Stream large result sets with \`streaming: true\` parameter and monitor real-tim
 For full documentation and examples, see: https://github.com/furey/mongodb-lens
 `
 
-const main = async (mongoUri) => {
+const main = async mongoUri => {
   log(`MongoDB Lens v${PACKAGE_VERSION} starting…`, true)
   
   const connected = await connect(mongoUri)
@@ -133,7 +133,7 @@ const main = async (mongoUri) => {
     instructions
   })
 
-  server.fallbackRequestHandler = async (request) => {
+  server.fallbackRequestHandler = async request => {
     log(`Received request for undefined method: ${request.method}`, true)
     const error = new Error(`Method '${request.method}' not found`)
     error.code = JSONRPC_ERROR_CODES.METHOD_NOT_FOUND
@@ -187,9 +187,7 @@ const connect = async (uri = 'mongodb://localhost:27017') => {
         break
       } catch (connectionError) {
         retryCount++
-        if (retryCount >= maxRetries) {
-          throw connectionError
-        }
+        if (retryCount >= maxRetries) throw connectionError
         const delay = Math.min(1000 * Math.pow(2, retryCount), 30000)
         log(`Connection attempt ${retryCount} failed, retrying in ${delay/1000} seconds…`)
         await new Promise(resolve => setTimeout(resolve, delay))
@@ -221,7 +219,7 @@ const connect = async (uri = 'mongodb://localhost:27017') => {
       log(`Warning: Unable to get database stats: ${statsError.message}`)
     }
     
-    mongoClient.on('error', (err) => {
+    mongoClient.on('error', err => {
       log(`MongoDB connection error: ${err.message}. Will attempt to reconnect.`, true)
     })
     
@@ -2175,12 +2173,12 @@ const registerTools = (server) => {
 
   server.tool(
     'modify-document',
-    'Insert, update, or delete specific documents',
+    'Insert or update specific documents',
     {
       collection: z.string().min(1).describe('Collection name'),
-      operation: z.enum(['insert', 'update', 'delete']).describe('Operation type'),
+      operation: z.enum(['insert', 'update']).describe('Operation type'),
       document: z.string().describe('Document as JSON string (for insert)'),
-      filter: z.string().optional().describe('Filter as JSON string (for update/delete)'),
+      filter: z.string().optional().describe('Filter as JSON string (for update)'),
       update: z.string().optional().describe('Update operations as JSON string (for update)'),
       options: z.string().optional().describe('Options as JSON string')
     },
@@ -2213,13 +2211,6 @@ const registerTools = (server) => {
             content: [{
               type: 'text',
               text: formatModifyResult(operation, result)
-            }]
-          }
-        } else if (operation === 'delete') {
-          return {
-            content: [{
-              type: 'text',
-              text: `For safety reasons, delete operations now require a separate confirmation. Please use the 'delete-document' tool instead.`
             }]
           }
         }
@@ -3081,7 +3072,7 @@ const createDatabase = async (dbName, validateName = true) => {
   }
   
   const db = mongoClient.db(dbName)
-  const metadataCollectionName = 'mongodb-lens'
+  const metadataCollectionName = 'metadata'
   const timestamp = new Date()
   const serverInfo = await mongoClient.db('admin').command({ buildInfo: 1 }).catch(() => ({ version: 'Unknown' }))
   const clientInfo = await mongoClient.db('admin').command({ connectionStatus: 1 }).catch(() => ({ authInfo: { authenticatedUsers: [] } }))

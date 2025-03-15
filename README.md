@@ -65,7 +65,7 @@
 - `list-collections`: Explore collections in the current database
 - `list-databases`: View all accessible databases
 - `map-reduce`: Run MapReduce operations for complex data processing
-- `modify-document`: Insert, update, or delete specific documents
+- `modify-document`: Insert or update specific documents
 - `rename-collection`: Rename existing collections (requires confirmation when dropping targets)
 - `shard-status`: View sharding configuration for databases and collections
 - `text-search`: Perform full-text search across text-indexed fields
@@ -109,29 +109,67 @@
 
 ### Other Features
 
-MongoDB Lens includes several additional features to enhance your MongoDB experience:
+- [Other Features: Overview](#other-features-overview)
+- [Other Features: New Database Metadata](#other-features-new-database-metadata)
+
+#### Other Features: Overview
+
+MongoDB Lens includes several additional features:
 
 - **Sanitized Inputs**: Security enhancements for query processing
 - **Configuration File**: Custom configuration via `~/.mongodb-lens.json`
 - **Connection Resilience**: Automatic reconnection with exponential backoff
-- **Smart Caching**: Enhanced caching for schemas, collection lists, and server status
 - **JSONRPC Error Handling**: Comprehensive error handling with proper error codes
 - **Memory Management**: Automatic memory monitoring and cleanup for large operations
+- **Smart Caching**: Enhanced caching for schemas, collection lists, and server status
 - **Streaming Support**: Stream large result sets for `find-documents` and `aggregate-data` operations
 
-#### Other Features: `mongodb-lens` Collection
+#### Other Features: New Database Metadata
 
-It's important to note that when creating a database with MongoDB Lens via the `create-database` or `create-database-and-switch` tools, a `mongodb-lens` collection is automatically added to your new database with a single document containing metadata about the database creation process.
+When MongoDB Lens creates a new database via `create-database` or `create-database-and-switch` tools
+, it automatically adds a `metadata` collection containing a single document. This serves several purposes:
 
-This serves several important purposes:
+- MongoDB only persists databases containing at least one collection
+- Records database creation details (timestamp, tool version, user)
+- Captures environment information for diagnostics
 
-- **MongoDB Requirement**: MongoDB only persists databases containing at least one collection
-- **Audit Trail**: Records who created the database, when, and with which tool version
-- **Usage Analytics**: Enables tracking of database creation and management patterns
-- **Diagnostics**: Captures environment details useful for troubleshooting
-- **Documentation**: Provides context for database purpose and origin
+<details>
+  <summary><strong>Example metadata document</strong></summary>
 
-Once you've started adding other collections to your new database, the `mongodb-lens` collection can be safely ignored or removed without affecting database functionality.
+```js
+{
+    "_id" : ObjectId("67d5284463788ec38aecee14"),
+    "created" : {
+        "timestamp" : ISODate("2025-03-15T07:12:04.705Z"),
+        "tool" : "MongoDB Lens v5.0.7",
+        "user" : "anonymous"
+    },
+    "mongodb" : {
+        "version" : "3.6.23",
+        "connectionInfo" : {
+            "host" : "unknown",
+            "readPreference" : "primary"
+        }
+    },
+    "database" : {
+        "name" : "example_database",
+        "description" : "Created via MongoDB Lens"
+    },
+    "system" : {
+        "hostname" : "unknown",
+        "platform" : "darwin",
+        "nodeVersion" : "v22.14.0"
+    },
+    "lens" : {
+        "version" : "5.0.7",
+        "startTimestamp" : ISODate("2025-03-15T07:10:06.084Z")
+    }
+}
+```
+
+</details>
+
+You can safely remove this collection once you've added your own collections to the new database.
 
 ## Installation
 
@@ -743,7 +781,7 @@ With your MCP Client running and connected to MongoDB Lens, try the folowing exa
 - _"Run this MapReduce to calculate average pressure by location"_<br>
   <sup>➥ Uses `map-reduce` tool</sup>
 - _"Delete all weather readings below -50 degrees"_<br>
-  <sup>➥ Uses `modify-document` tool with delete operation</sup>
+  <sup>➥ Uses `delete-document` tool</sup>
 
 #### Example Queries: Geospatial Operations
 

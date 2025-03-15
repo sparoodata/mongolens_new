@@ -660,15 +660,15 @@ With your MCP Client running and connected to MongoDB Lens, try the folowing exa
   <sup>➥ Uses `list-collections` tool</sup>
 - _"Get statistics for the sample_mflix database"_<br>
   <sup>➥ Uses `get-stats` tool with database target</sup>
-- _"Create a new collection called `temp_collection`"_<br>
+- _"Create a new collection called temp_collection"_<br>
   <sup>➥ Uses `create-collection` tool</sup>
-- _"Drop the collection `temp_collection`"_<br>
+- _"Drop the collection temp_collection"_<br>
   <sup>➥ Uses `drop-collection` tool with confirmation flow</sup>
-- _"Create a new database called `other_database`, but stay in the current database"_<br>
+- _"Create a new database called other_database, but stay in the current database"_<br>
   <sup>➥ Uses `create-database` tool</sup>
-- _"Create a new database called `switch_database` and switch to it"_<br>
+- _"Create a new database called switch_database and switch to it"_<br>
   <sup>➥ Uses `create-database-and-switch` tool</sup>
-- _"I need to drop the other_database"_<br>
+- _"Drop the other_database"_<br>
   <sup>➥ Uses `drop-database` tool to get a confirmation token</sup>
 - _"Drop other_database with token 1234"_<br>
   <sup>➥ Uses `drop-database` tool with the token parameter</sup>
@@ -677,7 +677,7 @@ With your MCP Client running and connected to MongoDB Lens, try the folowing exa
 
 #### Example Queries: Movie Data Analysis
 
-- _"Switch back to `sample_mflix` db and count the movies collection"_<br>
+- _"Switch back to sample_mflix db and count the movies collection"_<br>
   <sup>➥ Uses `count-documents` tool</sup>
 - _"Find the top 5 movies by IMDB rating with a runtime over 120 minutes"_<br>
   <sup>➥ Uses `find-documents` tool with sort and filter</sup>

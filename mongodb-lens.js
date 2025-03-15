@@ -11,6 +11,21 @@ import { Transform } from 'stream'
 
 const { MongoClient, ObjectId, GridFSBucket } = mongodb
 
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+const packageJson = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'))
+const PACKAGE_VERSION = packageJson.version
+const VERBOSE_LOGGING = process.env.VERBOSE_LOGGING === 'true'
+const CONFIG_PATH = process.env.CONFIG_PATH || join(process.env.HOME || __dirname, '.mongodb-lens.json')
+
+if (existsSync(CONFIG_PATH)) {
+  try {
+    configFile = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'))
+  } catch (error) {
+    log(`Error loading config file: ${error.message}`, true)
+  }
+}
+
 const CACHE_TTL = {
   SCHEMAS: 60 * 1000,
   COLLECTIONS: 30 * 1000,
@@ -28,6 +43,8 @@ const memoryCache = {
   fields: new Map()
 }
 
+const dropDatabaseTokens = new Map()
+
 const connectionOptions = {
   useUnifiedTopology: true, 
   maxPoolSize: 20,
@@ -39,12 +56,20 @@ const connectionOptions = {
   useNewUrlParser: true
 }
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
-const packageJson = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'))
-const PACKAGE_VERSION = packageJson.version
-const VERBOSE_LOGGING = process.env.VERBOSE_LOGGING === 'true'
-const CONFIG_PATH = process.env.CONFIG_PATH || join(process.env.HOME || __dirname, '.mongodb-lens.json')
+const JSONRPC_ERROR_CODES = {
+  PARSE_ERROR: -32700,
+  INVALID_REQUEST: -32600,
+  METHOD_NOT_FOUND: -32601,
+  INVALID_PARAMS: -32602,
+  INTERNAL_ERROR: -32603,
+  SERVER_ERROR_START: -32000,
+  SERVER_ERROR_END: -32099,
+  MONGODB_CONNECTION_ERROR: -32050,
+  MONGODB_QUERY_ERROR: -32051,
+  MONGODB_SCHEMA_ERROR: -32052,
+  RESOURCE_NOT_FOUND: -32040,
+  RESOURCE_ACCESS_DENIED: -32041
+}
 
 let server = null
 let watchdog = null
@@ -54,14 +79,6 @@ let configFile = null
 let mongoClient = null
 let currentDbName = null
 let connectionRetries = 0
-
-if (existsSync(CONFIG_PATH)) {
-  try {
-    configFile = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'))
-  } catch (error) {
-    log(`Error loading config file: ${error.message}`, true)
-  }
-}
 
 const instructions = `
 MongoDB Lens is an MCP server that lets you interact with MongoDB databases through natural language.
@@ -82,65 +99,6 @@ Stream large result sets with \`streaming: true\` parameter and monitor real-tim
 
 For full documentation and examples, see: https://github.com/furey/mongodb-lens
 `
-
-const startWatchdog = () => {
-  if (watchdog) clearInterval(watchdog)
-  
-  watchdog = setInterval(() => {
-    const memoryUsage = process.memoryUsage()
-    const heapUsedMB = Math.round(memoryUsage.heapUsed / 1024 / 1024)
-    const heapTotalMB = Math.round(memoryUsage.heapTotal / 1024 / 1024)
-    
-    if (heapUsedMB > 1500) {
-      log(`High memory usage: ${heapUsedMB}MB used of ${heapTotalMB}MB heap`, true)
-      
-      if (heapUsedMB > 2000) {
-        log('Critical memory pressure. Clearing caches…', true)
-        memoryCache.schemas.clear()
-        memoryCache.collections.clear()
-        memoryCache.stats.clear()
-        memoryCache.indexes.clear()
-        memoryCache.serverStatus.clear()
-        memoryCache.fields.clear()
-        global.gc && global.gc()
-      }
-    }
-
-    const isClientConnected = mongoClient && mongoClient.topology && mongoClient.topology.isConnected()
-    if (!isClientConnected) {
-      log('Detected MongoDB disconnection. Attempting reconnect…', true)
-      reconnect()
-    }
-    
-  }, 30000)
-}
-
-const reconnect = async () => {
-  if (connectionRetries > 10) {
-    log('Maximum reconnection attempts reached. Giving up.', true)
-    return false
-  }
-  
-  connectionRetries++
-  log(`Reconnection attempt ${connectionRetries}…`, true)
-  
-  try {
-    await mongoClient.connect()
-    log('Reconnected to MongoDB successfully', true)
-    connectionRetries = 0
-    return true
-  } catch (error) {
-    log(`Reconnection failed: ${error.message}`, true)
-    return false
-  }
-}
-
-const createTransport = async () => {
-  log('Starting stdio transport…', true)
-  transport = new StdioServerTransport()
-  
-  return transport
-}
 
 const main = async (mongoUri) => {
   log(`MongoDB Lens v${PACKAGE_VERSION} starting…`, true)
@@ -168,21 +126,6 @@ const main = async (mongoUri) => {
     instructions
   })
 
-  const JSONRPC_ERROR_CODES = {
-    PARSE_ERROR: -32700,
-    INVALID_REQUEST: -32600,
-    METHOD_NOT_FOUND: -32601,
-    INVALID_PARAMS: -32602,
-    INTERNAL_ERROR: -32603,
-    SERVER_ERROR_START: -32000,
-    SERVER_ERROR_END: -32099,
-    MONGODB_CONNECTION_ERROR: -32050,
-    MONGODB_QUERY_ERROR: -32051,
-    MONGODB_SCHEMA_ERROR: -32052,
-    RESOURCE_NOT_FOUND: -32040,
-    RESOURCE_ACCESS_DENIED: -32041
-  }
-
   server.fallbackRequestHandler = async (request) => {
     log(`Received request for undefined method: ${request.method}`, true)
     const error = new Error(`Method '${request.method}' not found`)
@@ -207,6 +150,13 @@ const main = async (mongoUri) => {
   
   log('MongoDB Lens server running.', true)
   return true
+}
+
+const createTransport = async () => {
+  log('Starting stdio transport…', true)
+  transport = new StdioServerTransport()
+  
+  return transport
 }
 
 const connect = async (uri = 'mongodb://localhost:27017') => {
@@ -285,6 +235,58 @@ const extractDbNameFromConnectionString = (uri) => {
   const lastPart = pathParts[pathParts.length - 1]?.split('?')[0]
   currentDbName = (lastPart && !lastPart.includes(':')) ? lastPart : 'admin'
   return currentDbName
+}
+
+const startWatchdog = () => {
+  if (watchdog) clearInterval(watchdog)
+  
+  watchdog = setInterval(() => {
+    const memoryUsage = process.memoryUsage()
+    const heapUsedMB = Math.round(memoryUsage.heapUsed / 1024 / 1024)
+    const heapTotalMB = Math.round(memoryUsage.heapTotal / 1024 / 1024)
+    
+    if (heapUsedMB > 1500) {
+      log(`High memory usage: ${heapUsedMB}MB used of ${heapTotalMB}MB heap`, true)
+      
+      if (heapUsedMB > 2000) {
+        log('Critical memory pressure. Clearing caches…', true)
+        memoryCache.schemas.clear()
+        memoryCache.collections.clear()
+        memoryCache.stats.clear()
+        memoryCache.indexes.clear()
+        memoryCache.serverStatus.clear()
+        memoryCache.fields.clear()
+        global.gc && global.gc()
+      }
+    }
+
+    const isClientConnected = mongoClient && mongoClient.topology && mongoClient.topology.isConnected()
+    if (!isClientConnected) {
+      log('Detected MongoDB disconnection. Attempting reconnect…', true)
+      reconnect()
+    }
+    
+  }, 30000)
+}
+
+const reconnect = async () => {
+  if (connectionRetries > 10) {
+    log('Maximum reconnection attempts reached. Giving up.', true)
+    return false
+  }
+  
+  connectionRetries++
+  log(`Reconnection attempt ${connectionRetries}…`, true)
+  
+  try {
+    await mongoClient.connect()
+    log('Reconnected to MongoDB successfully', true)
+    connectionRetries = 0
+    return true
+  } catch (error) {
+    log(`Reconnection failed: ${error.message}`, true)
+    return false
+  }
 }
 
 const registerResources = (server) => {
@@ -1360,6 +1362,50 @@ const registerTools = (server) => {
   )
   
   server.tool(
+    'create-database',
+    'Create a new MongoDB database',
+    {
+      name: z.string().min(1).describe('Database name to create'),
+      validateName: createBooleanSchema('Whether to validate database name')
+    },
+    async ({ name, validateName }) => {
+      return withErrorHandling(async () => {
+        log(`Tool: Creating database '${name}'…`)
+        await createDatabase(name, validateName)
+        return {
+          content: [{
+            type: 'text',
+            text: `Database '${name}' created successfully. Current database is still '${currentDbName}'.`
+          }]
+        }
+      }, `Error creating database '${name}'`)
+    }
+  )
+  
+  server.tool(
+    'create-database-and-switch',
+    'Create a new MongoDB database and switch to it',
+    {
+      name: z.string().min(1).describe('Database name to create and use'),
+      validateName: createBooleanSchema('Whether to validate database name')
+    },
+    async ({ name, validateName }) => {
+      return withErrorHandling(async () => {
+        log(`Tool: Creating and switching to database '${name}'…`)
+        const db = await createDatabase(name, validateName)
+        currentDbName = name
+        currentDb = db
+        return {
+          content: [{
+            type: 'text',
+            text: `Database '${name}' created successfully and connected.`
+          }]
+        }
+      }, `Error creating and switching to database '${name}'`)
+    }
+  )
+  
+  server.tool(
     'use-database',
     'Switch to a specific database',
     {
@@ -1386,6 +1432,55 @@ const registerTools = (server) => {
           isError: true
         }
       }
+    }
+  )
+
+  server.tool(
+    'drop-database',
+    'Request to drop a database (requires confirmation)',
+    {
+      name: z.string().min(1).describe('Database name to drop')
+    },
+    async ({ name }) => {
+      return withErrorHandling(async () => {
+        log(`Tool: Initiating drop database request for '${name}'...`)
+        const dbs = await listDatabases()
+        const dbExists = dbs.some(db => db.name === name)
+        if (!dbExists) {
+          throw new Error(`Database '${name}' does not exist`)
+        }     
+        const token = storeDropDatabaseToken(name)
+        return {
+          content: [{
+            type: 'text',
+            text: `⚠️ DESTRUCTIVE OPERATION WARNING ⚠️\n\nYou've requested to drop the database '${name}'.\n\nThis operation is irreversible and will permanently delete all collections and data in this database.\n\nTo confirm, you must type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${token}\n\nThis code will expire in 5 minutes for security purposes.\n\nIMPORTANT NOTICE TO AI ASSISTANT: You must NEVER correct, auto-complete, or suggest the confirmation code if the user enters it incorrectly. The user MUST type the exact code shown above, with no assistance, to proceed with the database deletion. This is a critical security measure to prevent accidental database deletion.`
+          }]
+        }
+      }, `Error initiating database drop for '${name}'`)
+    }
+  )
+  
+  server.tool(
+    'drop-database-confirm',
+    'Confirm and execute database drop operation',
+    {
+      name: z.string().min(1).describe('Database name to drop'),
+      token: z.string().min(1).describe('Confirmation token from drop-database request')
+    },
+    async ({ name, token }) => {
+      return withErrorHandling(async () => {
+        log(`Tool: Confirming drop database request for '${name}'…`)
+        if (!validateDropDatabaseToken(name, token)) {
+          throw new Error(`Invalid or expired confirmation token for dropping '${name}'. Please request a new token with the 'drop-database' tool.`)
+        }
+        await dropDatabase(name)
+        return {
+          content: [{
+            type: 'text',
+            text: `Database '${name}' has been permanently deleted.\n\nIf you were previously connected to this database, you have been automatically switched to the 'admin' database.`
+          }]
+        }
+      }, `Error dropping database '${name}'`)
     }
   )
 
@@ -1489,7 +1584,7 @@ const registerTools = (server) => {
       limit: z.number().int().min(1).default(10).describe('Maximum number of documents to return'),
       skip: z.number().int().min(0).default(0).describe('Number of documents to skip'),
       sort: z.string().optional().describe('Sort specification (JSON string)'),
-      streaming: z.boolean().default(false).describe('Enable streaming for large result sets')
+      streaming: createBooleanSchema('Enable streaming for large result sets', 'false')
     },
     async ({ collection, filter, projection, limit, skip, sort, streaming }) => {
       try {
@@ -1595,7 +1690,7 @@ const registerTools = (server) => {
     {
       collection: z.string().min(1).describe('Collection name'),
       pipeline: z.string().describe('Aggregation pipeline as JSON string array'),
-      streaming: z.boolean().default(false).describe('Enable streaming results for large datasets'),
+      streaming: createBooleanSchema('Enable streaming results for large datasets', 'false'),
       limit: z.number().int().min(1).default(1000).describe('Maximum number of results to return when streaming')
     },
     async ({ collection, pipeline, streaming, limit }) => {
@@ -1873,7 +1968,7 @@ const registerTools = (server) => {
     'Run validation on a collection to check for inconsistencies',
     {
       collection: z.string().min(1).describe('Collection name'),
-      full: z.boolean().default(false).describe('Perform full validation (slower but more thorough)')
+      full: createBooleanSchema('Perform full validation (slower but more thorough)', 'false')
     },
     async ({ collection, full }) => {
       try {
@@ -1972,7 +2067,7 @@ const registerTools = (server) => {
     {
       oldName: z.string().min(1).describe('Current collection name'),
       newName: z.string().min(1).describe('New collection name'),
-      dropTarget: z.boolean().default(false).describe('Whether to drop target collection if it exists')
+      dropTarget: createBooleanSchema('Whether to drop target collection if it exists', 'false')
     },
     async ({ oldName, newName, dropTarget }) => {
       try {
@@ -2148,7 +2243,7 @@ const registerTools = (server) => {
     {
       collection: z.string().min(1).describe('Collection name'),
       operations: z.string().describe('Array of operations as JSON string'),
-      ordered: z.boolean().default(true).describe('Whether operations should be performed in order')
+      ordered: createBooleanSchema('Whether operations should be performed in order', 'true')
     },
     async ({ collection, operations, ordered }) => {
       try {
@@ -2303,7 +2398,7 @@ const registerTools = (server) => {
       collection: z.string().min(1).describe('Collection name'),
       operations: z.array(z.enum(['insert', 'update', 'delete', 'replace'])).default(['insert', 'update', 'delete']).describe('Operations to watch'),
       duration: z.number().int().min(1).max(60).default(10).describe('Duration to watch in seconds'),
-      fullDocument: z.boolean().default(false).describe('Include full document in update events')
+      fullDocument: createBooleanSchema('Include full document in update events', 'false')
     },
     async ({ collection, operations, duration, fullDocument }) => {
       try {
@@ -2375,8 +2470,8 @@ const registerTools = (server) => {
       collection: z.string().min(1).describe('Collection name'),
       searchText: z.string().min(1).describe('Text to search for'),
       language: z.string().optional().describe('Optional language for text search'),
-      caseSensitive: z.boolean().default(false).describe('Case sensitive search'),
-      diacriticSensitive: z.boolean().default(false).describe('Diacritic sensitive search'),
+      caseSensitive: createBooleanSchema('Case sensitive search', 'false'),
+      diacriticSensitive: createBooleanSchema('Diacritic sensitive search', 'false'),
       limit: z.number().int().min(1).default(10).describe('Maximum results to return')
     },
     async ({ collection, searchText, language, caseSensitive, diacriticSensitive, limit }) => {
@@ -2573,7 +2668,7 @@ const registerTools = (server) => {
       filter: z.string().default('{}').describe('Query filter as JSON string'),
       locale: z.string().min(2).describe('Locale code (e.g., "en", "fr", "de")'),
       strength: z.number().int().min(1).max(5).default(3).describe('Collation strength (1-5)'),
-      caseLevel: z.boolean().default(false).describe('Consider case in first-level differences'),
+      caseLevel: createBooleanSchema('Consider case in first-level differences', 'false'),
       sort: z.string().optional().describe('Sort specification as JSON string')
     },
     async ({ collection, filter, locale, strength, caseLevel, sort }) => {
@@ -2819,6 +2914,62 @@ const listDatabases = async () => {
   return result.databases
 }
 
+const createDatabase = async (dbName, validateName = true) => {
+  log(`DB Operation: Creating database '${dbName}'…`)
+  if (validateName.toLowerCase() === 'true') {
+    const invalidChars = /[\/\\.\s"$*<>:|?]/
+    if (invalidChars.test(dbName)) {
+      throw new Error(`Invalid database name: '${dbName}'. Database names cannot contain spaces or special characters like /, \\, ., ", $, *, <, >, :, |, ?`)
+    }
+    if (dbName.length > 63) {
+      throw new Error(`Invalid database name: '${dbName}'. Database names must be shorter than 64 characters.`)
+    }
+  }
+  
+  const db = mongoClient.db(dbName)
+  const metadataCollectionName = 'mongodb-lens'
+  const timestamp = new Date()
+  const serverInfo = await mongoClient.db('admin').command({ buildInfo: 1 }).catch(() => ({ version: 'Unknown' }))
+  const clientInfo = await mongoClient.db('admin').command({ connectionStatus: 1 }).catch(() => ({ authInfo: { authenticatedUsers: [] } }))
+  const metadata = {
+    created: {
+      timestamp,
+      tool: `MongoDB Lens v${PACKAGE_VERSION}`,
+      user: clientInfo.authInfo?.authenticatedUsers[0]?.user || 'anonymous'
+    },
+    mongodb: {
+      version: serverInfo.version,
+      connectionInfo: {
+        host: mongoClient.s?.options?.hosts?.map(h => `${h.host}:${h.port}`).join(',') || 'unknown',
+        readPreference: mongoClient.s?.readPreference?.mode || 'primary'
+      }
+    },
+    database: {
+      name: dbName,
+      description: 'Created via MongoDB Lens'
+    },
+    system: {
+      hostname: process.env.HOSTNAME || 'unknown',
+      platform: process.platform,
+      nodeVersion: process.version
+    },
+    lens: {
+      version: PACKAGE_VERSION,
+      startTimestamp: new Date(Date.now() - (process.uptime() * 1000))
+    }
+  }
+  
+  try {
+    await db.createCollection(metadataCollectionName)
+    await db.collection(metadataCollectionName).insertOne(metadata)
+    log(`Tool: Database '${dbName}' created successfully with metadata collection.`)
+  } catch (error) {
+    log(`Warning: Created database '${dbName}' but metadata insertion failed: ${error.message}`, true)
+  }
+  
+  return db
+}
+
 const switchDatabase = async (dbName) => {
   log(`DB Operation: Switching to database '${dbName}'…`)
   try {
@@ -2833,6 +2984,50 @@ const switchDatabase = async (dbName) => {
     log(`DB Operation: Failed to switch to database '${dbName}': ${error.message}`)
     throw error
   }
+}
+
+const dropDatabase = async (dbName) => {
+  log(`DB Operation: Dropping database '${dbName}'…`)
+  if (dbName.toLowerCase() === 'admin') throw new Error(`Dropping the 'admin' database is prohibited.`)
+  try {
+    const db = mongoClient.db(dbName)
+    await db.dropDatabase()
+    if (currentDbName === dbName) {
+      currentDbName = 'admin'
+      currentDb = mongoClient.db('admin')
+      log(`DB Operation: Switched to 'admin' database after dropping '${dbName}'`)
+    }
+    log(`DB Operation: Database '${dbName}' dropped successfully.`)
+    return { success: true, name: dbName }
+  } catch (error) {
+    log(`DB Operation: Database drop failed: ${error.message}`)
+    throw error
+  }
+}
+
+const storeDropDatabaseToken = (dbName) => {
+  const token = generateDropToken()
+  dropDatabaseTokens.set(dbName, {
+    token,
+    expires: Date.now() + 5 * 60 * 1000 // 5 minutes
+  })
+  return token
+}
+
+const generateDropToken = () => {
+  return String(Math.floor(Math.random() * 10000)).padStart(4, '0')
+}
+
+const validateDropDatabaseToken = (dbName, token) => {
+  const storedData = dropDatabaseTokens.get(dbName)
+  if (!storedData) return false
+  if (Date.now() > storedData.expires) {
+    dropDatabaseTokens.delete(dbName)
+    return false
+  }
+  if (storedData.token !== token) return false
+  dropDatabaseTokens.delete(dbName)
+  return true
 }
 
 const createUser = async (username, password, roles) => {
@@ -4849,6 +5044,13 @@ const monitorBinarySize = (size) => {
   }
   return mb < 50
 }
+
+const createBooleanSchema = (description, defaultValue = 'true') => 
+  z.string()
+    .transform(val => val?.toLowerCase())
+    .pipe(z.enum(['true', 'false']))
+    .default(defaultValue)
+    .describe(description)
 
 const cleanup = async () => {
   if (watchdog) {

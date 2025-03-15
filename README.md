@@ -43,11 +43,15 @@
 - `compare-schemas`: Compare schemas between two collections
 - `count-documents`: Count documents matching specified criteria
 - `create-collection`: Create new collections with custom options
+- `create-database`: Create a new MongoDB database (without switching to it)
+- `create-database-and-switch`: Create a new MongoDB database and switch to it
 - `create-index`: Create new indexes for performance optimization
 - `create-timeseries`: Create time series collections for temporal data
 - `current-database`: Show the current database context
 - `distinct-values`: Extract unique values for any field
 - `drop-collection`: Remove collections from the database
+- `drop-database`: Request to drop a database (requires confirmation token for safety)
+- `drop-database-confirm`: Confirm and execute database drop operation with token
 - `explain-query`: Analyze query execution plans
 - `export-data`: Export query results in JSON or CSV format
 - `find-documents`: Run queries with filters, projections, and sorting (with streaming for large result sets)
@@ -102,6 +106,8 @@
 
 ### Other Features
 
+MongoDB Lens includes several additional features to enhance your MongoDB experience:
+
 - **Sanitized Inputs**: Security enhancements for query processing
 - **Configuration File**: Custom configuration via `~/.mongodb-lens.json`
 - **Connection Resilience**: Automatic reconnection with exponential backoff
@@ -109,6 +115,20 @@
 - **JSONRPC Error Handling**: Comprehensive error handling with proper error codes
 - **Memory Management**: Automatic memory monitoring and cleanup for large operations
 - **Streaming Support**: Stream large result sets for `find-documents` and `aggregate-data` operations
+
+#### Other Features: `mongodb-lens` Collection
+
+It's important to note that when creating a database with MongoDB Lens via the `create-database` or `create-database-and-switch` tools, a `mongodb-lens` collection is automatically added to your new database with a single document containing metadata about the database creation process.
+
+This serves several important purposes:
+
+- **MongoDB Requirement**: MongoDB only persists databases containing at least one collection
+- **Audit Trail**: Records who created the database, when, and with which tool version
+- **Usage Analytics**: Enables tracking of database creation and management patterns
+- **Diagnostics**: Captures environment details useful for troubleshooting
+- **Documentation**: Provides context for database purpose and origin
+
+Once you've started adding other collections to your new database, the `mongodb-lens` collection can be safely ignored or removed without affecting database functionality.
 
 ## Installation
 
@@ -600,12 +620,20 @@ With your MCP Client running and connected to MongoDB Lens, try the folowing exa
   <sup>➥ Uses `list-collections` tool</sup>
 - _"Get statistics for the sample_mflix database"_<br>
   <sup>➥ Uses `get-stats` tool with database target</sup>
-- _"Create the temp_collection collection, then drop it"_<br>
+- _"Create a new collection called `temp_collection`, then drop it"_<br>
   <sup>➥ Uses `create-collection` & `drop-collection` tool</sup>
+- _"Create a new database called `other_database`, but stay in the current database"_<br>
+  <sup>➥ Uses `create-database` tool</sup>
+- _"Create a new database called `switch_database` and switch to it"_<br>
+  <sup>➥ Uses `create-database-and-switch` tool</sup>
+- _"I need to drop the test_database"_<br>
+  <sup>➥ Uses `drop-database` tool to get a confirmation token</sup>
+- _"Confirm dropping test_database with token 1234"_<br>
+  <sup>➥ Uses `drop-database-confirm` tool with the provided token</sup>
 
 #### Example Queries: Movie Data Analysis
 
-- _"Count how many movies are in the movies collection"_<br>
+- _"Switch back to `sample_mflix` db and count the movies collection"_<br>
   <sup>➥ Uses `count-documents` tool</sup>
 - _"Find the top 5 movies by IMDB rating with a runtime over 120 minutes"_<br>
   <sup>➥ Uses `find-documents` tool with sort and filter</sup>

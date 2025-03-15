@@ -2590,12 +2590,12 @@ const registerTools = (server) => {
           log(`Warning: Unable to check for text indexes: ${indexError.message}`, true)
         }
         
-        const textSearchOptions = {}
-        if (language) textSearchOptions.language = language
-        if (caseSensitive) textSearchOptions.caseSensitive = true
-        if (diacriticSensitive) textSearchOptions.diacriticSensitive = true
+        const textQuery = { $search: searchText }
+        if (language) textQuery.$language = language
+        if (caseSensitive === 'true') textQuery.$caseSensitive = true
+        if (diacriticSensitive === 'true') textQuery.$diacriticSensitive = true
         
-        const query = { $text: { $search: searchText, ...textSearchOptions } }
+        const query = { $text: textQuery }
         const projection = { score: { $meta: 'textScore' } }
         const sort = { score: { $meta: 'textScore' } }
         

@@ -700,9 +700,9 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 - [Example Queries: Querying Data](#example-queries-querying-data)
 - [Example Queries: Schema Analysis](#example-queries-schema-analysis)
 - [Example Queries: Data Modification](#example-queries-data-modification)
-- [Example Queries: Performance & Index Management](#example-queries-performance--index-management)
-- [Example Queries: Geospatial & Special Operations](#example-queries-geospatial--special-operations)
-- [Example Queries: Export, Administrative & Other Features](#example-queries-export--administrative-features)
+- [Example Queries: Performance & Index Management](#example-queries-performance-index-management)
+- [Example Queries: Geospatial & Special Operations](#example-queries-geospatial-special-operations)
+- [Example Queries: Export, Administrative & Other Features](#example-queries-export-administrative-features)
 
 ### Tutorial: 4. Example Queries
 

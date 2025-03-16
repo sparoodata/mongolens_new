@@ -692,7 +692,7 @@ Example [Claude Desktop configuration](#client-setup-claude-desktop):
 
 ### Tutorial: 4. Example Queries
 
-With your MCP Client running and connected to MongoDB Lens, try the following example queries demonstrating MongoDB Lens's  tools, resources, and prompts:
+With your MCP Client running and connected to MongoDB Lens, try the following example queries:
 
 - [Example Queries: Basic Database Operations](#example-queries-basic-database-operations)
 - [Example Queries: Collection Management](#example-queries-collection-management)
@@ -703,10 +703,6 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 - [Example Queries: Performance & Index Management](#example-queries-performance--index-management)
 - [Example Queries: Geospatial & Special Operations](#example-queries-geospatial--special-operations)
 - [Example Queries: Export, Administrative & Other Features](#example-queries-export-administrative--other-features)
-
-### Tutorial: 4. Example Queries
-
-With your MCP Client running and connected to MongoDB Lens, try the following example queries:
 
 #### Example Queries: Basic Database Operations
 

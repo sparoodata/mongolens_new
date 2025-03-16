@@ -125,7 +125,7 @@ MongoDB Lens includes several additional features:
 
 #### Other Features: New Database Metadata
 
-When MongoDB Lens creates a new database via `create-database` or `create-database-and-switch` tools, it automatically adds a `metadata` collection containing a single document. This serves several purposes:
+When MongoDB Lens creates a new database via the `create-database` tool, it automatically adds a `metadata` collection containing a single document. This serves several purposes:
 
 - MongoDB only persists databases containing at least one collection
 - Records database creation details (timestamp, tool version, user)
@@ -171,7 +171,7 @@ You can safely remove this collection once you've added your own collections to 
 
 #### Other Features: MongoDB Version Compatibility
 
-MongoDB Lens implements a backward compatibility layer to try and work reliably with both older MongoDB deployments and the latest versions, providing consistent behavior without requiring version-specific configuration.
+MongoDB Lens implements a backward compatibility layer to work reliably with both older MongoDB deployments and latest versions, providing consistent behavior without requiring version-specific configuration.
 
 ## Installation
 

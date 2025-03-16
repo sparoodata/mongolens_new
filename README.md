@@ -36,15 +36,14 @@
 ### Tools
 
 - `aggregate-data`: Execute aggregation pipelines
-- `analyze-query-patterns`: Analyze queries and suggest optimizations
+- `analyze-query-patterns`: Analyze live queries and suggest optimizations
 - `analyze-schema`: Automatically infer collection schemas
 - `bulk-operations`: Perform multiple operations efficiently ([requires confirmation](#data-protection-confirmation-for-destructive-operations) for destructive operations)
 - `collation-query`: Find documents with language-specific collation rules
 - `compare-schemas`: Compare schemas between two collections
 - `count-documents`: Count documents matching specified criteria
 - `create-collection`: Create new collections with custom options
-- `create-database`: Create a new database (without switching to it)
-- `create-database-and-switch`: Create a new database and switch to it
+- `create-database`: Create a new database with option to switch to it
 - `create-index`: Create new indexes for performance optimization
 - `create-timeseries`: Create time series collections for temporal data
 - `create-user`: Create new database users with specific roles
@@ -673,221 +672,140 @@ Example [Claude Desktop configuration](#client-setup-claude-desktop):
 
 ### Tutorial: 4. Example Queries
 
-With your MCP Client running and connected to MongoDB Lens, try the folowing example queries demonstrating MongoDB Lens's  tools, resources, and prompts:
+With your MCP Client running and connected to MongoDB Lens, try the following example queries demonstrating MongoDB Lens's  tools, resources, and prompts:
 
 - [Example Queries: Basic Database Operations](#example-queries-basic-database-operations)
-- [Example Queries: Movie Data Analysis](#example-queries-movie-data-analysis)
-- [Example Queries: Airbnb Data Exploration](#example-queries-airbnb-data-exploration)
-- [Example Queries: Weather Data Operations](#example-queries-weather-data-operations)
-- [Example Queries: Geospatial Operations](#example-queries-geospatial-operations)
-- [Example Queries: Time Series & Change Streams](#example-queries-time-series--change-streams)
-- [Example Queries: Bulk Operations & Data Modeling](#example-queries-bulk-operations--data-modeling)
-- [Example Queries: Administrative Operations](#example-queries-administrative-operations)
-- [Example Queries: Advanced Features](#example-queries-advanced-features)
+- [Example Queries: Collection Management](#example-queries-collection-management)
+- [Example Queries: User Management](#example-queries-user-management)
+- [Example Queries: Querying Data](#example-queries-querying-data)
+- [Example Queries: Schema Analysis](#example-queries-schema-analysis)
+- [Example Queries: Data Modification](#example-queries-data-modification)
+- [Example Queries: Performance & Index Management](#example-queries-performance--index-management)
+- [Example Queries: Geospatial & Special Operations](#example-queries-geospatial--special-operations)
+- [Example Queries: Export, Administrative & Other Features](#example-queries-export--administrative-features)
+
+### Tutorial: 4. Example Queries
+
+With your MCP Client running and connected to MongoDB Lens, try the following example queries:
 
 #### Example Queries: Basic Database Operations
 
 - _"List all available databases"_<br>
-  <sup>➥ Uses `list-databases` tool</sup>
-- _"What's the current database I'm connected to?"_<br>
-  <sup>➥ Uses `current-database` tool</sup>
+ <sup>➥ Uses `list-databases` tool</sup>
+- _"What database am I currently using?"_<br>
+ <sup>➥ Uses `current-database` tool</sup>
 - _"Switch to the sample_mflix database"_<br>
-  <sup>➥ Uses `use-database` tool</sup>
-- _"What collections are available in this database?"_<br>
-  <sup>➥ Uses `list-collections` tool</sup>
-- _"Get statistics for the sample_mflix database"_<br>
-  <sup>➥ Uses `get-stats` tool with database target</sup>
-- _"Create a new collection called temp_collection"_<br>
-  <sup>➥ Uses `create-collection` tool</sup>
-- _"Drop the collection temp_collection"_<br>
-  <sup>➥ Uses `drop-collection` tool with confirmation flow</sup>
-- _"Create a new database called other_database, but stay in the current database"_<br>
-  <sup>➥ Uses `create-database` tool</sup>
-- _"Create a new database called switch_database and switch to it"_<br>
-  <sup>➥ Uses `create-database-and-switch` tool</sup>
-- _"Drop the other_database"_<br>
-  <sup>➥ Uses `drop-database` tool to get a confirmation token</sup>
-- _"Drop other_database with token 1234"_<br>
-  <sup>➥ Uses `drop-database` tool with the token parameter</sup>
-- _"Delete all documents where status equals 'inactive' from the users collection"_<br>
-  <sup>➥ Uses `delete-document` tool with confirmation flow</sup>
+ <sup>➥ Uses `use-database` tool</sup>
+- _"Create a new database called test_db"_<br>
+ <sup>➥ Uses `create-database` tool</sup>
+- _"Create another database called analytics_db and switch to it"_<br>
+ <sup>➥ Uses `create-database` tool with switch=true</sup>
+- _"Drop the test_db database"_<br>
+ <sup>➥ Uses `drop-database` tool</sup>
+- _"Drop test_db with token 1234"_<br>
+ <sup>➥ Uses `drop-database` tool (with token)</sup>
 
-#### Example Queries: Movie Data Analysis
+#### Example Queries: Collection Management
 
-- _"Switch back to sample_mflix db and count the movies collection"_<br>
-  <sup>➥ Uses `count-documents` tool</sup>
-- _"Find the top 5 movies by IMDB rating with a runtime over 120 minutes"_<br>
-  <sup>➥ Uses `find-documents` tool with sort and filter</sup>
-- _"What's the schema of the movies collection?"_<br>
-  <sup>➥ Uses `analyze-schema` tool</sup>
-- _"Find distinct countries where movies were produced"_<br>
-  <sup>➥ Uses `distinct-values` tool</sup>
+- _"What collections are in the current database?"_<br>
+ <sup>➥ Uses `list-collections` tool</sup>
+- _"Create a new collection named user_logs"_<br>
+ <sup>➥ Uses `create-collection` tool</sup>
+- _"Drop the user_logs collection"_<br>
+ <sup>➥ Uses `drop-collection` tool</sup>
+- _"Drop user_logs collection with token 5678"_<br>
+ <sup>➥ Uses `drop-collection` tool (with token)</sup>
+- _"Rename the user_logs collection to system_logs"_<br>
+ <sup>➥ Uses `rename-collection` tool</sup>
+- _"Check the data consistency in the movies collection"_<br>
+ <sup>➥ Uses `validate-collection` tool</sup>
+
+#### Example Queries: User Management
+
+- _"Create a read-only user for analytics"_<br>
+ <sup>➥ Uses `create-user` tool</sup>
+- _"Drop the inactive_user account"_<br>
+ <sup>➥ Uses `drop-user` tool</sup>
+- _"Drop inactive_user with token 7890"_<br>
+ <sup>➥ Uses `drop-user` tool (with token)</sup>
+
+#### Example Queries: Querying Data
+
+- _"Count all documents in the movies collection"_<br>
+ <sup>➥ Uses `count-documents` tool</sup>
+- _"Find the top 5 movies with the highest IMDB rating"_<br>
+ <sup>➥ Uses `find-documents` tool</sup>
+- _"Show me aggregate data for movies grouped by decade"_<br>
+ <sup>➥ Uses `aggregate-data` tool</sup>
+- _"List all unique countries where movies were produced"_<br>
+ <sup>➥ Uses `distinct-values` tool</sup>
+- _"Search for movies containing 'godfather' in their title"_<br>
+ <sup>➥ Uses `text-search` tool</sup>
+- _"Find German users with last name 'müller' using proper collation"_<br>
+ <sup>➥ Uses `collation-query` tool</sup>
+
+#### Example Queries: Schema Analysis
+
+- _"What's the schema structure of the movies collection?"_<br>
+ <sup>➥ Uses `analyze-schema` tool</sup>
+- _"Compare the schema between users and comments collections"_<br>
+ <sup>➥ Uses `compare-schemas` tool</sup>
+- _"Generate a JSON schema validator for the movies collection"_<br>
+ <sup>➥ Uses `generate-schema-validator` tool</sup>
+- _"Analyze common query patterns for the movies collection"_<br>
+ <sup>➥ Uses `analyze-query-patterns` tool</sup>
+
+#### Example Queries: Data Modification
+
+- _"Insert a new movie document"_<br>
+ <sup>➥ Uses `modify-document` tool (insert operation)</sup>
+- _"Update all movies from 1994 to add a 'classic' flag"_<br>
+ <sup>➥ Uses `modify-document` tool (update operation)</sup>
+- _"Delete all movies with zero ratings"_<br>
+ <sup>➥ Uses `delete-document` tool</sup>
+- _"Delete movies with zero ratings using token 9012"_<br>
+ <sup>➥ Uses `delete-document` tool (with token)</sup>
+- _"Run these bulk operations on the movies collection"_<br>
+ <sup>➥ Uses `bulk-operations` tool</sup>
+
+#### Example Queries: Performance & Index Management
+
 - _"Create an index on the title field in the movies collection"_<br>
-  <sup>➥ Uses `create-index` tool</sup>
-- _"Why is my query for movies with over 1000 votes slow? Help me optimize it"_<br>
-  <sup>➥ Uses `query-optimizer` prompt</sup>
-- _"Run an explain on the query {year: 1995}"_<br>
-  <sup>➥ Uses `explain-query` tool</sup>
-- _"Build an aggregation pipeline to show the count of movies by decade and genre"_<br>
-  <sup>➥ Uses `aggregation-builder` prompt</sup>
-- _"Execute this aggregation pipeline: [{$group: {\_id: {$floor: {$divide: ['$year', 10]}}, count: {$sum: 1}}}]"_<br>
-  <sup>➥ Uses `aggregate-data` tool</sup>
-- _"Update all movies from 1994 to add a 'classic' field set to true"_<br>
-  <sup>➥ Uses `modify-document` tool with update operation</sup>
+ <sup>➥ Uses `create-index` tool</sup>
+- _"Drop the unused ratings_idx index"_<br>
+ <sup>➥ Uses `drop-index` tool</sup>
+- _"Drop the ratings_idx index with token 3456"_<br>
+ <sup>➥ Uses `drop-index` tool (with token)</sup>
+- _"Explain the execution plan for finding movies from 1995"_<br>
+ <sup>➥ Uses `explain-query` tool</sup>
+- _"Get statistics for the current database"_<br>
+ <sup>➥ Uses `get-stats` tool (database target)</sup>
+- _"Show collection stats for the movies collection"_<br>
+ <sup>➥ Uses `get-stats` tool (collection target)</sup>
 
-#### Example Queries: Airbnb Data Exploration
+#### Example Queries: Geospatial & Special Operations
 
-- _"Switch to sample_airbnb database"_<br>
-  <sup>➥ Uses `use-database` tool</sup>
-- _"Get collection statistics for the listingsAndReviews collection"_<br>
-  <sup>➥ Uses `get-stats` tool with collection target</sup>
-- _"What's the validation rules for the listingsAndReviews collection?"_<br>
-  <sup>➥ Uses `collection-validation` resource</sup>
-- _"Show me the indexes on the listingsAndReviews collection"_<br>
-  <sup>➥ Uses `collection-indexes` resource</sup>
-- _"Find listings with more than 5 bedrooms in Manhattan, limited to 10 results"_<br>
-  <sup>➥ Uses `find-documents` tool</sup>
-- _"Get distinct property types in the listings"_<br>
-  <sup>➥ Uses `distinct-values` tool</sup>
-- _"Help me create a query filter to find superhosts with pool amenities"_<br>
-  <sup>➥ Uses `query-builder` prompt</sup>
-- _"Export the top 20 highest-rated listings in Brooklyn as CSV with name, price, and rating"_<br>
-  <sup>➥ Uses `export-data` tool</sup>
-- _"Is my schema optimized for querying by neighborhood? Analyze and give recommendations"_<br>
-  <sup>➥ Uses `schema-analysis` prompt</sup>
-- _"Rename the reviews collection to guest_reviews"_<br>
-  <sup>➥ Uses `rename-collection` tool</sup>
-
-#### Example Queries: Weather Data Operations
-
-- _"Switch to sample_weatherdata database"_<br>
-  <sup>➥ Uses `use-database` tool</sup>
-- _"What's in the schema of the data collection?"_<br>
-  <sup>➥ Uses `collection-schema` resource</sup>
-- _"Find the highest recorded temperatures with a callLetters of 'SHIP'"_<br>
-  <sup>➥ Uses `find-documents` tool</sup>
-- _"Validate the data collection for inconsistencies"_<br>
-  <sup>➥ Uses `validate-collection` tool</sup>
-- _"Insert a new weather record for today"_<br>
-  <sup>➥ Uses `modify-document` tool with insert operation</sup>
-- _"Create a new collection called weather_summary"_<br>
-  <sup>➥ Uses `create-collection` tool</sup>
-- _"Create index recommendation for queries that filter by callLetters and sort by date"_<br>
-  <sup>➥ Uses `index-recommendation` prompt</sup>
-- _"Show me how to write a MapReduce operation to get average temperatures by day"_<br>
-  <sup>➥ Uses `mongo-shell` prompt</sup>
-- _"Run this MapReduce to calculate average pressure by location"_<br>
-  <sup>➥ Uses `map-reduce` tool</sup>
-- _"Delete all weather readings below -50 degrees"_<br>
-  <sup>➥ Uses `delete-document` tool</sup>
-
-#### Example Queries: Geospatial Operations
-
-- _"Switch to sample_geospatial database"_<br>
-  <sup>➥ Uses `use-database` tool</sup>
-- _"Find all shipwrecks within 5km of the coast of Florida"_<br>
-  <sup>➥ Uses `geo-query` tool with near operator</sup>
-- _"Show me restaurants that fall within the downtown Manhattan polygon"_<br>
-  <sup>➥ Uses `geo-query` tool with geoWithin operator</sup>
-- _"Which bike routes intersect with Central Park?"_<br>
-  <sup>➥ Uses `geo-query` tool with geoIntersects operator</sup>
-- _"Create a geospatial index on the location field of the neighborhoods collection"_<br>
-  <sup>➥ Uses `create-index` tool with 2dsphere index type</sup>
-- _"Analyze the schema of the shipwrecks collection to understand its geospatial data structure"_<br>
-  <sup>➥ Uses `analyze-schema` tool</sup>
-
-#### Example Queries: Time Series & Change Streams
-
-- _"Create a new time series collection for sensor readings with 'timestamp' as the time field"_<br>
-  <sup>➥ Uses `create-timeseries` tool</sup>
-- _"Watch for changes in the orders collection for the next 30 seconds"_<br>
-  <sup>➥ Uses `watch-changes` tool</sup>
-- _"Monitor all insert operations on the users collection for 15 seconds"_<br>
-  <sup>➥ Uses `watch-changes` tool with specific operations</sup>
-- _"Create a time series collection for IoT device data with hourly granularity"_<br>
-  <sup>➥ Uses `create-timeseries` tool with granularity option</sup>
-- _"Create a time series collection that automatically deletes data older than 30 days"_<br>
-  <sup>➥ Uses `create-timeseries` tool with expireAfterSeconds option</sup>
-
-#### Example Queries: Bulk Operations & Data Modeling
-
-- _"Switch to sample_training database"_<br>
-  <sup>➥ Uses `use-database` tool</sup>
-- _"Execute a bulk operation to update multiple post documents to add 'edited' flags"_<br>
-  <sup>➥ Uses `bulk-operations` tool</sup>
-- _"How should I model a social media application in MongoDB?"_<br>
-  <sup>➥ Uses `data-modeling` prompt</sup>
-- _"Perform a bulk insertion of new product records in the supplies database"_<br>
-  <sup>➥ Uses `bulk-operations` tool</sup>
-- _"Show me how to use MongoDB Lens with the MCP Inspector"_<br>
-  <sup>➥ Uses `inspector-guide` prompt</sup>
-- _"What's the optimal data model for a multi-tenant SaaS application with heavy analytical queries?"_<br>
-  <sup>➥ Uses `data-modeling` prompt</sup>
-
-#### Example Queries: Administrative Operations
-
-- _"Switch to the admin database"_<br>
-  <sup>➥ Uses `use-database` tool</sup>
-- _"Show me the server status"_<br>
-  <sup>➥ Uses `server-status` resource</sup>
-- _"Display the replica set configuration"_<br>
-  <sup>➥ Uses `replica-status` resource</sup>
-- _"List all users in the database"_<br>
-  <sup>➥ Uses `database-users` resource</sup>
-- _"Get any stored JavaScript functions"_<br>
-  <sup>➥ Uses `stored-functions` resource</sup>
-- _"Perform a security audit on my MongoDB deployment"_<br>
-  <sup>➥ Uses `security-audit` prompt</sup>
-- _"What's a good backup strategy for my MongoDB instance?"_<br>
-  <sup>➥ Uses `backup-strategy` prompt</sup>
-- _"How would I migrate from MongoDB 4.4 to 6.0?"_<br>
-  <sup>➥ Uses `migration-guide` prompt</sup>
-
-#### Example Queries: Schema Management & Analysis
-
-- _"Compare schemas between the users and customers collections"_<br>
-  <sup>➥ Uses new `compare-schemas` tool to identify differences</sup>
-- _"Generate a JSON Schema validator for the profiles collection with moderate strictness"_<br>
-  <sup>➥ Uses new `generate-schema-validator` tool</sup>
-- _"Analyze query patterns for the orders collection"_<br>
-  <sup>➥ Uses new `analyze-query-patterns` tool</sup>
-- _"What fields are missing in the new customers collection compared to the old one?"_<br>
-  <sup>➥ Uses `compare-schemas` to analyze migration gaps</sup>
-- _"Are my indexes being used effectively for my queries?"_<br>
-  <sup>➥ Uses `analyze-query-patterns` to identify optimization opportunities</sup>
-
-#### Example Queries: Advanced Features
-
-- _"Switch to sample_mflix database"_<br>
-  <sup>➥ Uses `use-database` tool</sup>
-- _"Search for movies containing the phrase 'space odyssey' using text search"_<br>
-  <sup>➥ Uses `text-search` tool</sup>
-- _"Find users named 'müller' using German collation rules"_<br>
-  <sup>➥ Uses `collation-query` tool</sup>
+- _"Switch to sample_geospatial database, then find all shipwrecks within 10km of coordinates [-80.12, 26.46]"_<br>
+ <sup>➥ Uses `geo-query` tool</sup>
+- _"Switch to sample_mflix database, then run this MapReduce to calculate movie counts by year with map function 'function() { emit(this.year, 1); }' and reduce function 'function(key, values) { return Array.sum(values); }'"_<br>
+ <sup>➥ Uses `map-reduce` tool</sup>
+- _"Switch to sample_analytics database, then execute a transaction to move funds between accounts"_<br>
+ <sup>➥ Uses `transaction` tool</sup>
+- _"Create a time series collection for sensor readings"_<br>
+ <sup>➥ Uses `create-timeseries` tool</sup>
+- _"Watch for changes in the users collection for 30 seconds"_<br>
+ <sup>➥ Uses `watch-changes` tool</sup>
 - _"List all files in the images GridFS bucket"_<br>
-  <sup>➥ Uses `gridfs-operation` tool with list operation</sup>
-- _"Get detailed information about the 'profile.jpg' file in GridFS"_<br>
-  <sup>➥ Uses `gridfs-operation` tool with info operation</sup>
-- _"Delete the 'old_backup.zip' file from the files GridFS bucket"_<br>
-  <sup>➥ Uses `gridfs-operation` tool with delete operation</sup>
-- _"Check the sharding status of the sample_analytics database"_<br>
-  <sup>➥ Uses `shard-status` tool with database target</sup>
-- _"View the sharding distribution for the customers collection"_<br>
-  <sup>➥ Uses `shard-status` tool with collection target</sup>
-- _"Execute a transaction that transfers $100 from account A to account B"_<br>
-  <sup>➥ Uses `transaction` tool</sup>
-- _"Get real-time performance metrics for my MongoDB server"_<br>
-  <sup>➥ Uses `performance-metrics` resource</sup>
-- _"Show me the current event triggers in my database"_<br>
-  <sup>➥ Uses `database-triggers` resource</sup>
-- _"Convert this SQL query to MongoDB: SELECT * FROM users WHERE age > 30 ORDER BY name"_<br>
-  <sup>➥ Uses `sql-to-mongodb` prompt</sup>
-- _"Perform a comprehensive health check on my database"_<br>
-  <sup>➥ Uses `database-health-check` prompt</sup>
-- _"Help me design a multi-tenant architecture for my SaaS application"_<br>
-  <sup>➥ Uses `multi-tenant-design` prompt</sup>
-- _"I need to add user address fields to my schema. How should I version and migrate?"_<br>
-  <sup>➥ Uses `schema-versioning` prompt</sup>
+ <sup>➥ Uses `gridfs-operation` tool (list operation)</sup>
+
+#### Example Queries: Export, Administrative & Other Features
+
+- _"Switch to sample_mflix database, then export the top 20 movies as CSV with title and year fields"_<br>
+ <sup>➥ Uses `export-data` tool</sup>
+- _"Switch to sample_analytics database, then check its sharding status"_<br>
+ <sup>➥ Uses `shard-status` tool</sup>
+- _"Switch to sample_weatherdata database, and generate an interactive report on its current state"_<br>
+  <sup>➥ Uses numerous tools</sup>
 
 ### Tutorial: 5. Working With Confirmation Protection
 

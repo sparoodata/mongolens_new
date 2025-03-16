@@ -1368,45 +1368,37 @@ const registerTools = (server) => {
   
   server.tool(
     'create-database',
-    'Create a new MongoDB database',
+    'Create a new MongoDB database with option to switch',
     {
       name: z.string().min(1).describe('Database name to create'),
-      validateName: createBooleanSchema('Whether to validate database name')
+      switch: createBooleanSchema('Whether to switch to the new database after creation', 'false'),
+      validateName: createBooleanSchema('Whether to validate database name', 'true')
     },
-    async ({ name, validateName }) => {
+    async ({ name, switch: shouldSwitch, validateName }) => {
       return withErrorHandling(async () => {
-        log(`Tool: Creating database '${name}'…`)
-        await createDatabase(name, validateName)
-        return {
-          content: [{
-            type: 'text',
-            text: `Database '${name}' created successfully. Current database is still '${currentDbName}'.`
-          }]
-        }
-      }, `Error creating database '${name}'`)
-    }
-  )
-  
-  server.tool(
-    'create-database-and-switch',
-    'Create a new MongoDB database and switch to it',
-    {
-      name: z.string().min(1).describe('Database name to create and use'),
-      validateName: createBooleanSchema('Whether to validate database name')
-    },
-    async ({ name, validateName }) => {
-      return withErrorHandling(async () => {
-        log(`Tool: Creating and switching to database '${name}'…`)
+        log(`Tool: Creating database '${name}'${shouldSwitch === 'true' ? ' and switching to it' : ''}…`)
         const db = await createDatabase(name, validateName)
-        currentDbName = name
-        currentDb = db
-        return {
-          content: [{
-            type: 'text',
-            text: `Database '${name}' created successfully and connected.`
-          }]
+        
+        if (shouldSwitch === 'true') {
+          currentDbName = name
+          currentDb = db
+          log(`Tool: Switched to database '${name}'.`)
+          return {
+            content: [{
+              type: 'text',
+              text: `Database '${name}' created successfully and connected.`
+            }]
+          }
+        } else {
+          log(`Tool: Database '${name}' created successfully. Current database is still '${currentDbName}'.`)
+          return {
+            content: [{
+              type: 'text',
+              text: `Database '${name}' created successfully. Current database is still '${currentDbName}'.`
+            }]
+          }
         }
-      }, `Error creating and switching to database '${name}'`)
+      }, `Error creating database '${name}'${shouldSwitch === 'true' ? ' and switching to it' : ''}`)
     }
   )
   

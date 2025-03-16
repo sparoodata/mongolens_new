@@ -820,7 +820,7 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 
 #### Example Queries: Export, Administrative & Other Features
 
-- _"Switch to sample_mflix database, then export the top 20 movies as CSV with title and year fields"_<br>
+- _"Switch to sample_mflix database, then export the top 20 movies based on 'tomatoes.critic.rating' as a CSV with title, year and rating fields, output as raw csv text in a single code block"_<br>
  <sup>➥ Uses `export-data` tool</sup>
 - _"Switch to sample_analytics database, then check its sharding status"_<br>
  <sup>➥ Uses `shard-status` tool</sup>

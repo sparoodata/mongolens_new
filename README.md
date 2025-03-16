@@ -171,9 +171,7 @@ You can safely remove this collection once you've added your own collections to 
 
 #### Other Features: MongoDB Version Compatibility
 
-MongoDB Lens aims to work seamlessly across different MongoDB versions without requiring user configuration, automatically adapting to version-specific APIs and result formats.
-
-This backward compatibility layer aims to ensure MongoDB Lens works reliably with both older MongoDB deployments and the latest versions, providing consistent behavior without requiring version-specific configuration.
+MongoDB Lens implements a backward compatibility layer to try and work reliably with both older MongoDB deployments and the latest versions, providing consistent behavior without requiring version-specific configuration.
 
 ## Installation
 

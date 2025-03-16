@@ -110,6 +110,7 @@
 
 - [Other Features: Overview](#other-features-overview)
 - [Other Features: New Database Metadata](#other-features-new-database-metadata)
+- [Other Features: MongoDB Version Compatibility](#other-features-mongodb-version-compatibility)
 
 #### Other Features: Overview
 
@@ -167,6 +168,25 @@ When MongoDB Lens creates a new database via `create-database` or `create-databa
 </details>
 
 You can safely remove this collection once you've added your own collections to the new database.
+
+#### Other Features: MongoDB Version Compatibility
+
+MongoDB Lens aims to work seamlessly across different MongoDB versions without requiring user configuration. It automatically adapts to version-specific APIs and result formats:
+
+- **API Adaptation**: Transparently adjusts to API changes between versions
+- **Legacy Operation Support**: Supports both deprecated and current operation patterns
+- **Automatic Result Format Detection**: Handles both modern and legacy result formats from MongoDB drivers
+
+Key compatibility features include:
+
+- **Index Operations**: Supports various index creation and management APIs
+- **Bulk Operations**: Detects and uses the appropriate bulk API based on availability
+- **Aggregation Pipeline**: Handles different cursor implementations and result formats
+- **CRUD Operations**: Normalizes results across MongoDB versions for consistent responses
+- **Server Status**: Normalizes status information across versions for consistent reporting
+- **Collection Management**: Adapts to different collection creation and modification patterns
+
+This backward compatibility layer aims to ensure MongoDB Lens works reliably with both older MongoDB deployments and the latest versions, providing consistent behavior without requiring version-specific configuration.
 
 ## Installation
 

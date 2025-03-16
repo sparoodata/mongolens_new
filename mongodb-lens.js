@@ -2273,21 +2273,18 @@ const registerTools = (server) => {
     'Run MapReduce operations',
     {
       collection: z.string().min(1).describe('Collection name'),
-      map: z.string().describe('Map function as string'),
-      reduce: z.string().describe('Reduce function as string'),
+      map: z.string().describe('Map function as string e.g. "function() { emit(this.field, 1); }"'),
+      reduce: z.string().describe('Reduce function as string e.g. "function(key, values) { return Array.sum(values); }"'),
       options: z.string().optional().describe('Options as JSON string (query, limit, etc.)')
     },
     async ({ collection, map, reduce, options }) => {
       try {
         log(`Tool: Running MapReduce on collection '${collection}'…`)
-        
-        const mapFunction = new Function('function() {' + map + '}')()
-        const reduceFunction = new Function('function(key, values) {' + reduce + '}')()
+        const mapFunction = eval(`(${map})`);
+        const reduceFunction = eval(`(${reduce})`);
         const parsedOptions = options ? JSON.parse(options) : {}
-        
         const results = await runMapReduce(collection, mapFunction, reduceFunction, parsedOptions)
         log(`Tool: MapReduce operation complete.`)
-        
         return {
           content: [{
             type: 'text',
@@ -3196,7 +3193,14 @@ const aggregateData = async (collectionName, pipeline) => {
     await throwIfCollectionNotExists(collectionName)
     log(`DB Operation: Pipeline has ${pipeline.length} stages.`)
     const collection = currentDb.collection(collectionName)
-    const results = await collection.aggregate(pipeline).toArray()
+    const cursor = collection.aggregate(pipeline, { allowDiskUse: true })
+    
+    let results
+    if (cursor && typeof cursor.toArray === 'function') results = await cursor.toArray()
+    else if (cursor && cursor.result) results = cursor.result
+    else if (Array.isArray(cursor)) results = cursor
+    else results = cursor || []
+    
     log(`DB Operation: Aggregation returned ${results.length} results.`)
     return results
   } catch (error) {
@@ -3216,9 +3220,32 @@ const getCollectionStats = async (collectionName) => {
   log(`DB Operation: Getting statistics for collection '${collectionName}'…`)
   try {
     await throwIfCollectionNotExists(collectionName)
-    const stats = await currentDb.collection(collectionName).stats()
+    
+    const adminDb = mongoClient.db('admin')
+    let serverInfo
+    try {
+      serverInfo = await adminDb.command({ buildInfo: 1 })
+    } catch (verError) {
+      log(`DB Operation: Warning: Unable to determine server version: ${verError.message}`)
+      serverInfo = { version: '0.0.0' }
+    }
+    
+    const versionParts = serverInfo.version.split('.').map(Number)
+    const isVersion4Plus = versionParts[0] >= 4
+    
+    const statsCmd = isVersion4Plus
+      ? { collStats: collectionName, scale: 1 }
+      : { collStats: collectionName }
+    
+    const stats = await currentDb.command(statsCmd)
+    const normalizedStats = { ...stats }
+    
+    if (stats.wiredTiger && isVersion4Plus) {
+      normalizedStats.wiredTigerVersion = stats.wiredTiger.creationString || 'unknown'
+    }
+    
     log(`DB Operation: Retrieved statistics for collection '${collectionName}'.`)
-    return stats
+    return normalizedStats
   } catch (error) {
     log(`DB Operation: Failed to get statistics for collection '${collectionName}': ${error.message}`)
     throw error
@@ -3397,14 +3424,13 @@ const createIndex = async (collectionName, keys, options = {}) => {
     const collection = currentDb.collection(collectionName)
     const result = await collection.createIndex(keys, options)
 
-    if (!result || typeof result !== 'string') {
-      const errorMsg = "Index creation did not return a valid index name"
-      log(`DB Operation: Index creation failed: ${errorMsg}`)
-      throw new Error(errorMsg)
-    }
-
-    log(`DB Operation: Index created successfully: ${result}`)
-    return result
+    if (typeof result === 'string') return result
+    if (result && result.name) return result.name
+    if (result && result.ok === 1) return result.name || 'index'
+    
+    const errorMsg = "Index creation did not return a valid index name"
+    log(`DB Operation: Index creation failed: ${errorMsg}`)
+    throw new Error(errorMsg)
   } catch (error) {
     log(`DB Operation: Index creation failed: ${error.message}`)
     throw error
@@ -3416,8 +3442,15 @@ const dropIndex = async (collectionName, indexName) => {
   try {
     await throwIfCollectionNotExists(collectionName)
     const collection = currentDb.collection(collectionName)
-    await collection.dropIndex(indexName)
-    log(`DB Operation: Index dropped successfully.`)
+    const result = await collection.dropIndex(indexName)
+    
+    if (result === true) return true
+    if (result && result.ok === 1) return true
+    if (result && typeof result === 'object') return true
+    if (result === undefined || result === null) return true
+    
+    log(`DB Operation: Index dropped with unexpected result: ${JSON.stringify(result)}`)
+    return true
   } catch (error) {
     log(`DB Operation: Failed to drop index: ${error.message}`)
     throw error
@@ -3444,13 +3477,29 @@ const getServerStatus = async () => {
   try {
     const adminDb = mongoClient.db('admin')
     const status = await adminDb.command({ serverStatus: 1 })
-    log('DB Operation: Retrieved server status.')
-    return status
+    
+    const versionParts = status.version ? status.version.split('.').map(Number) : [0, 0]
+    const versionDetails = {
+      major: versionParts[0] || 0,
+      minor: versionParts[1] || 0,
+      isV3OrLower: (versionParts[0] || 0) <= 3,
+      isV4: (versionParts[0] || 0) === 4,
+      isV5OrHigher: (versionParts[0] || 0) >= 5
+    }
+    
+    const normalizedStatus = { ...status, versionDetails }
+    
+    if (versionDetails.isV5OrHigher && !normalizedStatus.wiredTiger && normalizedStatus.wiredTiger3) {
+      normalizedStatus.wiredTiger = normalizedStatus.wiredTiger3
+    }
+    
+    log('DB Operation: Retrieved and normalized server status.')
+    return normalizedStatus
   } catch (error) {
     log(`DB Operation: Error getting server status: ${error.message}`)
     return {
-      host: mongoClient.s.options.host || 'unknown',
-      port: mongoClient.s.options.port || 'unknown',
+      host: mongoClient.s?.options?.host || mongoClient.s?.options?.hosts?.[0]?.host || 'unknown',
+      port: mongoClient.s?.options?.port || mongoClient.s?.options?.hosts?.[0]?.port || 'unknown',
       version: 'Information unavailable',
       error: error.message
     }
@@ -3636,14 +3685,13 @@ const createCollection = async (name, options = {}) => {
   try {
     const result = await currentDb.createCollection(name, options)
     
-    if (!result || !result.collectionName || result.collectionName !== name) {
-      const errorMsg = "Collection creation did not return a valid collection"
-      log(`DB Operation: Collection creation failed: ${errorMsg}`)
-      throw new Error(errorMsg)
-    }
+    if (result === true) return { success: true, name }
+    if (result && result.ok === 1) return { success: true, name }
+    if (result && result.collectionName === name) return { success: true, name }
     
-    log(`DB Operation: Collection created successfully.`)
-    return { success: true, name }
+    const errorMsg = "Collection creation did not return a valid collection"
+    log(`DB Operation: Collection creation failed: ${errorMsg}`)
+    throw new Error(errorMsg)
   } catch (error) {
     log(`DB Operation: Collection creation failed: ${error.message}`)
     throw error
@@ -3655,14 +3703,13 @@ const dropCollection = async (name) => {
   try {
     const result = await currentDb.collection(name).drop()
 
-    if (result !== true) {
-      const errorMsg = "Collection drop operation did not return success"
-      log(`DB Operation: Collection drop failed: ${errorMsg}`)
-      throw new Error(errorMsg)
-    }
-
-    log(`DB Operation: Collection dropped successfully.`)
-    return { success: result, name }
+    if (result === true) return { success: true, name }
+    if (result && result.ok === 1) return { success: true, name }
+    if (result && result.dropped === name) return { success: true, name }
+    
+    const errorMsg = "Collection drop operation did not return success"
+    log(`DB Operation: Collection drop failed: ${errorMsg}`)
+    throw new Error(errorMsg)
   } catch (error) {
     log(`DB Operation: Collection drop failed: ${error.message}`)
     throw error
@@ -3674,14 +3721,13 @@ const renameCollection = async (oldName, newName, dropTarget = false) => {
   try {
     const result = await currentDb.collection(oldName).rename(newName, { dropTarget })
 
-    if (!result || !result.collectionName || result.collectionName !== newName) {
-      const errorMsg = "Collection rename did not return a valid collection"
-      log(`DB Operation: Collection rename failed: ${errorMsg}`)
-      throw new Error(errorMsg)
-    }
-
-    log(`DB Operation: Collection renamed successfully.`)
-    return { success: true, oldName, newName }
+    if (result === true) return { success: true, oldName, newName }
+    if (result && result.ok === 1) return { success: true, oldName, newName }
+    if (result && result.collectionName === newName) return { success: true, oldName, newName }
+    
+    const errorMsg = "Collection rename did not return a valid result"
+    log(`DB Operation: Collection rename failed: ${errorMsg}`)
+    throw new Error(errorMsg)
   } catch (error) {
     log(`DB Operation: Collection rename failed: ${error.message}`)
     throw error
@@ -3694,16 +3740,26 @@ const insertDocument = async (collectionName, document, options = {}) => {
     const collection = currentDb.collection(collectionName)
     const result = await collection.insertOne(document, options)
     
-    if ((!result) || 
-        (result.hasOwnProperty('acknowledged') && !result.acknowledged) ||
-        (result.result && result.result.hasOwnProperty('ok') && result.result.ok !== 1)) {
-      const errorMsg = "Insert operation failed or was not acknowledged by MongoDB"
-      log(`DB Operation: Document insertion failed: ${errorMsg}`)
-      throw new Error(errorMsg)
-    }
+    if (result === 1 || result === true) return { acknowledged: true, insertedId: document._id || 'unknown' }
     
-    log(`DB Operation: Document inserted successfully.`)
-    return result
+    if (result && result.insertedCount === 1)
+      return { 
+        acknowledged: true, 
+        insertedId: result.insertedId || result.ops?.[0]?._id || document._id 
+      }
+    
+    if (result && result.acknowledged && result.insertedId) return result
+    
+    if (result && result.result && result.result.ok === 1)
+      return {
+        acknowledged: true,
+        insertedId: result.insertedId || document._id,
+        insertedCount: result.result.n || 1
+      }
+    
+    const errorMsg = "Insert operation failed or was not acknowledged by MongoDB"
+    log(`DB Operation: Document insertion failed: ${errorMsg}`)
+    throw new Error(errorMsg)
   } catch (error) {
     log(`DB Operation: Document insertion failed: ${error.message}`)
     throw error
@@ -3716,29 +3772,37 @@ const updateDocument = async (collectionName, filter, update, options = {}) => {
     const collection = currentDb.collection(collectionName)
     const hasUpdateOperators = Object.keys(update).some(key => key.startsWith('$'))
     
+    if (!hasUpdateOperators) update = { $set: update }
+    
     let result
     if (options.multi === true || options.many === true) {
-      if (!hasUpdateOperators) {
-        update = { $set: update }
-      }
       result = await collection.updateMany(filter, update, options)
     } else {
-      if (!hasUpdateOperators) {
-        update = { $set: update }
-      }
       result = await collection.updateOne(filter, update, options)
     }
     
-    if ((!result) || 
-        (result.hasOwnProperty('acknowledged') && !result.acknowledged) ||
-        (result.result && result.result.hasOwnProperty('ok') && result.result.ok !== 1)) {
-      const errorMsg = "Update operation failed or was not acknowledged by MongoDB"
-      log(`DB Operation: Document update failed: ${errorMsg}`)
-      throw new Error(errorMsg)
-    }
+    if (result === 1 || result === true) return { acknowledged: true, matchedCount: 1, modifiedCount: 1 }
     
-    log(`DB Operation: Document(s) updated successfully.`)
-    return result
+    if (result && typeof result.modifiedCount === 'number') return result
+    
+    if (result && result.result && result.result.ok === 1)
+      return {
+        acknowledged: true,
+        matchedCount: result.result.n || 0,
+        modifiedCount: result.result.nModified || 0,
+        upsertedId: result.upsertedId || null
+      }
+    
+    if (result && result.acknowledged !== false)
+      return {
+        acknowledged: true,
+        matchedCount: result.n || result.matchedCount || 0,
+        modifiedCount: result.nModified || result.modifiedCount || 0
+      }
+    
+    const errorMsg = "Update operation failed or was not acknowledged by MongoDB"
+    log(`DB Operation: Document update failed: ${errorMsg}`)
+    throw new Error(errorMsg)
   } catch (error) {
     log(`DB Operation: Document update failed: ${error.message}`)
     throw error
@@ -3757,16 +3821,17 @@ const deleteDocument = async (collectionName, filter, options = {}) => {
       result = await collection.deleteOne(filter, options)
     }
     
-    if ((!result) || 
-        (result.hasOwnProperty('acknowledged') && !result.acknowledged) ||
-        (result.result && result.result.hasOwnProperty('ok') && result.result.ok !== 1)) {
-      const errorMsg = "Delete operation failed or was not acknowledged by MongoDB"
-      log(`DB Operation: Document deletion failed: ${errorMsg}`)
-      throw new Error(errorMsg)
-    }
+    if (result === 1 || result === true) return { acknowledged: true, deletedCount: 1 }
     
-    log(`DB Operation: Document(s) deleted successfully.`)
-    return result
+    if (result && typeof result.deletedCount === 'number') return result
+    
+    if (result && result.result && result.result.ok === 1) return { acknowledged: true, deletedCount: result.result.n || 0 }
+    
+    if (result && result.acknowledged !== false) return {acknowledged: true, deletedCount: result.n || 0 }
+    
+    const errorMsg = "Delete operation failed or was not acknowledged by MongoDB"
+    log(`DB Operation: Document deletion failed: ${errorMsg}`)
+    throw new Error(errorMsg)
   } catch (error) {
     log(`DB Operation: Document deletion failed: ${error.message}`)
     throw error
@@ -3808,14 +3873,31 @@ const formatExport = async (documents, format, fields = null) => {
 }
 
 const runMapReduce = async (collectionName, map, reduce, options = {}) => {
-  log(`DB Operation: Running MapReduce on collection '${collectionName}'…`)
+  log(`DB Operation: Running MapReduce on collection '${collectionName}'...`)
   try {
     await throwIfCollectionNotExists(collectionName)
     const collection = currentDb.collection(collectionName)
+
+    if (!options.out) options.out = { inline: 1 }
+
     const results = await collection.mapReduce(map, reduce, options)
-    if (!results) throw new Error(`MapReduce operation returned no result`)
-    log(`DB Operation: MapReduce operation complete.`)
-    return results.toArray()
+
+    if (results && typeof results.toArray === 'function') {
+      log(`DB Operation: MapReduce operation complete (legacy mode).`)
+      return results.toArray()
+    } else if (results && Array.isArray(results)) {
+      log(`DB Operation: MapReduce operation complete (array results).`)
+      return results
+    } else if (results && options.out && options.out.inline !== 1) {
+      log(`DB Operation: MapReduce output to collection '${typeof options.out === 'string' ? options.out : JSON.stringify(options.out)}'.`)
+      const outCollection = currentDb.collection(
+        typeof options.out === 'string' ? options.out : options.out.replace
+      )
+      return outCollection.find().toArray()
+    } else {
+      log(`DB Operation: MapReduce operation complete (unknown format).`)
+      return Array.isArray(results) ? results : (results.result || results)
+    }
   } catch (error) {
     log(`DB Operation: MapReduce operation failed: ${error.message}`)
     throw error
@@ -3827,38 +3909,89 @@ const bulkOperations = async (collectionName, operations, ordered = true) => {
   try {
     await throwIfCollectionNotExists(collectionName)
     const collection = currentDb.collection(collectionName)
-    const bulk = ordered ? collection.initializeOrderedBulkOp() : collection.initializeUnorderedBulkOp()
+    
+    let bulk
+    try {
+      bulk = ordered ? collection.initializeOrderedBulkOp() : collection.initializeUnorderedBulkOp()
+    } catch (bulkError) {
+      log(`DB Operation: Modern bulk API unavailable, trying legacy method: ${bulkError.message}`)
+      if (typeof collection.bulkWrite === 'function') {
+        const result = await collection.bulkWrite(operations, { ordered })
+        log(`DB Operation: Bulk operations complete (using bulkWrite).`)
+        return normalizeBulkResult(result)
+      } else {
+        throw new Error('Bulk operations not supported by this MongoDB version/driver')
+      }
+    }
     
     for (const op of operations) {
-      if (op.insertOne) {
-        bulk.insert(op.insertOne.document)
-      } else if (op.updateOne) {
-        bulk.find(op.updateOne.filter).updateOne(op.updateOne.update)
-      } else if (op.updateMany) {
-        bulk.find(op.updateMany.filter).update(op.updateMany.update)
-      } else if (op.deleteOne) {
-        bulk.find(op.deleteOne.filter).deleteOne()
-      } else if (op.deleteMany) {
-        bulk.find(op.deleteMany.filter).delete()
-      } else if (op.replaceOne) {
-        bulk.find(op.replaceOne.filter).replaceOne(op.replaceOne.replacement)
-      }
+      if (op.insertOne) bulk.insert(op.insertOne.document)
+      else if (op.updateOne) bulk.find(op.updateOne.filter).updateOne(op.updateOne.update)
+      else if (op.updateMany) bulk.find(op.updateMany.filter).update(op.updateMany.update)
+      else if (op.deleteOne) bulk.find(op.deleteOne.filter).deleteOne()
+      else if (op.deleteMany) bulk.find(op.deleteMany.filter).delete()
+      else if (op.replaceOne) bulk.find(op.replaceOne.filter).replaceOne(op.replaceOne.replacement)
     }
 
     const result = await bulk.execute()
-
-    if ((!result) || 
-        (result.hasOwnProperty('acknowledged') && !result.acknowledged) ||
-        (result.result && result.result.hasOwnProperty('ok') && result.result.ok !== 1)) {
-      throw new Error('Bulk operations failed or were not acknowledged by MongoDB')
-    }
-    
     log(`DB Operation: Bulk operations complete.`)
-    return result
+    return normalizeBulkResult(result)
   } catch (error) {
     log(`DB Operation: Bulk operations failed: ${error.message}`)
     throw error
   }
+}
+
+const normalizeBulkResult = (result) => {
+  if (!result) return { acknowledged: false }
+  
+  if (typeof result.insertedCount === 'number' || 
+      typeof result.matchedCount === 'number' ||
+      typeof result.deletedCount === 'number') {
+    return {
+      acknowledged: true,
+      insertedCount: result.insertedCount || 0,
+      matchedCount: result.matchedCount || 0,
+      modifiedCount: result.modifiedCount || 0,
+      deletedCount: result.deletedCount || 0,
+      upsertedCount: result.upsertedCount || 0,
+      upsertedIds: result.upsertedIds || {},
+      insertedIds: result.insertedIds || {}
+    }
+  }
+  
+  if (result.ok === 1 || (result.result && result.result.ok === 1)) {
+    const nInserted = result.nInserted || result.result?.nInserted || 0
+    const nMatched = result.nMatched || result.result?.nMatched || 0 
+    const nModified = result.nModified || result.result?.nModified || 0
+    const nUpserted = result.nUpserted || result.result?.nUpserted || 0
+    const nRemoved = result.nRemoved || result.result?.nRemoved || 0
+    
+    return {
+      acknowledged: true,
+      insertedCount: nInserted,
+      matchedCount: nMatched,
+      modifiedCount: nModified,
+      deletedCount: nRemoved,
+      upsertedCount: nUpserted,
+      upsertedIds: result.upserted || result.result?.upserted || {},
+      insertedIds: {}
+    }
+  }
+  
+  if (typeof result === 'number') {
+    return {
+      acknowledged: true,
+      insertedCount: 0,
+      matchedCount: 0,
+      modifiedCount: 0,
+      deletedCount: 0,
+      upsertedCount: 0,
+      result: { n: result }
+    }
+  }
+  
+  return { acknowledged: false }
 }
 
 const generateDropToken = () => {

@@ -191,7 +191,7 @@ MongoDB Lens can be installed and run in several ways:
 The easiest way to run MongoDB Lens is using `npx`:
 
 ```console
-# Ensure Node.js is installed 
+# Ensure Node.js is installed
 node --version # Ideally >= v22.x but MongoDB Lens is >= v18.x compatible
 
 # Using default connection string mongodb://localhost:27017
@@ -281,7 +281,7 @@ docker run --rm -i --network=host --pull=always furey/mongodb-lens
 ### Installation Verification
 
 To verify the installation, paste and run the following jsonrpc message into the server's stdio:
-    
+
 ```json
 {"method":"resources/read","params":{"uri":"mongodb://databases"},"jsonrpc":"2.0","id":1}
 ```
@@ -509,7 +509,7 @@ Example NPX usage:
 
     # Using verbose logging
     npx -y @modelcontextprotocol/inspector -e VERBOSE_LOGGING=true npx -y mongodb-lens
-    
+
     # Using custom ports
     SERVER_PORT=1234 CLIENT_PORT=5678 npx -y @modelcontextprotocol/inspector npx -y mongodb-lens
     ```

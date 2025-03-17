@@ -5367,7 +5367,49 @@ const JSONRPC_ERROR_CODES = {
 }
 
 const instructions = `
-MongoDB Lens is an MCP server that lets you interact with MongoDB databases through natural language.
+MongoDB Lens provides natural language access to MongoDB databases through the Model Context Protocol.
+
+CAPABILITIES:
+- Database operations: List, create, switch between, and drop databases
+- Collection management: Create, rename, drop, and validate collections
+- Document operations: Find, count, insert, update, and delete documents
+- Schema analysis: Infer schemas, generate validators, compare collections
+- Indexing: Create, analyze, and optimize indexes for performance
+- Aggregation: Run complex aggregation pipelines and map-reduce operations
+- Performance: Explain queries, analyze patterns, monitor metrics
+- Advanced features: Full-text search, geospatial queries, time-series collections
+- Bulk operations and transactions across multiple documents
+- User management and security operations
+- GridFS support for large file storage
+- Sharding status and management
+- Data export in multiple formats
+
+USAGE PATTERNS:
+- Database exploration: 'databases' and 'collections' resources
+- Data querying: 'find-documents', 'count-documents', 'distinct-values' tools
+- Data modification: 'modify-document', 'delete-document', 'bulk-operations'
+- Schema analysis: 'collection-schema', 'analyze-schema', 'compare-schemas'
+- Performance optimization: 'explain-query', 'analyze-query-patterns', 'create-index'
+- Text and geospatial search: 'text-search', 'geo-query'
+- Complex analysis: 'aggregate-data', 'map-reduce'
+- Monitoring: 'server-status', 'performance-metrics', 'watch-changes'
+- User administration: 'create-user', 'drop-user', 'database-users'
+- Data modeling assistance: Prompts for 'query-builder', 'aggregation-builder', 'data-modeling'
+- Security analysis: 'security-audit', 'backup-strategy'
+
+COMMON FLOWS:
+1. Database navigation: list-databases → use-database → list-collections
+2. Data retrieval: find-documents with filters, projections, and sort options
+3. Data modification: modify-document with insert/update operations
+4. Schema understanding: analyze-schema → generate-schema-validator
+5. Performance tuning: explain-query → analyze-query-patterns → create-index
+6. Data analysis: aggregate-data with multi-stage pipelines for complex analysis
+7. Bulk modifications: bulk-operations for efficient batch processing
+8. Transaction processing: transaction for atomic multi-document operations
+9. Monitoring: server-status → performance-metrics to identify bottlenecks
+10. Schema evolution: schema-versioning prompt for designing data migrations
+
+For destructive operations like dropping collections or deleting documents, confirmation tokens are required for safety.
 
 For full documentation and examples, see: https://github.com/furey/mongodb-lens/blob/main/README.md
 `

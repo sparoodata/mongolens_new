@@ -5367,51 +5367,40 @@ const JSONRPC_ERROR_CODES = {
 }
 
 const instructions = `
-MongoDB Lens provides natural language access to MongoDB databases through the Model Context Protocol.
+MongoDB-Lens: NL→MongoDB via MCP
 
-CAPABILITIES:
-- Database operations: List, create, switch between, and drop databases
-- Collection management: Create, rename, drop, and validate collections
-- Document operations: Find, count, insert, update, and delete documents
-- Schema analysis: Infer schemas, generate validators, compare collections
-- Indexing: Create, analyze, and optimize indexes for performance
-- Aggregation: Run complex aggregation pipelines and map-reduce operations
-- Performance: Explain queries, analyze patterns, monitor metrics
-- Advanced features: Full-text search, geospatial queries, time-series collections
-- Bulk operations and transactions across multiple documents
-- User management and security operations
-- GridFS support for large file storage
-- Sharding status and management
-- Data export in multiple formats
+CAPS:
+• DB: list/create/switch/drop
+• COLL: create/rename/drop/validate
+• DOC: find/count/insert/update/delete
+• SCH: infer/validate/compare/analyze
+• IDX: create/analyze/optimize
+• AGG: pipeline/mapreduce/distinct
+• PERF: explain/analyze/monitor
+• ADV: text/geo/timeseries/bulk/txn/gridfs/sharding/export
 
-USAGE PATTERNS:
-- Database exploration: 'databases' and 'collections' resources
-- Data querying: 'find-documents', 'count-documents', 'distinct-values' tools
-- Data modification: 'modify-document', 'delete-document', 'bulk-operations'
-- Schema analysis: 'collection-schema', 'analyze-schema', 'compare-schemas'
-- Performance optimization: 'explain-query', 'analyze-query-patterns', 'create-index'
-- Text and geospatial search: 'text-search', 'geo-query'
-- Complex analysis: 'aggregate-data', 'map-reduce'
-- Monitoring: 'server-status', 'performance-metrics', 'watch-changes'
-- User administration: 'create-user', 'drop-user', 'database-users'
-- Data modeling assistance: Prompts for 'query-builder', 'aggregation-builder', 'data-modeling'
-- Security analysis: 'security-audit', 'backup-strategy'
+PTRNS:
+• DB_NAV: databases→use-database→collections
+• QRY: find-documents/count-documents/distinct-values
+• MOD: modify-document/delete-document/bulk-operations
+• SCH: collection-schema/analyze-schema/compare-schemas
+• OPT: explain-query/analyze-query-patterns/create-index
+• AGG: aggregate-data/map-reduce
+• MON: server-status/performance-metrics/watch-changes
 
-COMMON FLOWS:
-1. Database navigation: list-databases → use-database → list-collections
-2. Data retrieval: find-documents with filters, projections, and sort options
-3. Data modification: modify-document with insert/update operations
-4. Schema understanding: analyze-schema → generate-schema-validator
-5. Performance tuning: explain-query → analyze-query-patterns → create-index
-6. Data analysis: aggregate-data with multi-stage pipelines for complex analysis
-7. Bulk modifications: bulk-operations for efficient batch processing
-8. Transaction processing: transaction for atomic multi-document operations
-9. Monitoring: server-status → performance-metrics to identify bottlenecks
-10. Schema evolution: schema-versioning prompt for designing data migrations
+FLOWS:
+1. NAV: list-databases→use-database→list-collections
+2. QRY: find-documents{filter,project,sort}
+3. MOD: modify-document{insert|update}
+4. SCH: analyze-schema→generate-schema-validator
+5. PERF: explain-query→analyze-patterns→create-index
+6. AGG: aggregate-data{multi-stage}
+7. BULK: bulk-operations{batch}
+8. TXN: transaction{atomic}
 
-For destructive operations like dropping collections or deleting documents, confirmation tokens are required for safety.
+SAFE: destructive ops require confirmation tokens
 
-For full documentation and examples, see: https://github.com/furey/mongodb-lens/blob/main/README.md
+DOCS: github.com/furey/mongodb-lens/blob/main/README.md
 `
 
 const importantNoticeToAI = `

@@ -537,7 +537,7 @@ To protect your data while using MongoDB Lens, consider the following:
 
 When connecting MongoDB Lens to your database, the permissions granted to the user in your connection string dictate what actions can be performed. For exploration and analysis, a read-only user can prevent unintended writes or deletes, ensuring MongoDB Lens can query data but not alter it.
 
-To set this up, create a user with the `'read'` role scoped to the database(s) you're targeting. In MongoDB shell, you'd run something like:
+To set this up, create a user with the `read` role scoped to the database(s) you're targeting. In MongoDB shell, you'd run something like:
 
 ```js
 use admin
@@ -553,20 +553,22 @@ Then, plug those credentials into your MongoDB Lens connection string (e.g. `mon
 
 ### Data Protection: Working with Database Backups
 
-To keep your production data unmodified while leveraging MongoDB Lens for analysis, its suggested to use a backup copy hosted on a separate MongoDB instance. This setup isolates your live environment, letting you experiment with queries or aggregations without risking accidental corruption.
+When leveraging MongoDB Lens for analysis or experimentation, consider using a backup copy of yoru data hosted on a separate MongoDB instance.
 
-Start by generating a backup with `mongodump`. Next, spin up a fresh MongoDB instance (e.g. on a different port like `27018`) and restore the backup there using `mongorestore`. Once it's running, point MongoDB Lens to the backup instance's connection string (e.g. `mongodb://localhost:27018/mydatabase`).
+Start by generating the backup with `mongodump`. Next, spin up a fresh MongoDB instance (e.g. on a different port like `27018`) and restore the backup there using `mongorestore`. Once it's running, point MongoDB Lens to the backup instance's connection string (e.g. `mongodb://localhost:27018/mydatabase`).
 
-This approach gives you a sandbox to test complex operations—like pipeline-heavy aggregations or schema tweaks—without touching your production data. It's a practical choice when you need to dig into your dataset safely, especially in scenarios where live modifications aren't an option.
+This approach gives you a sandbox to test complex or destructive operations against without risking accidental corruption of your live data.
 
 ### Data Protection: Confirmation for Destructive Operations
 
-MongoDB Lens implements a token-based confirmation system for potentially destructive operations. This system requires a two-step process for executing commands that could result in data loss:
+MongoDB Lens implements a token-based confirmation system for potentially destructive operations, requiring a two-step process to execute tools that may otherwise result in unchecked data loss:
 
-1. First command invocation: Returns a 4-digit confirmation token that expires after 5 minutes
-2. Second command invocation: Executes the operation if provided with the valid token
+1. First tool invocation: Returns a 4-digit confirmation token that expires after 5 minutes
+1. Second tool invocation: Executes the operation if provided with the valid token
 
-Operations that require confirmation include:
+For an example of the confirmation process, see: [Working with Confirmation Protection](#tutorial-5-working-with-confirmation-protection).
+
+Tools that require confirmation include:
 
 - `bulk-operations`: When including delete operations
 - `delete-document`: Delete one or multiple documents
@@ -576,7 +578,10 @@ Operations that require confirmation include:
 - `drop-user`: Remove a database user
 - `rename-collection`: When the target collection exists and will be dropped
 
-This protection mechanism prevents accidental data loss from typos and unintended commands. It's a safety net ensuring you're aware of the consequences before proceeding with potentially harmful actions.
+This protection mechanism aims to prevent accidental data loss from typos and unintended commands. It's a safety net ensuring you're aware of the consequences before proceeding with potentially harmful actions.
+
+> [!NOTE]<br>
+> If you're working in a controlled environment where data loss is acceptable, you can configure MongoDB Lens to [bypass confirmation](#bypassing-confirmation-for-destructive-operations) and perform destructive operations immediately.
 
 #### Bypassing Confirmation for Destructive Operations
 
@@ -600,10 +605,10 @@ docker run --rm -i --network=host -e DISABLE_DESTRUCTIVE_OPERATION_TOKENS='true'
 This following tutorial guides you through setting up a MongoDB container with sample data, then using MongoDB Lens to interact with it through natural language queries:
 
 1. [Start Sample Data Container](#tutorial-1-start-sample-data-container)
-2. [Import Sample Data](#tutorial-2-import-sample-data)
-3. [Connect MongoDB Lens](#tutorial-3-connect-mongodb-lens)
-4. [Example Queries](#tutorial-4-example-queries)
-5. [Working With Confirmation Protection](#tutorial-5-working-with-confirmation-protection)
+1. [Import Sample Data](#tutorial-2-import-sample-data)
+1. [Connect MongoDB Lens](#tutorial-3-connect-mongodb-lens)
+1. [Example Queries](#tutorial-4-example-queries)
+1. [Working With Confirmation Protection](#tutorial-5-working-with-confirmation-protection)
 
 ### Tutorial: 1. Start Sample Data Container
 
@@ -630,11 +635,11 @@ MongoDB provides several [sample datasets](https://www.mongodb.com/docs/atlas/sa
     ```console<br>
     curl -LO https://atlas-education.s3.amazonaws.com/sampledata.archive
     ```
-2. Copy the sample datasets into your sample data container:<br>
+1. Copy the sample datasets into your sample data container:<br>
     ```console
     docker cp sampledata.archive mongodb-sampledata:/tmp/
     ```
-3. Import the sample datasets into MongoDB:<br>
+1. Import the sample datasets into MongoDB:<br>
     ```console
     docker exec -it mongodb-sampledata mongorestore --archive=/tmp/sampledata.archive
     ```
@@ -841,7 +846,8 @@ MongoDB Lens includes a safety mechanism for potentially destructive operations.
 
 This two-step process prevents accidental data loss by requiring explicit confirmation.
 
-For development environments, this can be [bypassed](#bypassing-confirmation-for-destructive-operations) by setting the `DISABLE_DESTRUCTIVE_OPERATION_TOKENS` environment variable to `true`.
+> [!NOTE]<br>
+> If you're working in a controlled environment where data loss is acceptable, you can configure MongoDB Lens to [bypass confirmation](#bypassing-confirmation-for-destructive-operations) and perform destructive operations immediately.
 
 ## Disclaimer
 

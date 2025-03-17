@@ -14,11 +14,11 @@ const { MongoClient, ObjectId, GridFSBucket } = mongodb
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-const VERBOSE_LOGGING = process.env.VERBOSE_LOGGING === 'true'
+const LOG_LEVEL = process.env.LOG_LEVEL || 'info'
 const DISABLE_DESTRUCTIVE_OPERATION_TOKENS = process.env.DISABLE_DESTRUCTIVE_OPERATION_TOKENS === 'true'
 const CONFIG_PATH = process.env.CONFIG_PATH || join(process.env.HOME || __dirname, '.mongodb-lens.json')
 
-const main = async mongoUri => {
+const start = async mongoUri => {
   log(`MongoDB Lens v${getPackageVersion()} starting…`, true)
 
   const connected = await connect(mongoUri)
@@ -125,7 +125,11 @@ const connect = async (uri = 'mongodb://localhost:27017') => {
     })
 
     mongoClient.on('close', () => {
-      log('MongoDB connection closed. Will attempt to reconnect.', true)
+      if (!isShuttingDown) {
+        log('MongoDB connection closed. Will attempt to reconnect.', true)
+      } else {
+        log('MongoDB connection closed during shutdown.')
+      }
     })
 
     log(`Connected to MongoDB successfully, using database: ${currentDbName}`)
@@ -5223,7 +5227,7 @@ const arraysEqual = (a, b) => {
 }
 
 const log = (message, forceLog = false) => {
-  if (forceLog || VERBOSE_LOGGING) console.error(message)
+  if (forceLog || LOG_LEVEL === 'verbose') console.error(message)
 }
 
 const getPackageVersion = () => {
@@ -5236,12 +5240,14 @@ const getPackageVersion = () => {
 }
 
 process.on('SIGTERM', async () => {
+  isShuttingDown = true
   log('Received SIGTERM, shutting down…')
   await cleanup()
   exit()
 })
 
 process.on('SIGINT', async () => {
+  isShuttingDown = true
   log('Received SIGINT, shutting down…')
   await cleanup()
   exit()
@@ -5305,6 +5311,7 @@ let mongoClient = null
 let currentDbName = null
 let packageVersion = null
 let connectionRetries = 0
+let isShuttingDown = false
 
 const CACHE_TTL = {
   SCHEMAS: 60 * 1000,
@@ -5379,4 +5386,4 @@ if (existsSync(CONFIG_PATH))
 
 const mongoUri = process.argv[2]
 
-main(mongoUri)
+start(mongoUri)

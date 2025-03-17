@@ -331,18 +331,18 @@ If no connection string is provided, the server will attempt to connect via loca
 
 With verbose logging enabled, the server will output additional information to the console.
 
-To enable verbose logging, set environment variable `VERBOSE_LOGGING` to `true`.
+To enable verbose logging, set environment variable `LOG_LEVEL` to `verbose`.
 
 Example NPX usage:
 
 ```console
-VERBOSE_LOGGING=true npx -y mongodb-lens mongodb://your-connection-string
+LOG_LEVEL=verbose npx -y mongodb-lens mongodb://your-connection-string
 ```
 
 Example Docker Hub usage:
 
 ```console
-docker run --rm -i --network=host -e VERBOSE_LOGGING='true' furey/mongodb-lens mongodb://your-connection-string
+docker run --rm -i --network=host -e LOG_LEVEL='verbose' furey/mongodb-lens mongodb://your-connection-string
 ```
 
 ### Configuration: Config File
@@ -403,7 +403,7 @@ To use MongoDB Lens with Claude Desktop:
 For each option:
 
 - Replace `mongodb://your-connection-string` with your MongoDB connection string or omit it to use the default `mongodb://localhost:27017`.
-- Set `VERBOSE_LOGGING` to `true` or `false`.
+- For verbose logging set `LOG_LEVEL` to `verbose`, otherwise set `LOG_LEVEL` to `info` (or omit entirely).
 - To use a custom config file, see [Configuration: Config File](#configuration-config-file) and adapt option accordingly.
 
 ##### Option 1: NPX (Recommended)
@@ -419,7 +419,7 @@ For each option:
         "mongodb://your-connection-string"
       ],
       "env": {
-        "VERBOSE_LOGGING": "[true|false]"
+        "LOG_LEVEL": "[verbose|info]"
       }
     }
   }
@@ -440,7 +440,7 @@ For each option:
         "--network=host",
         "--pull=always",
         "-e",
-        "VERBOSE_LOGGING=[true|false]",
+        "LOG_LEVEL=[verbose|info]",
         "furey/mongodb-lens",
         "mongodb://your-connection-string"
       ]
@@ -461,7 +461,7 @@ For each option:
         "mongodb://your-connection-string"
       ],
       "env": {
-        "VERBOSE_LOGGING": "[true|false]"
+        "LOG_LEVEL": "[verbose|info]"
       }
     }
   }
@@ -481,7 +481,7 @@ For each option:
         "-i",
         "--network=host",
         "-e",
-        "VERBOSE_LOGGING=[true|false]",
+        "LOG_LEVEL=[verbose|info]",
         "mongodb-lens",
         "mongodb://your-connection-string"
       ]
@@ -508,7 +508,7 @@ Example NPX usage:
     npx -y @modelcontextprotocol/inspector npx -y mongodb-lens mongodb://your-connection-string
 
     # Using verbose logging
-    npx -y @modelcontextprotocol/inspector -e VERBOSE_LOGGING=true npx -y mongodb-lens
+    npx -y @modelcontextprotocol/inspector -e LOG_LEVEL=verbose npx -y mongodb-lens
 
     # Using custom ports
     SERVER_PORT=1234 CLIENT_PORT=5678 npx -y @modelcontextprotocol/inspector npx -y mongodb-lens

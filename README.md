@@ -835,9 +835,9 @@ MongoDB Lens includes a safety mechanism for potentially destructive operations.
 
     This code will expire in 5 minutes for security purposes.
     ```
-1. Confirm the operation by including the confirmation token:<br>
+1. Confirm the operation by submitting the confirmation token:<br>
     ```
-    "Drop test_collection with token 1234"
+    "9876"
     ```
 1. MongoDB Lens executes the operation:<br>
     ```

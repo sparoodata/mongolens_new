@@ -191,7 +191,7 @@ MongoDB Lens can be installed and run in several ways:
 The easiest way to run MongoDB Lens is using `npx`:
 
 ```console
-# Ensure Node.js is installed 
+# Ensure Node.js is installed
 node --version # Ideally >= v22.x but MongoDB Lens is >= v18.x compatible
 
 # Using default connection string mongodb://localhost:27017
@@ -281,7 +281,7 @@ docker run --rm -i --network=host --pull=always furey/mongodb-lens
 ### Installation Verification
 
 To verify the installation, paste and run the following jsonrpc message into the server's stdio:
-    
+
 ```json
 {"method":"resources/read","params":{"uri":"mongodb://databases"},"jsonrpc":"2.0","id":1}
 ```
@@ -331,18 +331,18 @@ If no connection string is provided, the server will attempt to connect via loca
 
 With verbose logging enabled, the server will output additional information to the console.
 
-To enable verbose logging, set environment variable `VERBOSE_LOGGING` to `true`.
+To enable verbose logging, set environment variable `LOG_LEVEL` to `verbose`.
 
 Example NPX usage:
 
 ```console
-VERBOSE_LOGGING=true npx -y mongodb-lens mongodb://your-connection-string
+LOG_LEVEL=verbose npx -y mongodb-lens mongodb://your-connection-string
 ```
 
 Example Docker Hub usage:
 
 ```console
-docker run --rm -i --network=host -e VERBOSE_LOGGING='true' furey/mongodb-lens mongodb://your-connection-string
+docker run --rm -i --network=host -e LOG_LEVEL='verbose' furey/mongodb-lens mongodb://your-connection-string
 ```
 
 ### Configuration: Config File
@@ -403,7 +403,7 @@ To use MongoDB Lens with Claude Desktop:
 For each option:
 
 - Replace `mongodb://your-connection-string` with your MongoDB connection string or omit it to use the default `mongodb://localhost:27017`.
-- Set `VERBOSE_LOGGING` to `true` or `false`.
+- For verbose logging, set `LOG_LEVEL` to `verbose`, otherwise set to `info` (or omit entirely).
 - To use a custom config file, see [Configuration: Config File](#configuration-config-file) and adapt option accordingly.
 
 ##### Option 1: NPX (Recommended)
@@ -419,7 +419,7 @@ For each option:
         "mongodb://your-connection-string"
       ],
       "env": {
-        "VERBOSE_LOGGING": "[true|false]"
+        "LOG_LEVEL": "[verbose|info]"
       }
     }
   }
@@ -440,7 +440,7 @@ For each option:
         "--network=host",
         "--pull=always",
         "-e",
-        "VERBOSE_LOGGING=[true|false]",
+        "LOG_LEVEL=[verbose|info]",
         "furey/mongodb-lens",
         "mongodb://your-connection-string"
       ]
@@ -461,7 +461,7 @@ For each option:
         "mongodb://your-connection-string"
       ],
       "env": {
-        "VERBOSE_LOGGING": "[true|false]"
+        "LOG_LEVEL": "[verbose|info]"
       }
     }
   }
@@ -481,7 +481,7 @@ For each option:
         "-i",
         "--network=host",
         "-e",
-        "VERBOSE_LOGGING=[true|false]",
+        "LOG_LEVEL=[verbose|info]",
         "mongodb-lens",
         "mongodb://your-connection-string"
       ]
@@ -508,8 +508,8 @@ Example NPX usage:
     npx -y @modelcontextprotocol/inspector npx -y mongodb-lens mongodb://your-connection-string
 
     # Using verbose logging
-    npx -y @modelcontextprotocol/inspector -e VERBOSE_LOGGING=true npx -y mongodb-lens
-    
+    npx -y @modelcontextprotocol/inspector -e LOG_LEVEL=verbose npx -y mongodb-lens
+
     # Using custom ports
     SERVER_PORT=1234 CLIENT_PORT=5678 npx -y @modelcontextprotocol/inspector npx -y mongodb-lens
     ```
@@ -535,9 +535,9 @@ To protect your data while using MongoDB Lens, consider the following:
 
 ### Data Protection: Read-Only User Accounts
 
-When connecting MongoDB Lens to your database, the permissions granted to the user in your connection string dictate what actions can be performed. For exploration and analysis, a read-only user can prevent unintended writes or deletes, ensuring MongoDB Lens can query data but not alter it.
+When connecting MongoDB Lens to your database, the permissions granted to the user in the MongoDB connection string dictate what actions can be performed. When the use case fits, a read-only user can prevent unintended writes or deletes, ensuring MongoDB Lens can query data but not alter it.
 
-To set this up, create a user with the `'read'` role scoped to the database(s) you're targeting. In MongoDB shell, you'd run something like:
+To set this up, create a user with the `read` role scoped to the database(s) you're targeting. In MongoDB shell, you'd run something like:
 
 ```js
 use admin
@@ -549,24 +549,32 @@ db.createUser({
 })
 ```
 
-Then, plug those credentials into your MongoDB Lens connection string (e.g. `mongodb://readonly:eXaMpLePaSsWoRd@localhost:27017/mydatabase`). This restricts MongoDB Lens to read-only operations, safeguarding your data during development or testing. It's a simple yet effective way to enforce security boundaries, especially when you're poking around schemas or running ad-hoc queries.
+Then, apply those credentials to your MongoDB connection string:
+
+```text
+mongodb://readonly:eXaMpLePaSsWoRd@localhost:27017/mydatabase
+```
+
+Using read-only credentials is a simple yet effective way to enforce security boundaries, especially when you're poking around schemas or running ad-hoc queries.
 
 ### Data Protection: Working with Database Backups
 
-To keep your production data unmodified while leveraging MongoDB Lens for analysis, its suggested to use a backup copy hosted on a separate MongoDB instance. This setup isolates your live environment, letting you experiment with queries or aggregations without risking accidental corruption.
+When working with MongoDB Lens, consider connecting to a backup copy of your data hosted on a separate MongoDB instance.
 
-Start by generating a backup with `mongodump`. Next, spin up a fresh MongoDB instance (e.g. on a different port like `27018`) and restore the backup there using `mongorestore`. Once it's running, point MongoDB Lens to the backup instance's connection string (e.g. `mongodb://localhost:27018/mydatabase`).
+Start by generating the backup with `mongodump`. Next, spin up a fresh MongoDB instance (e.g. on a different port like `27018`) and restore the backup there using `mongorestore`. Once it's running, point MongoDB Lens to the backup instance's connection string (e.g. `mongodb://localhost:27018/mydatabase`).
 
-This approach gives you a sandbox to test complex operations—like pipeline-heavy aggregations or schema tweaks—without touching your production data. It's a practical choice when you need to dig into your dataset safely, especially in scenarios where live modifications aren't an option.
+This approach gives you a sandbox to test complex or destructive operations against without risking accidental corruption of your live data.
 
 ### Data Protection: Confirmation for Destructive Operations
 
-MongoDB Lens implements a token-based confirmation system for potentially destructive operations. This system requires a two-step process for executing commands that could result in data loss:
+MongoDB Lens implements a token-based confirmation system for potentially destructive operations, requiring a two-step process to execute tools that may otherwise result in unchecked data loss:
 
-1. First command invocation: Returns a 4-digit confirmation token that expires after 5 minutes
-2. Second command invocation: Executes the operation if provided with the valid token
+1. First tool invocation: Returns a 4-digit confirmation token that expires after 5 minutes
+1. Second tool invocation: Executes the operation if provided with the valid token
 
-Operations that require confirmation include:
+For an example of the confirmation process, see: [Working with Confirmation Protection](#tutorial-5-working-with-confirmation-protection).
+
+Tools that require confirmation include:
 
 - `bulk-operations`: When including delete operations
 - `delete-document`: Delete one or multiple documents
@@ -576,7 +584,10 @@ Operations that require confirmation include:
 - `drop-user`: Remove a database user
 - `rename-collection`: When the target collection exists and will be dropped
 
-This protection mechanism prevents accidental data loss from typos and unintended commands. It's a safety net ensuring you're aware of the consequences before proceeding with potentially harmful actions.
+This protection mechanism aims to prevent accidental data loss from typos and unintended commands. It's a safety net ensuring you're aware of the consequences before proceeding with potentially harmful actions.
+
+> [!NOTE]<br>
+> If you're working in a controlled environment where data loss is acceptable, you can configure MongoDB Lens to [bypass confirmation](#bypassing-confirmation-for-destructive-operations) and perform destructive operations immediately.
 
 #### Bypassing Confirmation for Destructive Operations
 
@@ -600,10 +611,10 @@ docker run --rm -i --network=host -e DISABLE_DESTRUCTIVE_OPERATION_TOKENS='true'
 This following tutorial guides you through setting up a MongoDB container with sample data, then using MongoDB Lens to interact with it through natural language queries:
 
 1. [Start Sample Data Container](#tutorial-1-start-sample-data-container)
-2. [Import Sample Data](#tutorial-2-import-sample-data)
-3. [Connect MongoDB Lens](#tutorial-3-connect-mongodb-lens)
-4. [Example Queries](#tutorial-4-example-queries)
-5. [Working With Confirmation Protection](#tutorial-5-working-with-confirmation-protection)
+1. [Import Sample Data](#tutorial-2-import-sample-data)
+1. [Connect MongoDB Lens](#tutorial-3-connect-mongodb-lens)
+1. [Example Queries](#tutorial-4-example-queries)
+1. [Working With Confirmation Protection](#tutorial-5-working-with-confirmation-protection)
 
 ### Tutorial: 1. Start Sample Data Container
 
@@ -630,11 +641,11 @@ MongoDB provides several [sample datasets](https://www.mongodb.com/docs/atlas/sa
     ```console<br>
     curl -LO https://atlas-education.s3.amazonaws.com/sampledata.archive
     ```
-2. Copy the sample datasets into your sample data container:<br>
+1. Copy the sample datasets into your sample data container:<br>
     ```console
     docker cp sampledata.archive mongodb-sampledata:/tmp/
     ```
-3. Import the sample datasets into MongoDB:<br>
+1. Import the sample datasets into MongoDB:<br>
     ```console
     docker exec -it mongodb-sampledata mongorestore --archive=/tmp/sampledata.archive
     ```
@@ -702,9 +713,7 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 - _"Create another database called analytics_db and switch to it"_<br>
  <sup>➥ Uses `create-database` tool with switch=true</sup>
 - _"Drop the test_db database"_<br>
- <sup>➥ Uses `drop-database` tool</sup>
-- _"Drop test_db with token 1234"_<br>
- <sup>➥ Uses `drop-database` tool (with token)</sup>
+ <sup>➥ Uses `drop-database` tool (with confirmation)</sup>
 
 #### Example Queries: Collection Management
 
@@ -713,9 +722,7 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 - _"Create a new collection named user_logs"_<br>
  <sup>➥ Uses `create-collection` tool</sup>
 - _"Drop the user_logs collection"_<br>
- <sup>➥ Uses `drop-collection` tool</sup>
-- _"Drop user_logs collection with token 5678"_<br>
- <sup>➥ Uses `drop-collection` tool (with token)</sup>
+ <sup>➥ Uses `drop-collection` tool (with confirmation)</sup>
 - _"Rename the user_logs collection to system_logs"_<br>
  <sup>➥ Uses `rename-collection` tool</sup>
 - _"Check the data consistency in the movies collection"_<br>
@@ -726,9 +733,7 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 - _"Create a read-only user for analytics"_<br>
  <sup>➥ Uses `create-user` tool</sup>
 - _"Drop the inactive_user account"_<br>
- <sup>➥ Uses `drop-user` tool</sup>
-- _"Drop inactive_user with token 7890"_<br>
- <sup>➥ Uses `drop-user` tool (with token)</sup>
+ <sup>➥ Uses `drop-user` tool (with confirmation)</sup>
 
 #### Example Queries: Querying Data
 
@@ -763,9 +768,7 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 - _"Update all movies from 1994 to add a 'classic' flag"_<br>
  <sup>➥ Uses `modify-document` tool (update operation)</sup>
 - _"Delete all movies with zero ratings"_<br>
- <sup>➥ Uses `delete-document` tool</sup>
-- _"Delete movies with zero ratings using token 9012"_<br>
- <sup>➥ Uses `delete-document` tool (with token)</sup>
+ <sup>➥ Uses `delete-document` tool (with confirmation)</sup>
 - _"Run these bulk operations on the movies collection"_<br>
  <sup>➥ Uses `bulk-operations` tool</sup>
 
@@ -774,9 +777,7 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 - _"Create an index on the title field in the movies collection"_<br>
  <sup>➥ Uses `create-index` tool</sup>
 - _"Drop the unused ratings_idx index"_<br>
- <sup>➥ Uses `drop-index` tool</sup>
-- _"Drop the ratings_idx index with token 3456"_<br>
- <sup>➥ Uses `drop-index` tool (with token)</sup>
+ <sup>➥ Uses `drop-index` tool (with confirmation)</sup>
 - _"Explain the execution plan for finding movies from 1995"_<br>
  <sup>➥ Uses `explain-query` tool</sup>
 - _"Get statistics for the current database"_<br>
@@ -788,7 +789,7 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 
 - _"Switch to sample_geospatial database, then find all shipwrecks within 10km of coordinates [-80.12, 26.46]"_<br>
  <sup>➥ Uses `geo-query` tool</sup>
-- _"Switch to sample_mflix database, then run this MapReduce to calculate movie counts by year with map function 'function() { emit(this.year, 1); }' and reduce function 'function(key, values) { return Array.sum(values); }'"_<br>
+- _"Switch to sample_mflix database, then run this Map-Reduce to calculate movie counts by year with map `'function () { emit(this.year, 1) }'` and reduce `'function (key, values) { return Array.sum(values) }'`"_<br>
  <sup>➥ Uses `map-reduce` tool</sup>
 - _"Switch to sample_analytics database, then execute a transaction to move funds between accounts"_<br>
  <sup>➥ Uses `transaction` tool</sup>
@@ -830,9 +831,9 @@ MongoDB Lens includes a safety mechanism for potentially destructive operations.
 
     This code will expire in 5 minutes for security purposes.
     ```
-1. Confirm the operation by including the confirmation token:<br>
+1. Confirm the operation by submitting the confirmation token:<br>
     ```
-    "Drop test_collection with token 1234"
+    "9876"
     ```
 1. MongoDB Lens executes the operation:<br>
     ```
@@ -841,7 +842,8 @@ MongoDB Lens includes a safety mechanism for potentially destructive operations.
 
 This two-step process prevents accidental data loss by requiring explicit confirmation.
 
-For development environments, this can be [bypassed](#bypassing-confirmation-for-destructive-operations) by setting the `DISABLE_DESTRUCTIVE_OPERATION_TOKENS` environment variable to `true`.
+> [!NOTE]<br>
+> If you're working in a controlled environment where data loss is acceptable, you can configure MongoDB Lens to [bypass confirmation](#bypassing-confirmation-for-destructive-operations) and perform destructive operations immediately.
 
 ## Disclaimer
 

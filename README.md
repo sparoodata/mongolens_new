@@ -403,7 +403,7 @@ To use MongoDB Lens with Claude Desktop:
 For each option:
 
 - Replace `mongodb://your-connection-string` with your MongoDB connection string or omit it to use the default `mongodb://localhost:27017`.
-- For verbose logging set `LOG_LEVEL` to `verbose`, otherwise set `LOG_LEVEL` to `info` (or omit entirely).
+- For verbose logging, set `LOG_LEVEL` to `verbose`, otherwise set to `info` (or omit entirely).
 - To use a custom config file, see [Configuration: Config File](#configuration-config-file) and adapt option accordingly.
 
 ##### Option 1: NPX (Recommended)

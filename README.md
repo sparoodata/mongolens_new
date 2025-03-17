@@ -553,7 +553,7 @@ Then, plug those credentials into your MongoDB Lens connection string (e.g. `mon
 
 ### Data Protection: Working with Database Backups
 
-When leveraging MongoDB Lens for analysis or experimentation, consider using a backup copy of yoru data hosted on a separate MongoDB instance.
+When leveraging MongoDB Lens for analysis or experimentation, consider using a backup copy of your data hosted on a separate MongoDB instance.
 
 Start by generating the backup with `mongodump`. Next, spin up a fresh MongoDB instance (e.g. on a different port like `27018`) and restore the backup there using `mongorestore`. Once it's running, point MongoDB Lens to the backup instance's connection string (e.g. `mongodb://localhost:27018/mydatabase`).
 

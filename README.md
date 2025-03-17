@@ -535,7 +535,7 @@ To protect your data while using MongoDB Lens, consider the following:
 
 ### Data Protection: Read-Only User Accounts
 
-When connecting MongoDB Lens to your database, the permissions granted to the user in your connection string dictate what actions can be performed. For exploration and analysis, a read-only user can prevent unintended writes or deletes, ensuring MongoDB Lens can query data but not alter it.
+When connecting MongoDB Lens to your database, the permissions granted to the user in the MongoDB connection string dictate what actions can be performed. When the use case fits, a read-only user can prevent unintended writes or deletes, ensuring MongoDB Lens can query data but not alter it.
 
 To set this up, create a user with the `read` role scoped to the database(s) you're targeting. In MongoDB shell, you'd run something like:
 
@@ -549,11 +549,17 @@ db.createUser({
 })
 ```
 
-Then, plug those credentials into your MongoDB Lens connection string (e.g. `mongodb://readonly:eXaMpLePaSsWoRd@localhost:27017/mydatabase`). This restricts MongoDB Lens to read-only operations, safeguarding your data during development or testing. It's a simple yet effective way to enforce security boundaries, especially when you're poking around schemas or running ad-hoc queries.
+Then, apply those credentials to your MongoDB connection string:
+
+```text
+mongodb://readonly:eXaMpLePaSsWoRd@localhost:27017/mydatabase
+```
+
+Using read-only credentials is a simple yet effective way to enforce security boundaries, especially when you're poking around schemas or running ad-hoc queries.
 
 ### Data Protection: Working with Database Backups
 
-When leveraging MongoDB Lens for analysis or experimentation, consider using a backup copy of your data hosted on a separate MongoDB instance.
+When working with MongoDB Lens, consider connecting to a backup copy of your data hosted on a separate MongoDB instance.
 
 Start by generating the backup with `mongodump`. Next, spin up a fresh MongoDB instance (e.g. on a different port like `27018`) and restore the backup there using `mongorestore`. Once it's running, point MongoDB Lens to the backup instance's connection string (e.g. `mongodb://localhost:27018/mydatabase`).
 
@@ -707,9 +713,7 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 - _"Create another database called analytics_db and switch to it"_<br>
  <sup>➥ Uses `create-database` tool with switch=true</sup>
 - _"Drop the test_db database"_<br>
- <sup>➥ Uses `drop-database` tool</sup>
-- _"Drop test_db with token 1234"_<br>
- <sup>➥ Uses `drop-database` tool (with token)</sup>
+ <sup>➥ Uses `drop-database` tool (with confirmation)</sup>
 
 #### Example Queries: Collection Management
 
@@ -718,9 +722,7 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 - _"Create a new collection named user_logs"_<br>
  <sup>➥ Uses `create-collection` tool</sup>
 - _"Drop the user_logs collection"_<br>
- <sup>➥ Uses `drop-collection` tool</sup>
-- _"Drop user_logs collection with token 5678"_<br>
- <sup>➥ Uses `drop-collection` tool (with token)</sup>
+ <sup>➥ Uses `drop-collection` tool (with confirmation)</sup>
 - _"Rename the user_logs collection to system_logs"_<br>
  <sup>➥ Uses `rename-collection` tool</sup>
 - _"Check the data consistency in the movies collection"_<br>
@@ -731,9 +733,7 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 - _"Create a read-only user for analytics"_<br>
  <sup>➥ Uses `create-user` tool</sup>
 - _"Drop the inactive_user account"_<br>
- <sup>➥ Uses `drop-user` tool</sup>
-- _"Drop inactive_user with token 7890"_<br>
- <sup>➥ Uses `drop-user` tool (with token)</sup>
+ <sup>➥ Uses `drop-user` tool (with confirmation)</sup>
 
 #### Example Queries: Querying Data
 
@@ -768,9 +768,7 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 - _"Update all movies from 1994 to add a 'classic' flag"_<br>
  <sup>➥ Uses `modify-document` tool (update operation)</sup>
 - _"Delete all movies with zero ratings"_<br>
- <sup>➥ Uses `delete-document` tool</sup>
-- _"Delete movies with zero ratings using token 9012"_<br>
- <sup>➥ Uses `delete-document` tool (with token)</sup>
+ <sup>➥ Uses `delete-document` tool (with confirmation)</sup>
 - _"Run these bulk operations on the movies collection"_<br>
  <sup>➥ Uses `bulk-operations` tool</sup>
 
@@ -779,9 +777,7 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 - _"Create an index on the title field in the movies collection"_<br>
  <sup>➥ Uses `create-index` tool</sup>
 - _"Drop the unused ratings_idx index"_<br>
- <sup>➥ Uses `drop-index` tool</sup>
-- _"Drop the ratings_idx index with token 3456"_<br>
- <sup>➥ Uses `drop-index` tool (with token)</sup>
+ <sup>➥ Uses `drop-index` tool (with confirmation)</sup>
 - _"Explain the execution plan for finding movies from 1995"_<br>
  <sup>➥ Uses `explain-query` tool</sup>
 - _"Get statistics for the current database"_<br>
@@ -793,7 +789,7 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 
 - _"Switch to sample_geospatial database, then find all shipwrecks within 10km of coordinates [-80.12, 26.46]"_<br>
  <sup>➥ Uses `geo-query` tool</sup>
-- _"Switch to sample_mflix database, then run this MapReduce to calculate movie counts by year with map function 'function() { emit(this.year, 1); }' and reduce function 'function(key, values) { return Array.sum(values); }'"_<br>
+- _"Switch to sample_mflix database, then run this Map-Reduce to calculate movie counts by year with map `'function () { emit(this.year, 1) }'` and reduce `'function (key, values) { return Array.sum(values) }'`"_<br>
  <sup>➥ Uses `map-reduce` tool</sup>
 - _"Switch to sample_analytics database, then execute a transaction to move funds between accounts"_<br>
  <sup>➥ Uses `transaction` tool</sup>

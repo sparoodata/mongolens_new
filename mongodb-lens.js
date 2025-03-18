@@ -67,17 +67,16 @@ const start = async mongoUri => {
   return true
 }
 
-const connect = async (uri = 'mongodb://localhost:27017') => {
+const connect = async (uri = 'mongodb://localhost:27017', validate = true) => {
   try {
     log(`Connecting to MongoDB at: ${uri}`)
 
-    const finalUri = configFile?.mongoUri || uri
     const finalOptions = {
       ...connectionOptions,
       ...(configFile?.connectionOptions || {})
     }
 
-    mongoClient = new MongoClient(finalUri, finalOptions)
+    mongoClient = new MongoClient(uri, finalOptions)
 
     let retryCount = 0
     const maxRetries = 5
@@ -96,28 +95,31 @@ const connect = async (uri = 'mongodb://localhost:27017') => {
     }
 
     const adminDb = mongoClient.db('admin')
-    let serverInfo
 
-    try {
-      serverInfo = await adminDb.command({ buildInfo: 1 })
-      log(`Connected to MongoDB server version: ${serverInfo.version}`)
+    if (validate) {
+      try {
+        const serverInfo = await adminDb.command({ buildInfo: 1 })
+        log(`Connected to MongoDB server version: ${serverInfo.version}`)
 
-      const cacheKey = 'server_info'
-      memoryCache.serverStatus.set(cacheKey, {
-        data: serverInfo,
-        timestamp: Date.now()
-      })
-    } catch (infoError) {
-      log(`Warning: Unable to get server info: ${infoError.message}`)
+        const cacheKey = 'server_info'
+        memoryCache.serverStatus.set(cacheKey, {
+          data: serverInfo,
+          timestamp: Date.now()
+        })
+      } catch (infoError) {
+        log(`Warning: Unable to get server info: ${infoError.message}`)
+      }
     }
 
-    currentDbName = extractDbNameFromConnectionString(finalUri)
+    currentDbName = extractDbNameFromConnectionString(uri)
     currentDb = mongoClient.db(currentDbName)
 
-    try {
-      await currentDb.stats()
-    } catch (statsError) {
-      log(`Warning: Unable to get database stats: ${statsError.message}`)
+    if (validate) {
+      try {
+        await currentDb.stats()
+      } catch (statsError) {
+        log(`Warning: Unable to get database stats: ${statsError.message}`)
+      }
     }
 
     mongoClient.on('error', err => {
@@ -133,6 +135,7 @@ const connect = async (uri = 'mongodb://localhost:27017') => {
     })
 
     log(`Connected to MongoDB successfully, using database: ${currentDbName}`)
+    currentMongoUri = uri
     return true
   } catch (error) {
     log(`MongoDB connection error: ${error.message}`, true)
@@ -164,11 +167,10 @@ const startWatchdog = () => {
     }
 
     const isClientConnected = mongoClient && mongoClient.topology && mongoClient.topology.isConnected()
-    if (!isClientConnected) {
+    if (!isClientConnected && !isChangingConnection) {
       log('Detected MongoDB disconnection. Attempting reconnect…', true)
       reconnect()
     }
-
   }, 30000)
 }
 
@@ -197,6 +199,22 @@ const extractDbNameFromConnectionString = (uri) => {
   const lastPart = pathParts[pathParts.length - 1]?.split('?')[0]
   currentDbName = (lastPart && !lastPart.includes(':')) ? lastPart : 'admin'
   return currentDbName
+}
+
+const changeConnection = async (uri, validate = true) => {
+  isChangingConnection = true
+
+  try {
+    if (mongoClient) await mongoClient.close()
+    Object.values(memoryCache).forEach(cache => cache.clear())
+    const connected = await connect(uri, validate)
+    isChangingConnection = false
+    if (!connected) throw new Error(`Failed to connect to MongoDB at URI: ${uri}`)
+    return true
+  } catch (error) {
+    isChangingConnection = false
+    throw error
+  }
 }
 
 const registerResources = (server) => {
@@ -1150,6 +1168,57 @@ Please provide:
 
 const registerTools = (server) => {
   server.tool(
+    'connect-mongodb',
+    'Connect to a different MongoDB URI',
+    {
+      uri: z.string().min(1).describe('MongoDB connection URI to connect to'),
+      validateConnection: createBooleanSchema('Whether to validate the connection', 'true')
+    },
+    async ({ uri, validateConnection }) => {
+      return withErrorHandling(async () => {
+        try {
+          await changeConnection(uri, validateConnection === 'true')
+          return {
+            content: [{
+              type: 'text',
+              text: `Successfully connected to MongoDB at URI: ${uri}`
+            }]
+          }
+        } catch (error) {
+          if (currentMongoUri && currentMongoUri !== uri) {
+            try {
+              await changeConnection(currentMongoUri, true)
+            } catch (reconnectError) {
+              log(`Failed to reconnect to current URI: ${reconnectError.message}`, true)
+            }
+          }
+          throw error
+        }
+      }, 'Error connecting to new MongoDB URI')
+    }
+  )
+
+  server.tool(
+    'connect-original',
+    'Connect back to the original MongoDB URI used at startup',
+    {
+      validateConnection: createBooleanSchema('Whether to validate the connection', 'true')
+    },
+    async ({ validateConnection }) => {
+      return withErrorHandling(async () => {
+        if (!originalMongoUri) throw new Error('Original MongoDB URI not available')
+        await changeConnection(originalMongoUri, validateConnection === 'true')
+        return {
+          content: [{
+            type: 'text',
+            text: `Successfully connected back to original MongoDB URI: ${originalMongoUri}`
+          }]
+        }
+      }, 'Error connecting to original MongoDB URI')
+    }
+  )
+
+  server.tool(
     'list-databases',
     'List all accessible MongoDB databases',
     async () => {
@@ -1258,7 +1327,7 @@ const registerTools = (server) => {
     },
     async ({ name, token }) => {
       return withErrorHandling(async () => {
-        log(`Tool: Processing drop database request for '${name}'...`)
+        log(`Tool: Processing drop database request for '${name}'…`)
 
         if (DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
           const result = await dropDatabase(name)
@@ -1341,7 +1410,7 @@ const registerTools = (server) => {
     },
     async ({ username, token }) => {
       return withErrorHandling(async () => {
-        log(`Tool: Processing drop user request for '${username}'...`)
+        log(`Tool: Processing drop user request for '${username}'…`)
 
         if (DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
           await dropUser(username)
@@ -1447,7 +1516,7 @@ const registerTools = (server) => {
     },
     async ({ name, token }) => {
       return withErrorHandling(async () => {
-        log(`Tool: Processing drop collection request for '${name}'...`)
+        log(`Tool: Processing drop collection request for '${name}'…`)
 
         if (DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
           await dropCollection(name)
@@ -1495,7 +1564,7 @@ const registerTools = (server) => {
     },
     async ({ oldName, newName, dropTarget, token }) => {
       return withErrorHandling(async () => {
-        log(`Tool: Processing rename collection from '${oldName}' to '${newName}'...`)
+        log(`Tool: Processing rename collection from '${oldName}' to '${newName}'…`)
         await throwIfCollectionNotExists(oldName)
 
         const collections = await listCollections()
@@ -1754,7 +1823,7 @@ const registerTools = (server) => {
     },
     async ({ collection, filter, many, token }) => {
       return withErrorHandling(async () => {
-        log(`Tool: Processing delete document request for collection '${collection}'...`)
+        log(`Tool: Processing delete document request for collection '${collection}'…`)
         const parsedFilter = JSON.parse(filter)
 
         if (DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
@@ -1887,7 +1956,7 @@ const registerTools = (server) => {
     },
     async ({ collection, indexName, token }) => {
       return withErrorHandling(async () => {
-        log(`Tool: Processing drop index request for '${indexName}' on collection '${collection}'...`)
+        log(`Tool: Processing drop index request for '${indexName}' on collection '${collection}'…`)
 
         if (DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
           await dropIndex(collection, indexName)
@@ -2190,7 +2259,7 @@ This schema validator was generated based on ${schema.sampleSize} sample documen
     },
     async ({ collection, operations, ordered, token }) => {
       return withErrorHandling(async () => {
-        log(`Tool: Processing bulk operations on collection '${collection}'...`)
+        log(`Tool: Processing bulk operations on collection '${collection}'…`)
         const parsedOperations = JSON.parse(operations)
 
         const deleteOps = parsedOperations.filter(op =>
@@ -3714,7 +3783,7 @@ const isValidFieldName = (field) =>
   typeof field === 'string' && field.length > 0 && !field.startsWith('$')
 
 const runMapReduce = async (collectionName, map, reduce, options = {}) => {
-  log(`DB Operation: Running Map-Reduce on collection '${collectionName}'...`)
+  log(`DB Operation: Running Map-Reduce on collection '${collectionName}'…`)
   try {
     await throwIfCollectionNotExists(collectionName)
     const collection = currentDb.collection(collectionName)
@@ -5312,6 +5381,9 @@ let currentDbName = null
 let packageVersion = null
 let connectionRetries = 0
 let isShuttingDown = false
+let currentMongoUri = null
+let originalMongoUri = null
+let isChangingConnection = false
 
 const CACHE_TTL = {
   SCHEMAS: 60 * 1000,
@@ -5378,6 +5450,7 @@ CAPS:
 • AGG: pipeline/mapreduce/distinct
 • PERF: explain/analyze/monitor
 • ADV: text/geo/timeseries/bulk/txn/gridfs/sharding/export
+• CONN: connect-mongodb/connect-original
 
 PTRNS:
 • DB_NAV: databases→use-database→collections
@@ -5387,6 +5460,7 @@ PTRNS:
 • OPT: explain-query/analyze-query-patterns/create-index
 • AGG: aggregate-data/map-reduce
 • MON: server-status/performance-metrics/watch-changes
+• CONN: connect-mongodb→database-operations→connect-original
 
 FLOWS:
 1. NAV: list-databases→use-database→list-collections
@@ -5397,6 +5471,7 @@ FLOWS:
 6. AGG: aggregate-data{multi-stage}
 7. BULK: bulk-operations{batch}
 8. TXN: transaction{atomic}
+9. CONN: connect-mongodb{uri}→operations→connect-original
 
 SAFE: destructive ops require confirmation tokens
 
@@ -5415,6 +5490,9 @@ if (existsSync(CONFIG_PATH))
   try { configFile = JSON.parse(readFileSync(CONFIG_PATH, 'utf8')) }
   catch (error) { log(`Error loading config file: ${error.message}`, true) }
 
-const mongoUri = process.argv[2]
+const mongoUri = process.argv[2] || configFile?.mongoUri || 'mongodb://localhost:27017'
+
+originalMongoUri = mongoUri
+currentMongoUri = mongoUri
 
 start(mongoUri)

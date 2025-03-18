@@ -41,6 +41,8 @@
 - `bulk-operations`: Perform multiple operations efficiently ([requires confirmation](#data-protection-confirmation-for-destructive-operations) for destructive operations)
 - `collation-query`: Find documents with language-specific collation rules
 - `compare-schemas`: Compare schemas between two collections
+- `connect-mongodb`: Connect to a different MongoDB URI
+- `connect-original`: Connect back to the original MongoDB URI used at startup
 - `count-documents`: Count documents matching specified criteria
 - `create-collection`: Create new collections with custom options
 - `create-database`: Create a new database with option to switch to it
@@ -699,6 +701,7 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 - [Example Queries: Performance & Index Management](#example-queries-performance--index-management)
 - [Example Queries: Geospatial & Special Operations](#example-queries-geospatial--special-operations)
 - [Example Queries: Export, Administrative & Other Features](#example-queries-export-administrative--other-features)
+- [Example Queries: Connection Management](#example-queries-connection-management)
 
 #### Example Queries: Basic Database Operations
 
@@ -808,6 +811,17 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
  <sup>➥ Uses `shard-status` tool</sup>
 - _"Switch to sample_weatherdata database, and generate an interactive report on its current state"_<br>
   <sup>➥ Uses numerous tools</sup>
+
+#### Example Queries: Connection Management
+
+- _"Connect to a different MongoDB server at mongodb://localhost:27018"_<br>
+ <sup>➥ Uses `connect-mongodb` tool</sup>
+- _"Connect to MongoDB Atlas instance at mongodb+srv://username:password@cluster.mongodb.net/mydb"_<br>
+ <sup>➥ Uses `connect-mongodb` tool</sup>
+- _"Connect back to the original MongoDB server"_<br>
+ <sup>➥ Uses `connect-original` tool</sup>
+- _"Connect to a MongoDB replica set without validating the connection"_<br>
+ <sup>➥ Uses `connect-mongodb` tool with validateConnection=false</sup>
 
 ### Tutorial: 5. Working With Confirmation Protection
 

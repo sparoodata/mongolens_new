@@ -579,7 +579,7 @@ const registerPrompts = (server) => {
       condition: z.string().describe('Describe the condition in natural language (e.g. "users older than 30")')
     },
     async ({ collection, condition }) => {
-      log(`Prompt: Initializing queryBuilder for collection '${collection}' with condition: "${condition}".`)
+      log(`Prompt: Initializing [query-builder] for collection '${collection}' with condition: "${condition}".`)
 
       const fields = await getCollectionFields(collection)
       const fieldInfo = fields.length > 0 ? `\nAvailable fields: ${fields.join(', ')}` : ''
@@ -618,7 +618,7 @@ const registerPrompts = (server) => {
       goal: z.string().describe('What you want to calculate or analyze')
     },
     ({ collection, goal }) => {
-      log(`Prompt: Initializing aggregationBuilder for collection '${collection}' with goal: "${goal}".`)
+      log(`Prompt: Initializing [aggregation-builder] for collection '${collection}' with goal: "${goal}".`)
       return {
         description: `MongoDB Aggregation Pipeline Builder for ${collection}`,
         messages: [
@@ -648,7 +648,7 @@ Remember: I'm working with the ${currentDbName} database and the ${collection} c
       collection: z.string().min(1).describe('Collection name to analyze')
     },
     async ({ collection }) => {
-      log(`Prompt: Initializing schemaAnalysis for collection '${collection}'…`)
+      log(`Prompt: Initializing [schema-analysis] for collection '${collection}'…`)
       const schema = await inferSchema(collection)
       log(`Prompt: Retrieved schema for '${collection}' with ${Object.keys(schema.fields).length} fields.`)
       return {
@@ -684,7 +684,7 @@ Could you help with:
       queryPattern: z.string().describe('Common query pattern or operation')
     },
     ({ collection, queryPattern }) => {
-      log(`Prompt: Initializing indexRecommendation for collection '${collection}' with query pattern: "${queryPattern}".`)
+      log(`Prompt: Initializing [index-recommendation] for collection '${collection}' with query pattern: "${queryPattern}".`)
       return {
         description: `MongoDB Index Recommendations for ${collection}`,
         messages: [
@@ -717,7 +717,7 @@ Remember: I'm working with the ${currentDbName} database and the ${collection} c
       details: z.string().optional().describe('Additional details about the operation')
     },
     ({ operation, details }) => {
-      log(`Prompt: Initializing mongoShell for operation: "${operation}" with${details ? ' details: "' + details + '"' : 'out details'}.`)
+      log(`Prompt: Initializing [mongo-shell] for operation: "${operation}" with${details ? ' details: "' + details + '"' : 'out details'}.`)
       return {
         description: 'MongoDB Shell Command Generator',
         messages: [
@@ -742,33 +742,6 @@ Current database: ${currentDbName}`
   )
 
   server.prompt(
-    'inspector-guide',
-    'Get help using MongoDB Lens with MCP Inspector',
-    {},
-    () => {
-      log('Prompt: Initializing inspectorGuide.')
-      return {
-        description: 'MongoDB Lens Inspector Guide',
-        messages: [
-          {
-            role: 'user',
-            content: {
-              type: 'text',
-              text: `I'm using the MCP Inspector with MongoDB Lens. How can I best use these tools together?
-
-Please provide:
-1. An overview of the most useful Inspector features for MongoDB
-2. Tips for debugging MongoDB queries
-3. Common workflows for exploring a database
-4. How to use the Inspector features with MongoDB Lens resources and tools`
-            }
-          }
-        ]
-      }
-    }
-  )
-
-  server.prompt(
     'data-modeling',
     'Get MongoDB data modeling advice for specific use cases',
     {
@@ -777,7 +750,7 @@ Please provide:
       existingData: z.string().optional().describe('Optional: describe any existing data structure')
     },
     ({ useCase, requirements, existingData }) => {
-      log(`Prompt: Initializing dataModeling for use case: "${useCase}".`)
+      log(`Prompt: Initializing [data-modeling] for use case: "${useCase}".`)
       return {
         description: 'MongoDB Data Modeling Guide',
         messages: [
@@ -814,7 +787,7 @@ Please provide:
       performance: z.string().optional().describe('Optional: current performance metrics')
     },
     async ({ collection, query, performance }) => {
-      log(`Prompt: Initializing queryOptimizer for collection '${collection}' with query: ${query}.`)
+      log(`Prompt: Initializing [query-optimizer] for collection '${collection}' with query: ${query}.`)
       const stats = await getCollectionStats(collection)
       const indexes = await getCollectionIndexes(collection)
       return {
@@ -853,7 +826,7 @@ Please provide:
     'Get MongoDB security recommendations',
     {},
     async () => {
-      log('Prompt: Initializing securityAudit.')
+      log('Prompt: Initializing [security-audit].')
       const serverStatus = await getServerStatus()
       const users = await getDatabaseUsers()
       return {
@@ -896,7 +869,7 @@ Please provide:
       rto: z.string().optional().describe('Optional: recovery time objective')
     },
     ({ databaseSize, uptime, rpo, rto }) => {
-      log('Prompt: Initializing backupStrategy.')
+      log('Prompt: Initializing [backup-strategy].')
       return {
         description: 'MongoDB Backup & Recovery Strategy',
         messages: [
@@ -933,7 +906,7 @@ Please provide:
       features: z.string().optional().describe('Optional: specific features you use')
     },
     ({ sourceVersion, targetVersion, features }) => {
-      log(`Prompt: Initializing migrationGuide from ${sourceVersion} to ${targetVersion}.`)
+      log(`Prompt: Initializing [migration-guide] from ${sourceVersion} to ${targetVersion}.`)
       return {
         description: 'MongoDB Version Migration Guide',
         messages: [
@@ -967,7 +940,7 @@ Please provide:
       targetCollection: z.string().optional().describe('Target MongoDB collection name')
     },
     ({ sqlQuery, targetCollection }) => {
-      log(`Prompt: Initializing sqlToMongodb for query: "${sqlQuery}".`)
+      log(`Prompt: Initializing [sql-to-mongodb] for query: "${sqlQuery}".`)
       return {
         description: 'SQL to MongoDB Query Translator',
         messages: [
@@ -1002,7 +975,7 @@ Please provide:
       const includeSchemaBool = includeSchema.toLowerCase() === 'true'
       const includeSecurityBool = includeSecurity.toLowerCase() === 'true'
 
-      log('Prompt: Initializing comprehensive database health check')
+      log('Prompt: Initializing [database-health-check].')
 
       const dbStats = await getDatabaseStats()
       const collections = await listCollections()
@@ -1097,7 +1070,7 @@ Please provide:
     },
     ({ tenantIsolation, estimatedTenants, sharedFeatures, tenantSpecificFeatures, scalingPriorities }) => {
       const estimatedTenantsNum = parseInt(estimatedTenants, 10) || 1
-      log(`Prompt: Initializing multiTenantDesign with ${tenantIsolation} isolation level for ${estimatedTenantsNum} tenants.`)
+      log(`Prompt: Initializing [multi-tenant-design] with ${tenantIsolation} isolation level for ${estimatedTenantsNum} tenants.`)
       return {
         description: 'MongoDB Multi-Tenant Architecture Design',
         messages: [
@@ -1142,7 +1115,7 @@ Please provide:
       migrationConstraints: z.string().optional().describe('Migration constraints (e.g., zero downtime)')
     },
     async ({ collection, currentSchema, plannedChanges, migrationConstraints }) => {
-      log(`Prompt: Initializing schemaVersioning for collection '${collection}'…`)
+      log(`Prompt: Initializing [schema-versioning] for collection '${collection}'…`)
 
       const schema = await inferSchema(collection)
 

@@ -97,7 +97,6 @@
 - `data-modeling`: Expert advice on MongoDB schema design for specific use cases
 - `database-health-check`: Comprehensive database health assessment and recommendations
 - `index-recommendation`: Get personalized index suggestions based on query patterns
-- `inspector-guide`: Get help using MongoDB Lens with MCP Inspector
 - `migration-guide`: Step-by-step MongoDB version migration plans
 - `mongo-shell`: Generate MongoDB shell commands with explanations
 - `multi-tenant-design`: Design MongoDB multi-tenant database architecture

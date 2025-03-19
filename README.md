@@ -97,7 +97,6 @@
 - `data-modeling`: Expert advice on MongoDB schema design for specific use cases
 - `database-health-check`: Comprehensive database health assessment and recommendations
 - `index-recommendation`: Get personalized index suggestions based on query patterns
-- `inspector-guide`: Get help using MongoDB Lens with MCP Inspector
 - `migration-guide`: Step-by-step MongoDB version migration plans
 - `mongo-shell`: Generate MongoDB shell commands with explanations
 - `multi-tenant-design`: Design MongoDB multi-tenant database architecture
@@ -118,16 +117,15 @@
 
 MongoDB Lens includes several additional features:
 
-- **Sanitized Inputs**: Security enhancements for query processing
 - **Configuration File**: Custom configuration via `~/.mongodb-lens.json`
 - **Connection Resilience**: Automatic reconnection with exponential backoff
+- **Smart Caching**: Enhanced caching for schemas, collection lists, and server status
 - **JSONRPC Error Handling**: Comprehensive error handling with proper error codes
 - **Memory Management**: Automatic memory monitoring and cleanup for large operations
-- **Smart Caching**: Enhanced caching for schemas, collection lists, and server status
 
 #### Other Features: New Database Metadata
 
-When MongoDB Lens creates a new database via the `create-database` tool, it automatically adds a `metadata` collection containing a single document. This serves several purposes:
+When MongoDB Lens creates a new database it adds a `metadata` collection containing a single document. This serves several purposes:
 
 - MongoDB only persists databases containing at least one collection
 - Records database creation details (timestamp, tool version, user)
@@ -349,9 +347,96 @@ docker run --rm -i --network=host -e LOG_LEVEL='verbose' furey/mongodb-lens mong
 
 ### Configuration: Config File
 
-MongoDB Lens can also be configured via JSON config file: `~/.mongodb-lens.json`
+MongoDB Lens supports extensive customization via JSON config file.
 
-Alternatively, set environment variable `CONFIG_PATH` to the path of your custom config file.
+<details>
+  <summary><strong>Example configuration file</strong></summary>
+
+```jsonc
+{
+  "mongoUri": "mongodb://localhost:27017",         // Default MongoDB connection string
+  "connectionOptions": {
+    "maxPoolSize": 20,                             // Maximum number of connections in the pool
+    "retryWrites": false,                          // Whether to retry write operations
+    "useNewUrlParser": true,                       // Use MongoDB's new URL parser
+    "connectTimeoutMS": 30000,                     // Connection timeout in milliseconds
+    "socketTimeoutMS": 360000,                     // Socket timeout in milliseconds
+    "useUnifiedTopology": true,                    // Use the new unified topology engine
+    "heartbeatFrequencyMS": 10000,                 // How often to ping servers for status
+    "serverSelectionTimeoutMS": 30000              // Timeout for server selection
+  },
+  "defaultDbName": "admin",                        // Default database if not specified in URI
+  "connection": {
+    "maxRetries": 5,                               // Maximum number of initial connection attempts
+    "maxRetryDelayMs": 30000,                      // Maximum delay between retries
+    "reconnectionRetries": 10,                     // Maximum reconnection attempts if connection lost
+    "initialRetryDelayMs": 1000                    // Initial delay between retries
+  },
+  "cacheTTL": {
+    "stats": 15000,                                // Stats cache lifetime in milliseconds
+    "schemas": 60000,                              // Schema cache lifetime in milliseconds
+    "indexes": 120000,                             // Index cache lifetime in milliseconds
+    "collections": 30000,                          // Collections list cache lifetime in milliseconds
+    "serverStatus": 20000                          // Server status cache lifetime in milliseconds
+  },
+  "enabledCaches": [                               // List of caches to enable
+    "stats",                                       // Statistics cache
+    "fields",                                      // Collection fields cache
+    "schemas",                                     // Collection schemas cache
+    "indexes",                                     // Collection indexes cache
+    "collections",                                 // Database collections cache
+    "serverStatus"                                 // MongoDB server status cache
+  ],
+  "memory": {
+    "enableGC": true,                              // Whether to enable garbage collection
+    "warningThresholdMB": 1500,                    // Memory threshold for warnings
+    "criticalThresholdMB": 2000                    // Memory threshold for cache clearing
+  },
+  "logLevel": "info",                              // Log level (info or verbose)
+  "disableDestructiveOperationTokens": false,      // Whether to skip confirmation for destructive ops
+  "watchdogIntervalMs": 30000,                     // Interval for connection monitoring
+  "defaults": {
+    "slowMs": 100,                                 // Threshold for slow query detection
+    "queryLimit": 10,                              // Default limit for query results
+    "allowDiskUse": true,                          // Allow operations to use disk for large datasets
+    "schemaSampleSize": 100,                       // Sample size for schema inference
+    "aggregationBatchSize": 50                     // Batch size for aggregation operations
+  },
+  "security": {
+    "tokenLength": 4,                              // Length of confirmation tokens
+    "tokenExpirationMinutes": 5,                   // Expiration time for tokens
+    "strictDatabaseNameValidation": true           // Enforce strict database name validation
+  },
+  "tools": {
+    "transaction": {
+      "readConcern": "snapshot",                   // Read concern level for transactions
+      "writeConcern": {
+        "w": "majority"                            // Write concern for transactions
+      }
+    },
+    "bulkOperations": {
+      "ordered": true                              // Whether bulk operations execute in order
+    },
+    "export": {
+      "defaultLimit": -1,                          // Default limit for exports (-1 = no limit)
+      "defaultFormat": "json"                      // Default export format (json or csv)
+    },
+    "watchChanges": {
+      "maxDurationSeconds": 60,                    // Maximum duration for change streams
+      "defaultDurationSeconds": 10                 // Default duration for change streams
+    },
+    "queryAnalysis": {
+      "defaultDurationSeconds": 10                 // Default duration for query analysis
+    }
+  }
+}
+```
+
+</details>
+
+By default, MongoDB Lens looks for the config file at: `~/.mongodb-lens.json`
+
+To customize the config file path, set the environment variable `CONFIG_PATH` to the desired file path.
 
 Example NPX usage:
 
@@ -363,18 +448,6 @@ Example Docker Hub usage:
 
 ```console
 docker run --rm -i --network=host -v /path/to/config.json:/root/.mongodb-lens.json furey/mongodb-lens
-```
-
-Example configuration file contents:
-
-```json
-{
-  "mongoUri": "mongodb://username:password@hostname:27017/mydatabase?authSource=admin",
-  "connectionOptions": {
-    "maxPoolSize": 20,
-    "connectTimeoutMS": 30000
-  }
-}
 ```
 
 ## Client Setup

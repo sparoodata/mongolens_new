@@ -10,21 +10,22 @@ import mongodb from 'mongodb'
 import { z } from 'zod'
 
 const { MongoClient, ObjectId, GridFSBucket } = mongodb
-
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-const LOG_LEVEL = process.env.LOG_LEVEL || 'info'
-const DISABLE_DESTRUCTIVE_OPERATION_TOKENS = process.env.DISABLE_DESTRUCTIVE_OPERATION_TOKENS === 'true'
-const CONFIG_PATH = process.env.CONFIG_PATH || join(process.env.HOME || __dirname, '.mongodb-lens.json')
-
-const start = async mongoUri => {
+const start = async (mongoUri) => {
   log(`MongoDB Lens v${getPackageVersion()} starting…`, true)
+
+  mongoUriCurrent = mongoUri
+  mongoUriOriginal = mongoUri
 
   const connected = await connect(mongoUri)
   if (!connected) return log('Failed to connect to MongoDB database.', true) || false
 
+  log('Starting watchdog…')
   startWatchdog()
+
+  await setProfilerSlowMs()
 
   log('Initializing MCP server…')
   server = new McpServer({
@@ -71,15 +72,12 @@ const connect = async (uri = 'mongodb://localhost:27017', validate = true) => {
   try {
     log(`Connecting to MongoDB at: ${uri}`)
 
-    const finalOptions = {
-      ...connectionOptions,
-      ...(configFile?.connectionOptions || {})
-    }
+    const connectionOptions = { ...config.connectionOptions }
 
-    mongoClient = new MongoClient(uri, finalOptions)
+    mongoClient = new MongoClient(uri, connectionOptions)
 
     let retryCount = 0
-    const maxRetries = 5
+    const maxRetries = config.connection.maxRetries
 
     while (retryCount < maxRetries) {
       try {
@@ -88,16 +86,15 @@ const connect = async (uri = 'mongodb://localhost:27017', validate = true) => {
       } catch (connectionError) {
         retryCount++
         if (retryCount >= maxRetries) throw connectionError
-        const delay = Math.min(1000 * Math.pow(2, retryCount), 30000)
+        const delay = Math.min(config.connection.initialRetryDelayMs * Math.pow(2, retryCount), config.connection.maxRetryDelayMs)
         log(`Connection attempt ${retryCount} failed, retrying in ${delay/1000} seconds…`)
         await new Promise(resolve => setTimeout(resolve, delay))
       }
     }
 
-    const adminDb = mongoClient.db('admin')
-
     if (validate) {
       try {
+        const adminDb = mongoClient.db('admin')
         const serverInfo = await adminDb.command({ buildInfo: 1 })
         log(`Connected to MongoDB server version: ${serverInfo.version}`)
 
@@ -135,7 +132,7 @@ const connect = async (uri = 'mongodb://localhost:27017', validate = true) => {
     })
 
     log(`Connected to MongoDB successfully, using database: ${currentDbName}`)
-    currentMongoUri = uri
+    mongoUriCurrent = uri
     return true
   } catch (error) {
     log(`MongoDB connection error: ${error.message}`, true)
@@ -151,18 +148,19 @@ const startWatchdog = () => {
     const heapUsedMB = Math.round(memoryUsage.heapUsed / 1024 / 1024)
     const heapTotalMB = Math.round(memoryUsage.heapTotal / 1024 / 1024)
 
-    if (heapUsedMB > 1500) {
+    if (heapUsedMB > config.memory.warningThresholdMB) {
       log(`High memory usage: ${heapUsedMB}MB used of ${heapTotalMB}MB heap`, true)
 
-      if (heapUsedMB > 2000) {
+      if (heapUsedMB > config.memory.criticalThresholdMB) {
         log('Critical memory pressure. Clearing caches…', true)
-        memoryCache.schemas.clear()
-        memoryCache.collections.clear()
-        memoryCache.stats.clear()
-        memoryCache.indexes.clear()
-        memoryCache.serverStatus.clear()
-        memoryCache.fields.clear()
-        global.gc && global.gc()
+        config.enabledCaches.forEach(cache => {
+          if (memoryCache[cache]) memoryCache[cache].clear()
+        })
+        if (config.memory.enableGC && global.gc) {
+          global.gc()
+        } else if (config.memory.enableGC) {
+          log('Garbage collection requested but not available. Run Node.js with --expose-gc flag.', true)
+        }
       }
     }
 
@@ -171,11 +169,11 @@ const startWatchdog = () => {
       log('Detected MongoDB disconnection. Attempting reconnect…', true)
       reconnect()
     }
-  }, 30000)
+  }, config.watchdogIntervalMs)
 }
 
 const reconnect = async () => {
-  if (connectionRetries > 10) {
+  if (connectionRetries > config.connection.reconnectionRetries) {
     log('Maximum reconnection attempts reached. Giving up.', true)
     return false
   }
@@ -197,7 +195,7 @@ const reconnect = async () => {
 const extractDbNameFromConnectionString = (uri) => {
   const pathParts = uri.split('/').filter(part => part)
   const lastPart = pathParts[pathParts.length - 1]?.split('?')[0]
-  currentDbName = (lastPart && !lastPart.includes(':')) ? lastPart : 'admin'
+  currentDbName = (lastPart && !lastPart.includes(':')) ? lastPart : config.defaultDbName
   return currentDbName
 }
 
@@ -206,7 +204,7 @@ const changeConnection = async (uri, validate = true) => {
 
   try {
     if (mongoClient) await mongoClient.close()
-    Object.values(memoryCache).forEach(cache => cache.clear())
+    clearMemoryCache()
     const connected = await connect(uri, validate)
     isChangingConnection = false
     if (!connected) throw new Error(`Failed to connect to MongoDB at URI: ${uri}`)
@@ -387,6 +385,22 @@ const registerResources = (server) => {
             log(`Error completing collection names: ${error.message}`, true)
             return []
           }
+        },
+        field: async (value, params) => {
+          try {
+            if (!params.name) return []
+
+            log(`Resource: Autocompleting field name with prefix '${value}' for collection '${params.name}'…`)
+            const fields = await getCollectionFields(params.name)
+            const matches = fields.filter(field =>
+              field.toLowerCase().includes(value.toLowerCase())
+            )
+            log(`Resource: Found ${matches.length} matching fields for collection '${params.name}'.`)
+            return matches
+          } catch (error) {
+            log(`Error completing field names: ${error.message}`, true)
+            return []
+          }
         }
       }
     }),
@@ -564,8 +578,12 @@ const registerPrompts = (server) => {
       collection: z.string().min(1).describe('Collection name to query'),
       condition: z.string().describe('Describe the condition in natural language (e.g. "users older than 30")')
     },
-    ({ collection, condition }) => {
+    async ({ collection, condition }) => {
       log(`Prompt: Initializing queryBuilder for collection '${collection}' with condition: "${condition}".`)
+
+      const fields = await getCollectionFields(collection)
+      const fieldInfo = fields.length > 0 ? `\nAvailable fields: ${fields.join(', ')}` : ''
+
       return {
         description: `MongoDB Query Builder for ${collection}`,
         messages: [
@@ -575,15 +593,16 @@ const registerPrompts = (server) => {
               type: 'text',
               text: `Please help me create a MongoDB query for the '${collection}' collection based on this condition: "${condition}".
 
-I need both the filter object and a complete example showing how to use it with the findDocuments tool.
+  I need both the filter object and a complete example showing how to use it with the findDocuments tool.
 
-Guidelines:
-1. Create a valid MongoDB query filter as a JSON object
-2. Show me how special MongoDB operators work if needed (like $gt, $in, etc.)
-3. Provide a complete example of using this with the findDocuments tool
-4. Suggest any relevant projections or sort options
+  Guidelines:
+  1. Create a valid MongoDB query filter as a JSON object
+  2. Show me how special MongoDB operators work if needed (like $gt, $in, etc.)
+  3. Provide a complete example of using this with the findDocuments tool
+  4. Suggest any relevant projections or sort options
+  ${fieldInfo}
 
-Remember: I'm working with the ${currentDbName} database and the ${collection} collection.`
+  Remember: I'm working with the ${currentDbName} database and the ${collection} collection.`
             }
           }
         ]
@@ -1185,9 +1204,9 @@ const registerTools = (server) => {
             }]
           }
         } catch (error) {
-          if (currentMongoUri && currentMongoUri !== uri) {
+          if (mongoUriCurrent && mongoUriCurrent !== uri) {
             try {
-              await changeConnection(currentMongoUri, true)
+              await changeConnection(mongoUriCurrent, true)
             } catch (reconnectError) {
               log(`Failed to reconnect to current URI: ${reconnectError.message}`, true)
             }
@@ -1206,12 +1225,12 @@ const registerTools = (server) => {
     },
     async ({ validateConnection }) => {
       return withErrorHandling(async () => {
-        if (!originalMongoUri) throw new Error('Original MongoDB URI not available')
-        await changeConnection(originalMongoUri, validateConnection === 'true')
+        if (!mongoUriOriginal) throw new Error('Original MongoDB URI not available')
+        await changeConnection(mongoUriOriginal, validateConnection === 'true')
         return {
           content: [{
             type: 'text',
-            text: `Successfully connected back to original MongoDB URI: ${originalMongoUri}`
+            text: `Successfully connected back to original MongoDB URI: ${mongoUriOriginal}`
           }]
         }
       }, 'Error connecting to original MongoDB URI')
@@ -1329,7 +1348,7 @@ const registerTools = (server) => {
       return withErrorHandling(async () => {
         log(`Tool: Processing drop database request for '${name}'…`)
 
-        if (DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
+        if (config.disableDestructiveOperationTokens) {
           const result = await dropDatabase(name)
           return {
             content: [{
@@ -1412,7 +1431,7 @@ const registerTools = (server) => {
       return withErrorHandling(async () => {
         log(`Tool: Processing drop user request for '${username}'…`)
 
-        if (DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
+        if (config.disableDestructiveOperationTokens) {
           await dropUser(username)
           return {
             content: [{
@@ -1518,7 +1537,7 @@ const registerTools = (server) => {
       return withErrorHandling(async () => {
         log(`Tool: Processing drop collection request for '${name}'…`)
 
-        if (DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
+        if (config.disableDestructiveOperationTokens) {
           await dropCollection(name)
           return {
             content: [{
@@ -1570,7 +1589,7 @@ const registerTools = (server) => {
         const collections = await listCollections()
         const targetExists = collections.some(c => c.name === newName)
 
-        if (!targetExists || dropTarget !== 'true' || DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
+        if (!targetExists || dropTarget !== 'true' || config.disableDestructiveOperationTokens) {
           const result = await renameCollection(oldName, newName, dropTarget === 'true')
           return {
             content: [{
@@ -1826,7 +1845,7 @@ const registerTools = (server) => {
         log(`Tool: Processing delete document request for collection '${collection}'…`)
         const parsedFilter = JSON.parse(filter)
 
-        if (DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
+        if (config.disableDestructiveOperationTokens) {
           const options = { many: many === 'true' }
           const result = await deleteDocument(collection, parsedFilter, options)
           return {
@@ -1958,7 +1977,7 @@ const registerTools = (server) => {
       return withErrorHandling(async () => {
         log(`Tool: Processing drop index request for '${indexName}' on collection '${collection}'…`)
 
-        if (DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
+        if (config.disableDestructiveOperationTokens) {
           await dropIndex(collection, indexName)
           return {
             content: [{
@@ -2176,10 +2195,19 @@ This schema validator was generated based on ${schema.sampleSize} sample documen
         const parsedFilter = JSON.parse(filter)
         const explanation = await explainQuery(collection, parsedFilter, verbosity)
         log(`Tool: Query explanation generated.`)
+
+        const fields = await getCollectionFields(collection)
+        const fieldInfo = fields.length > 0 ?
+          `\n\nAvailable fields for projection: ${fields.join(', ')}` : ''
+
+        const suggestedProjection = getSuggestedProjection(parsedFilter, fields)
+        const projectionInfo = suggestedProjection ?
+          `\n\nSuggested projection: ${suggestedProjection}` : ''
+
         return {
           content: [{
             type: 'text',
-            text: formatExplanation(explanation)
+            text: formatExplanation(explanation) + fieldInfo + projectionInfo
           }]
         }
       } catch (error) {
@@ -2200,7 +2228,7 @@ This schema validator was generated based on ${schema.sampleSize} sample documen
     'Analyze query patterns and suggest optimizations',
     {
       collection: z.string().min(1).describe('Collection name to analyze'),
-      duration: z.number().int().min(1).max(60).default(10).describe('Duration to analyze in seconds')
+      duration: z.number().int().min(1).max(60).default(config.tools.queryAnalysis.defaultDurationSeconds).describe('Duration to analyze in seconds')
     },
     async ({ collection, duration }) => {
       return withErrorHandling(async () => {
@@ -2209,6 +2237,8 @@ This schema validator was generated based on ${schema.sampleSize} sample documen
         await throwIfCollectionNotExists(collection)
         const indexes = await getCollectionIndexes(collection)
         const schema = await inferSchema(collection)
+
+        await setProfilerSlowMs()
 
         let queryStats = []
         try {
@@ -2266,7 +2296,7 @@ This schema validator was generated based on ${schema.sampleSize} sample documen
           op.deleteOne || op.deleteMany
         )
 
-        if (deleteOps.length === 0 || DISABLE_DESTRUCTIVE_OPERATION_TOKENS) {
+        if (deleteOps.length === 0 || config.disableDestructiveOperationTokens) {
           const result = await bulkOperations(collection, parsedOperations, ordered === 'true')
           return {
             content: [{
@@ -2562,8 +2592,8 @@ This schema validator was generated based on ${schema.sampleSize} sample documen
 
         try {
           session.startTransaction({
-            readConcern: { level: 'snapshot' },
-            writeConcern: { w: 'majority' }
+            readConcern: { level: config.tools.transaction.readConcern },
+            writeConcern: config.tools.transaction.writeConcern
           })
 
           for (let i = 0; i < parsedOps.length; i++) {
@@ -2658,12 +2688,20 @@ This schema validator was generated based on ${schema.sampleSize} sample documen
     {
       collection: z.string().min(1).describe('Collection name'),
       operations: z.array(z.enum(['insert', 'update', 'delete', 'replace'])).default(['insert', 'update', 'delete']).describe('Operations to watch'),
-      duration: z.number().int().min(1).max(60).default(10).describe('Duration to watch in seconds'),
+      duration: z.number().int().min(1).max(60).default(config.tools.watchChanges.defaultDurationSeconds).describe('Duration to watch in seconds'),
       fullDocument: createBooleanSchema('Include full document in update events', 'false')
     },
     async ({ collection, operations, duration, fullDocument }) => {
       try {
         log(`Tool: Watching collection '${collection}' for changes…`)
+
+        let maxDuration = config.tools.watchChanges.maxDurationSeconds
+        let actualDuration = duration
+
+        if (actualDuration > maxDuration) {
+          log(`Requested duration ${actualDuration}s exceeds maximum ${maxDuration}s, using maximum`, true)
+          actualDuration = maxDuration
+        }
 
         try {
           const adminDb = mongoClient.db('admin')
@@ -2695,7 +2733,7 @@ This schema validator was generated based on ${schema.sampleSize} sample documen
         const changes = []
         const timeout = setTimeout(() => {
           changeStream.close()
-        }, duration * 1000)
+        }, actualDuration * 1000)
 
         changeStream.on('change', change => {
           changes.push(change)
@@ -2707,7 +2745,7 @@ This schema validator was generated based on ${schema.sampleSize} sample documen
             resolve({
               content: [{
                 type: 'text',
-                text: formatChangeStreamResults(changes, duration)
+                text: formatChangeStreamResults(changes, actualDuration)
               }]
             })
           })
@@ -2920,7 +2958,7 @@ const listDatabases = async () => {
 
 const createDatabase = async (dbName, validateName = true) => {
   log(`DB Operation: Creating database '${dbName}'…`)
-  if (validateName.toLowerCase() === 'true') {
+  if (validateName.toLowerCase() === 'true' && config.security.strictDatabaseNameValidation) {
     const invalidChars = /[\/\\.\s"$*<>:|?]/
     if (invalidChars.test(dbName)) {
       throw new Error(`Invalid database name: '${dbName}'. Database names cannot contain spaces or special characters like /, \\, ., ", $, *, <, >, :, |, ?`)
@@ -2977,11 +3015,24 @@ const createDatabase = async (dbName, validateName = true) => {
 const switchDatabase = async (dbName) => {
   log(`DB Operation: Switching to database '${dbName}'…`)
   try {
+    if (config.security.strictDatabaseNameValidation) {
+      const invalidChars = /[\/\\.\s"$*<>:|?]/
+      if (invalidChars.test(dbName)) {
+        throw new Error(`Invalid database name: '${dbName}'. Database names cannot contain spaces or special characters like /, \\, ., ", $, *, <, >, :, |, ?`)
+      }
+      if (dbName.length > 63) {
+        throw new Error(`Invalid database name: '${dbName}'. Database names must be shorter than 64 characters.`)
+      }
+    }
+
     const dbs = await listDatabases()
     const dbExists = dbs.some(db => db.name === dbName)
     if (!dbExists) throw new Error(`Database '${dbName}' does not exist`)
     currentDbName = dbName
     currentDb = mongoClient.db(dbName)
+
+    await setProfilerSlowMs()
+
     log(`DB Operation: Successfully switched to database '${dbName}'.`)
     return currentDb
   } catch (error) {
@@ -3063,8 +3114,7 @@ const listCollections = async () => {
     const cacheKey = currentDbName
     const cachedData = memoryCache.collections.get(cacheKey)
 
-    if (cachedData &&
-        (Date.now() - cachedData.timestamp) < CACHE_TTL.COLLECTIONS) {
+    if (cachedData && (Date.now() - cachedData.timestamp) < config.cacheTTL.collections) {
       log(`DB Operation: Using cached collections list for '${currentDbName}'`)
       return cachedData.data
     }
@@ -3196,8 +3246,7 @@ const getCollectionIndexes = async (collectionName) => {
     const cacheKey = `${currentDbName}.${collectionName}`
     const cachedData = memoryCache.indexes.get(cacheKey)
 
-    if (cachedData &&
-        (Date.now() - cachedData.timestamp) < CACHE_TTL.STATS) {
+    if (cachedData && (Date.now() - cachedData.timestamp) < config.cacheTTL.stats) {
       log(`DB Operation: Using cached indexes for '${collectionName}'`)
       return cachedData.data
     }
@@ -3230,7 +3279,7 @@ const getCollectionIndexes = async (collectionName) => {
   }
 }
 
-const findDocuments = async (collectionName, filter = {}, projection = null, limit = 10, skip = 0, sort = null) => {
+const findDocuments = async (collectionName, filter = {}, projection = null, limit = config.defaults.queryLimit, skip = 0, sort = null) => {
   log(`DB Operation: Finding documents in collection '${collectionName}'…`)
   try {
     await throwIfCollectionNotExists(collectionName)
@@ -3375,8 +3424,7 @@ const aggregateData = async (collectionName, pipeline) => {
     await throwIfCollectionNotExists(collectionName)
     log(`DB Operation: Pipeline has ${pipeline.length} stages.`)
     const collection = currentDb.collection(collectionName)
-    const cursor = collection.aggregate(pipeline, { allowDiskUse: true })
-
+    const cursor = collection.aggregate(pipeline, { allowDiskUse: config.defaults.allowDiskUse })
     let results
     if (cursor && typeof cursor.toArray === 'function') results = await cursor.toArray()
     else if (cursor && cursor.result) results = cursor.result
@@ -3398,7 +3446,7 @@ const getDatabaseStats = async () => {
   return stats
 }
 
-const inferSchema = async (collectionName, sampleSize = 100) => {
+const inferSchema = async (collectionName, sampleSize = config.defaults.schemaSampleSize) => {
   log(`DB Operation: Inferring schema for collection '${collectionName}' with sample size ${sampleSize}…`)
   try {
     await throwIfCollectionNotExists(collectionName)
@@ -3406,21 +3454,18 @@ const inferSchema = async (collectionName, sampleSize = 100) => {
     const cacheKey = `${currentDbName}.${collectionName}.${sampleSize}`
     const cachedSchema = memoryCache.schemas.get(cacheKey)
 
-    if (cachedSchema &&
-        (Date.now() - cachedSchema.timestamp) < CACHE_TTL.SCHEMAS) {
+    if (cachedSchema && (Date.now() - cachedSchema.timestamp) < config.cacheTTL.schemas) {
       log(`DB Operation: Using cached schema for '${collectionName}'`)
       return cachedSchema.data
     }
 
     const collection = currentDb.collection(collectionName)
 
-    const pipeline = [
-      { $sample: { size: sampleSize } }
-    ]
+    const pipeline = [{ $sample: { size: sampleSize } }]
 
     const cursor = collection.aggregate(pipeline, {
-      allowDiskUse: true,
-      cursor: { batchSize: 50 }
+      allowDiskUse: config.defaults.allowDiskUse,
+      cursor: { batchSize: config.defaults.aggregationBatchSize }
     })
 
     const documents = []
@@ -3432,10 +3477,7 @@ const inferSchema = async (collectionName, sampleSize = 100) => {
       documents.push(doc)
       collectFieldPaths(doc, '', fieldPaths)
       processed++
-
-      if (processed % 50 === 0) {
-        log(`DB Operation: Processed ${processed} documents for schema inference…`)
-      }
+      if (processed % 50 === 0) log(`DB Operation: Processed ${processed} documents for schema inference…`)
     }
 
     log(`DB Operation: Retrieved ${documents.length} sample documents for schema inference.`)
@@ -3585,9 +3627,38 @@ const explainQuery = async (collectionName, filter, verbosity = 'executionStats'
   }
 }
 
+const getSuggestedProjection = (filter, fields) => {
+  if (!fields || fields.length === 0) return null
+
+  const filterFields = new Set(Object.keys(filter))
+  const commonFields = new Set(['_id', 'name', 'title', 'date', 'createdAt', 'updatedAt'])
+
+  const projectionFields = {}
+
+  filterFields.forEach(field => {
+    if (fields.includes(field)) projectionFields[field] = 1
+  })
+
+  fields.forEach(field => {
+    if (commonFields.has(field)) projectionFields[field] = 1
+  })
+
+  if (Object.keys(projectionFields).length === 0) return null
+
+  return JSON.stringify(projectionFields)
+}
+
 const getServerStatus = async () => {
   log('DB Operation: Getting server status…')
   try {
+    const cacheKey = 'server_status'
+    const cachedData = memoryCache.serverStatus.get(cacheKey)
+
+    if (cachedData && (Date.now() - cachedData.timestamp) < config.cacheTTL.serverStatus) {
+      log('DB Operation: Using cached server status')
+      return cachedData.data
+    }
+
     const adminDb = mongoClient.db('admin')
     const status = await adminDb.command({ serverStatus: 1 })
 
@@ -3605,6 +3676,11 @@ const getServerStatus = async () => {
     if (versionDetails.isV5OrHigher && !normalizedStatus.wiredTiger && normalizedStatus.wiredTiger3) {
       normalizedStatus.wiredTiger = normalizedStatus.wiredTiger3
     }
+
+    memoryCache.serverStatus.set(cacheKey, {
+      data: normalizedStatus,
+      timestamp: Date.now()
+    })
 
     log('DB Operation: Retrieved and normalized server status.')
     return normalizedStatus
@@ -3656,6 +3732,118 @@ const getCollectionValidation = async (collectionName) => {
   }
 }
 
+const getCollectionFields = async (collectionName) => {
+  const cacheKey = `${currentDbName}.${collectionName}`
+  const cachedData = memoryCache.fields.get(cacheKey)
+
+  if (cachedData && (Date.now() - cachedData.timestamp) < config.cacheTTL.fields) {
+    log(`DB Operation: Using cached fields for '${collectionName}'`)
+    return cachedData.data
+  }
+
+  const schema = await inferSchema(collectionName, 10)
+  const fieldsArray = Object.keys(schema.fields)
+
+  memoryCache.fields.set(cacheKey, {
+    data: fieldsArray,
+    timestamp: Date.now()
+  })
+
+  return fieldsArray
+}
+
+const setProfilerSlowMs = async () => {
+  try {
+    await currentDb.command({ profile: -1 })
+    await currentDb.command({ profile: 0, slowms: config.defaults.slowMs })
+    log(`DB Operation: Set slow query threshold to ${config.defaults.slowMs}ms`)
+    return true
+  } catch (error) {
+    log(`Error setting profiler: ${error.message}`)
+    return false
+  }
+}
+
+const runTransaction = async (operations) => {
+  try {
+    log('Tool: Executing operations in a transaction…')
+
+    try {
+      const session = mongoClient.startSession()
+      await session.endSession()
+    } catch (error) {
+      if (error.message.includes('not supported') ||
+          error.message.includes('requires replica set') ||
+          error.codeName === 'NotAReplicaSet') {
+        return {
+          content: [{
+            type: 'text',
+            text: `Transactions are not supported on your MongoDB deployment.\n\nTransactions require MongoDB to be running as a replica set or sharded cluster. You appear to be running a standalone server.\n\nAlternative: You can set up a single-node replica set for development purposes by following these steps:\n\n1. Stop your MongoDB server\n2. Start it with the --replSet option: \`mongod --replSet rs0\`\n3. Connect to it and initialize the replica set: \`rs.initiate()\`\n\nThen try the transaction tool again.`
+          }]
+        }
+      }
+      throw error
+    }
+
+    const parsedOps = JSON.parse(operations)
+    const session = mongoClient.startSession()
+    let results = []
+
+    try {
+      session.startTransaction({
+        readConcern: { level: config.tools.transaction.readConcern },
+        writeConcern: config.tools.transaction.writeConcern
+      })
+
+      for (let i = 0; i < parsedOps.length; i++) {
+        const op = parsedOps[i]
+        log(`Tool: Transaction step ${i+1}: ${op.operation} on ${op.collection}`)
+
+        let result
+        const collection = currentDb.collection(op.collection)
+
+        if (op.operation === 'insert') {
+          result = await collection.insertOne(op.document, { session })
+        } else if (op.operation === 'update') {
+          result = await collection.updateOne(op.filter, op.update, { session })
+        } else if (op.operation === 'delete') {
+          result = await collection.deleteOne(op.filter, { session })
+        } else if (op.operation === 'find') {
+          result = await collection.findOne(op.filter, { session })
+        } else {
+          throw new Error(`Unsupported operation: ${op.operation}`)
+        }
+
+        results.push({ step: i+1, operation: op.operation, result })
+      }
+
+      await session.commitTransaction()
+      log('Tool: Transaction committed successfully')
+    } catch (error) {
+      await session.abortTransaction()
+      log(`Tool: Transaction aborted due to error: ${error.message}`)
+      throw error
+    } finally {
+      await session.endSession()
+    }
+
+    return {
+      content: [{
+        type: 'text',
+        text: formatTransactionResults(results)
+      }]
+    }
+  } catch (error) {
+    return {
+      content: [{
+        type: 'text',
+        text: `Error executing transaction: ${error.message}`
+      }],
+      isError: true
+    }
+  }
+}
+
 const getDatabaseUsers = async () => {
   log(`DB Operation: Getting users for database '${currentDbName}'…`)
   try {
@@ -3687,6 +3875,8 @@ const getStoredFunctions = async () => {
 
 const getPerformanceMetrics = async () => {
   try {
+    await setProfilerSlowMs()
+
     const adminDb = mongoClient.db('admin')
     const serverStatus = await adminDb.command({ serverStatus: 1 })
     const profileStats = await currentDb.command({ profile: -1 })
@@ -3699,6 +3889,12 @@ const getPerformanceMetrics = async () => {
 
     const perfStats = await currentDb.command({ dbStats: 1 })
 
+    const slowQueries = await currentDb.collection('system.profile')
+      .find({ millis: { $gt: config.defaults.slowMs } })
+      .sort({ ts: -1 })
+      .limit(10)
+      .toArray()
+
     return {
       serverStatus: {
         connections: serverStatus.connections,
@@ -3710,7 +3906,8 @@ const getPerformanceMetrics = async () => {
       },
       profileSettings: profileStats,
       currentOperations: currentOps.inprog,
-      performance: perfStats
+      performance: perfStats,
+      slowQueries
     }
   } catch (error) {
     log(`Error getting performance metrics: ${error.message}`)
@@ -3814,7 +4011,7 @@ const runMapReduce = async (collectionName, map, reduce, options = {}) => {
   }
 }
 
-const bulkOperations = async (collectionName, operations, ordered = true) => {
+const bulkOperations = async (collectionName, operations, ordered = config.tools.bulkOperations.ordered) => {
   log(`DB Operation: Performing bulk operations on collection '${collectionName}'…`)
   try {
     await throwIfCollectionNotExists(collectionName)
@@ -4760,15 +4957,19 @@ const formatQueryAnalysis = (analysis) => {
   return result
 }
 
-const formatExport = async (documents, format, fields = null) => {
+const formatExport = async (documents, format = config.tools.export.defaultFormat, fields = null, limit = config.tools.export.defaultLimit) => {
   log(`DB Operation: Formatting ${documents.length} documents for export in ${format} format…`)
   try {
+    const limitedDocs = limit !== -1
+      ? documents.slice(0, limit)
+      : documents
+
     if (format === 'json') {
-      return JSON.stringify(documents, (key, value) => serializeForExport(value), 2)
+      return JSON.stringify(limitedDocs, (key, value) => serializeForExport(value), 2)
     } else if (format === 'csv') {
       if (!fields || !fields.length) {
-        if (documents.length > 0) {
-          fields = Object.keys(documents[0])
+        if (limitedDocs.length > 0) {
+          fields = Object.keys(limitedDocs[0])
         } else {
           return 'No documents found for export'
         }
@@ -4776,7 +4977,7 @@ const formatExport = async (documents, format, fields = null) => {
 
       let csv = fields.join(',') + '\n'
 
-      for (const doc of documents) {
+      for (const doc of limitedDocs) {
         const row = fields.map(field => {
           const value = getNestedValue(doc, field)
           return formatCsvValue(value)
@@ -4945,7 +5146,7 @@ const analyzeQueryPatterns = (collection, schema, indexes, queryStats) => {
           return queryFields.every(field => indexFields.includes(field))
         })
 
-        if (!hasMatchingIndex && queryFields.length > 0 && millis > 10) {
+        if (!hasMatchingIndex && queryFields.length > 0 && millis > config.defaults.slowMs) {
           analysis.indexRecommendations.push({
             fields: queryFields,
             filter: JSON.stringify(filter),
@@ -5122,14 +5323,15 @@ const getNestedValue = (obj, path) => {
 }
 
 const generateDropToken = () => {
-  return String(Math.floor(Math.random() * 10000)).padStart(4, '0')
+  const maxToken = Math.pow(10, config.security.tokenLength)
+  return String(Math.floor(Math.random() * maxToken)).padStart(config.security.tokenLength, '0')
 }
 
 const storeDropDatabaseToken = (dbName) => {
   const token = generateDropToken()
   confirmationTokens.dropDatabase.set(dbName, {
     token,
-    expires: Date.now() + 5 * 60 * 1000
+    expires: Date.now() + config.security.tokenExpirationMinutes * 60 * 1000
   })
   return token
 }
@@ -5281,6 +5483,130 @@ const validateDropIndexToken = (collectionName, indexName, token) => {
   return true
 }
 
+const loadConfig = () => {
+  let config = { ...defaultConfig }
+
+  const configPath = process.env.CONFIG_PATH || join(process.env.HOME || __dirname, '.mongodb-lens.json')
+  if (existsSync(configPath)) {
+    try {
+      log(`Loading config file: ${configPath}`);
+      const fileContent = readFileSync(configPath, 'utf8')
+      const strippedContent = stripJsonComments(fileContent)
+      const configFile = JSON.parse(strippedContent)
+      config = mergeConfigs(config, configFile)
+    } catch (error) {
+      console.error(`Error loading config file: ${error.message}`)
+    }
+  }
+
+  if (process.argv.length > 2) config.mongoUri = process.argv[2]
+
+  if (process.env.DISABLE_DESTRUCTIVE_OPERATION_TOKENS === 'true') config.disableDestructiveOperationTokens = true
+
+  if (process.env.LOG_LEVEL) {
+    const validLogLevels = ['info', 'verbose']
+    if (validLogLevels.includes(process.env.LOG_LEVEL)) {
+      config.logLevel = process.env.LOG_LEVEL
+    } else {
+      console.error(`Invalid LOG_LEVEL: ${process.env.LOG_LEVEL}. Using default: ${config.logLevel}`)
+    }
+  }
+
+  return config
+}
+
+const mergeConfigs = (target, source) => {
+  const result = { ...target }
+  for (const key in source) {
+    if (source[key] === null || source[key] === undefined) continue
+    if (typeof source[key] === 'object' && !Array.isArray(source[key])) {
+      if (typeof target[key] === 'object' && !Array.isArray(target[key])) {
+        result[key] = mergeConfigs(target[key], source[key])
+      } else {
+        result[key] = { ...source[key] }
+      }
+    } else {
+      result[key] = source[key]
+    }
+  }
+  return result
+}
+
+const stripJsonComments = (jsonString) => {
+  let inString = false
+  let inMultiLineComment = false
+  let inSingleLineComment = false
+  let escaped = false
+  let result = ''
+
+  for (let i = 0; i < jsonString.length; i++) {
+    const char = jsonString[i]
+    const nextChar = jsonString[i + 1] || ''
+
+    // Handle string literals
+    if (!inMultiLineComment && !inSingleLineComment && char === '"' && !escaped) {
+      inString = !inString
+    }
+
+    // Handle escape sequences in strings
+    if (inString && char === '\\' && !escaped) {
+      escaped = true
+      result += char
+      continue
+    } else {
+      escaped = false
+    }
+
+    // Start of multiline comment
+    if (!inString && !inSingleLineComment && char === '/' && nextChar === '*') {
+      inMultiLineComment = true
+      i++
+      continue
+    }
+
+    // End of multiline comment
+    if (inMultiLineComment && char === '*' && nextChar === '/') {
+      inMultiLineComment = false
+      i++
+      continue
+    }
+
+    // Start of single line comment (// style)
+    if (!inString && !inMultiLineComment && char === '/' && nextChar === '/') {
+      inSingleLineComment = true
+      i++
+      continue
+    }
+
+    // Start of single line comment (# style)
+    if (!inString && !inMultiLineComment && !inSingleLineComment && char === '#') {
+      inSingleLineComment = true
+      continue
+    }
+
+    // End of single line comment
+    if (inSingleLineComment && (char === '\n' || char === '\r')) {
+      inSingleLineComment = false
+    }
+
+    // Only add characters if not in a comment
+    if (!inMultiLineComment && !inSingleLineComment) {
+      result += char
+    }
+  }
+
+  return result
+}
+
+const getPackageVersion = () => {
+  if (packageVersion) return packageVersion
+  const __filename = fileURLToPath(import.meta.url)
+  const __dirname = dirname(__filename)
+  const packageJson = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'))
+  packageVersion = packageJson.version
+  return packageVersion
+}
+
 const createBooleanSchema = (description, defaultValue = 'true') =>
   z.string()
     .transform(val => val?.toLowerCase())
@@ -5296,31 +5622,8 @@ const arraysEqual = (a, b) => {
 }
 
 const log = (message, forceLog = false) => {
-  if (forceLog || LOG_LEVEL === 'verbose') console.error(message)
+  if (forceLog || process.env.LOG_LEVEL === 'verbose' || config.logLevel === 'verbose') console.error(message)
 }
-
-const getPackageVersion = () => {
-  if (packageVersion) return packageVersion
-  const __filename = fileURLToPath(import.meta.url)
-  const __dirname = dirname(__filename)
-  const packageJson = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'))
-  packageVersion = packageJson.version
-  return packageVersion
-}
-
-process.on('SIGTERM', async () => {
-  isShuttingDown = true
-  log('Received SIGTERM, shutting down…')
-  await cleanup()
-  exit()
-})
-
-process.on('SIGINT', async () => {
-  isShuttingDown = true
-  log('Received SIGINT, shutting down…')
-  await cleanup()
-  exit()
-})
 
 const cleanup = async () => {
   if (watchdog) {
@@ -5358,12 +5661,23 @@ const cleanup = async () => {
     }
   }
 
-  memoryCache.schemas.clear()
-  memoryCache.collections.clear()
-  memoryCache.stats.clear()
-  memoryCache.indexes.clear()
-  memoryCache.serverStatus.clear()
-  memoryCache.fields.clear()
+  clearMemoryCache()
+}
+
+const setupSignalHandlers = () => {
+  process.on('SIGTERM', async () => {
+    isShuttingDown = true
+    log('Received SIGTERM, shutting down…')
+    await cleanup()
+    exit()
+  })
+
+  process.on('SIGINT', async () => {
+    isShuttingDown = true
+    log('Received SIGINT, shutting down…')
+    await cleanup()
+    exit()
+  })
 }
 
 const exit = (exitCode = 1) => {
@@ -5375,23 +5689,14 @@ let server = null
 let watchdog = null
 let transport = null
 let currentDb = null
-let configFile = null
 let mongoClient = null
 let currentDbName = null
 let packageVersion = null
 let connectionRetries = 0
 let isShuttingDown = false
-let currentMongoUri = null
-let originalMongoUri = null
+let mongoUriCurrent = null
+let mongoUriOriginal = null
 let isChangingConnection = false
-
-const CACHE_TTL = {
-  SCHEMAS: 60 * 1000,
-  COLLECTIONS: 30 * 1000,
-  STATS: 15 * 1000,
-  INDEXES: 120 * 1000,
-  SERVER_STATUS: 20 * 1000,
-}
 
 const memoryCache = {
   stats: new Map(),
@@ -5402,6 +5707,9 @@ const memoryCache = {
   serverStatus: new Map(),
 }
 
+const clearMemoryCache = () =>
+  Object.values(memoryCache).forEach(cache => cache.clear())
+
 const confirmationTokens = {
   dropUser: new Map(),
   dropIndex: new Map(),
@@ -5410,17 +5718,6 @@ const confirmationTokens = {
   deleteDocument: new Map(),
   dropCollection: new Map(),
   renameCollection: new Map(),
-}
-
-const connectionOptions = {
-  useUnifiedTopology: true,
-  maxPoolSize: 20,
-  connectTimeoutMS: 30000,
-  socketTimeoutMS: 360000,
-  serverSelectionTimeoutMS: 30000,
-  heartbeatFrequencyMS: 10000,
-  retryWrites: false,
-  useNewUrlParser: true
 }
 
 const JSONRPC_ERROR_CODES = {
@@ -5486,13 +5783,84 @@ Under no circumstances should you automate the sending of the prior prompt with 
 code inserted. You MUST wait for the user to enter the code themselves. No exceptions.
 `
 
-if (existsSync(CONFIG_PATH))
-  try { configFile = JSON.parse(readFileSync(CONFIG_PATH, 'utf8')) }
-  catch (error) { log(`Error loading config file: ${error.message}`, true) }
+const defaultConfig = {
+  mongoUri: 'mongodb://localhost:27017',
+  connectionOptions: {
+    maxPoolSize: 20,
+    retryWrites: false,
+    useNewUrlParser: true,
+    connectTimeoutMS: 30000,
+    socketTimeoutMS: 360000,
+    useUnifiedTopology: true,
+    heartbeatFrequencyMS: 10000,
+    serverSelectionTimeoutMS: 30000
+  },
+  defaultDbName: 'admin',
+  connection: {
+    maxRetries: 5,
+    maxRetryDelayMs: 30000,
+    reconnectionRetries: 10,
+    initialRetryDelayMs: 1000
+  },
+  cacheTTL: {
+    stats: 15 * 1000,
+    schemas: 60 * 1000,
+    indexes: 120 * 1000,
+    collections: 30 * 1000,
+    serverStatus: 20 * 1000
+  },
+  enabledCaches: [
+    'stats',
+    'fields',
+    'schemas',
+    'indexes',
+    'collections',
+    'serverStatus'
+  ],
+  memory: {
+    enableGC: true,
+    warningThresholdMB: 1500,
+    criticalThresholdMB: 2000
+  },
+  logLevel: 'info',
+  disableDestructiveOperationTokens: false,
+  watchdogIntervalMs: 30000,
+  defaults: {
+    slowMs: 100,
+    queryLimit: 10,
+    allowDiskUse: true,
+    schemaSampleSize: 100,
+    aggregationBatchSize: 50
+  },
+  security: {
+    tokenLength: 4,
+    tokenExpirationMinutes: 5,
+    strictDatabaseNameValidation: true
+  },
+  tools: {
+    transaction: {
+      readConcern: 'snapshot',
+      writeConcern: { w: 'majority' }
+    },
+    bulkOperations: {
+      ordered: true
+    },
+    export: {
+      defaultLimit: -1,
+      defaultFormat: 'json'
+    },
+    watchChanges: {
+      maxDurationSeconds: 60,
+      defaultDurationSeconds: 10
+    },
+    queryAnalysis: {
+      defaultDurationSeconds: 10
+    }
+  }
+}
 
-const mongoUri = process.argv[2] || configFile?.mongoUri || 'mongodb://localhost:27017'
+setupSignalHandlers()
 
-originalMongoUri = mongoUri
-currentMongoUri = mongoUri
+const config = loadConfig()
 
-start(mongoUri)
+start(config.mongoUri)

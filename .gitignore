@@ -2,3 +2,5 @@
 node_modules/
 repomix*
 CLAUDE.md
+ROADMAP.md
+.mongodb-lens.json*

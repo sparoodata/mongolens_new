@@ -110,9 +110,9 @@
 
 ### Other Features
 
-- [Other Features: Overview](#other-features-overview)
-- [Other Features: New Database Metadata](#other-features-new-database-metadata)
-- [Other Features: MongoDB Version Compatibility](#other-features-mongodb-version-compatibility)
+- [Overview](#other-features-overview)
+- [New Database Metadata](#other-features-new-database-metadata)
+- [MongoDB Version Compatibility](#other-features-mongodb-version-compatibility)
 
 #### Other Features: Overview
 
@@ -121,17 +121,15 @@ MongoDB Lens includes several additional features:
 - **Configuration File**: Custom configuration via `~/.mongodb-lens.json`
 - **Connection Resilience**: Automatic reconnection with exponential backoff
 - **Component Disabling**: Selectively disable specific tools, prompts or resources
-- **Smart Caching**: Enhanced caching for schemas, collection lists, and server status
 - **JSONRPC Error Handling**: Comprehensive error handling with proper error codes
+- **Smart Caching**: Optimized caching for schemas, indexes, fields, collections and more
 - **Memory Management**: Automatic memory monitoring and cleanup for large operations
 
 #### Other Features: New Database Metadata
 
-When MongoDB Lens creates a new database it adds a `metadata` collection containing a single document. This serves several purposes:
+MongoDB Lens inserts a `metadata` collection into each database it creates.
 
-- MongoDB only persists databases containing at least one collection
-- Records database creation details (timestamp, tool version, user)
-- Captures environment information for your own diagnostics
+This `metadata` collection stores a single document containing contextual information serving as a permanent record of the database's origin while ensuring the new and otherwise empty database persists in MongoDB's storage system.
 
 <details>
   <summary><strong>Example metadata document</strong></summary>
@@ -169,7 +167,10 @@ When MongoDB Lens creates a new database it adds a `metadata` collection contain
 
 </details>
 
-You can safely remove this collection once you've added your own collections to the new database.
+Once you've added your own collections to your new database, you can safely remove the `metadata` collection via the `drop-collection` tool:
+
+- _"Drop the new database's metadata collection"_<br>
+ <sup>➥ Uses `drop-collection` tool (with confirmation)</sup>
 
 #### Other Features: MongoDB Version Compatibility
 
@@ -190,17 +191,25 @@ MongoDB Lens can be installed and run in several ways:
 > [!NOTE]<br>
 > NPX requires [Node.js](https://nodejs.org/en/download) installed and running on your system (suggestion: use [Volta](https://volta.sh)).
 
-The easiest way to run MongoDB Lens is using `npx`:
+The easiest way to run MongoDB Lens is using `npx`.
+
+First, ensure Node.js is installed:
 
 ```console
-# Ensure Node.js is installed
 node --version # Ideally >= v22.x but MongoDB Lens is >= v18.x compatible
+```
 
+Then, run MongoDB Lens via NPX:
+
+```console
 # Using default connection string mongodb://localhost:27017
 npx -y mongodb-lens
 
 # Using custom connection string
 npx -y mongodb-lens mongodb://your-connection-string
+
+# Using "@latest" to keep the package up-to-date
+npx -y mongodb-lens@latest
 ```
 
 > [!TIP]<br>
@@ -211,7 +220,13 @@ npx -y mongodb-lens mongodb://your-connection-string
 > [!NOTE]<br>
 > Docker Hub requires [Docker](https://docs.docker.com/get-started/get-docker) installed and running on your system.
 
-Run MongoDB Lens via Docker Hub:
+First, ensure Docker is installed:
+
+```console
+docker --version # Ideally >= v27.x
+```
+
+Then, run MongoDB Lens via Docker Hub:
 
 ```console
 # Using default connection string mongodb://localhost:27017
@@ -267,6 +282,10 @@ docker run --rm -i --network=host --pull=always furey/mongodb-lens
     ```console
     cd /path/to/mongodb-lens
     ```
+1. Ensure Docker is installed:<br>
+    ```console
+    docker --version # Ideally >= v27.x
+    ```
 1. Build the Docker image:<br>
     ```console
     docker build -t mongodb-lens .
@@ -310,7 +329,7 @@ The server accepts a MongoDB connection string as its only argument.
 Example NPX usage:
 
 ```console
-npx -y mongodb-lens mongodb://your-connection-string
+npx -y mongodb-lens@latest mongodb://your-connection-string
 ```
 
 MongoDB connection strings have the following format:
@@ -332,7 +351,7 @@ If no connection string is provided, the server will attempt to connect via loca
 
 ### Configuration: Config File
 
-MongoDB Lens supports extensive customization via JSON config file.
+MongoDB Lens supports extensive customization via JSON configuration file.
 
 > [!NOTE]<br>
 > The config file is optional. MongoDB Lens will run with default settings if no config file is provided.
@@ -437,13 +456,13 @@ To customize the config file path, set the environment variable `CONFIG_PATH` to
 Example NPX usage:
 
 ```console
-CONFIG_PATH='/path/to/config.json' npx -y mongodb-lens
+CONFIG_PATH='/path/to/config.json' npx -y mongodb-lens@latest
 ```
 
 Example Docker Hub usage:
 
 ```console
-docker run --rm -i --network=host -v /path/to/config.json:/root/.mongodb-lens.json furey/mongodb-lens
+docker run --rm -i --network=host --pull=always -v /path/to/config.json:/root/.mongodb-lens.json furey/mongodb-lens
 ```
 
 ### Configuration: Environment Variable Overrides
@@ -460,8 +479,6 @@ CONFIG_[SETTING PATH, SNAKE CASED, UPPERCASED]
 
 Example overrides:
 
-<small><small>
-
 | Config Setting                   | Environment Variable Override             |
 | -------------------------------- | ----------------------------------------- |
 | `mongoUri`                       | `CONFIG_MONGO_URI`                        |
@@ -472,8 +489,6 @@ Example overrides:
 | `defaults.queryLimit`            | `CONFIG_DEFAULTS_QUERY_LIMIT`             |
 | `tools.export.defaultFormat`     | `CONFIG_TOOLS_EXPORT_DEFAULT_FORMAT`      |
 
-</small></small>
-
 For environment variable values:
 
 - For boolean settings, use string values `'true'` or `'false'`.
@@ -483,13 +498,13 @@ For environment variable values:
 Example NPX usage:
 
 ```console
-CONFIG_DEFAULTS_QUERY_LIMIT='25' npx -y mongodb-lens
+CONFIG_DEFAULTS_QUERY_LIMIT='25' npx -y mongodb-lens@latest
 ```
 
 Example Docker Hub usage:
 
 ```console
-docker run --rm -i --network=host -e CONFIG_DEFAULTS_QUERY_LIMIT='25' furey/mongodb-lens
+docker run --rm -i --network=host --pull=always -e CONFIG_DEFAULTS_QUERY_LIMIT='25' furey/mongodb-lens
 ```
 
 ### Configuration: Multiple MongoDB Connections
@@ -513,9 +528,7 @@ With this configuration:
 - The first URI in the list (e.g. `main`) becomes the default connection at startup
 - You can switch connections using natural language: `"Connect to backup"` or `"Connect to atlas"`
 - The original syntax still works: `"Connect to mongodb://localhost:27018"`
-- The new `list-connections` tool shows all available connection aliases
-
-This feature makes it easier to manage connections to different environments (development, testing, production) or to switch between primary and replica databases.
+- The `list-connections` tool shows all available connection aliases
 
 > [!NOTE]<br>
 > When using the command-line argument to specify a connection, you can use either a full MongoDB URI or an alias defined in your configuration file.
@@ -555,24 +568,25 @@ For each option:
     "command": "/path/to/npx",
     "args": [
       "-y",
-      "mongodb-lens",
+      "mongodb-lens@latest",
       "mongodb://your-connection-string"
     ],
     "env": {
-      "CONFIG_LOG_LEVEL": "verbose",
-      "CONFIG_DEFAULT_DB_NAME": "analytics",
-      "CONFIG_CONNECTION_OPTIONS_MAX_POOL_SIZE": "30"
+      "CONFIG_LOG_LEVEL": "verbose"
     }
     ```
   - For Docker add `-e` flags, for example:<br>
-    ```console
-    docker run --rm -i --network=host \
-      -e CONFIG_LOG_LEVEL='verbose' \
-      -e CONFIG_DEFAULT_DB_NAME='analytics' \
-      -e CONFIG_CONNECTION_OPTIONS_MAX_POOL_SIZE='30' \
-      furey/mongodb-lens
+    ```json
+    "command": "docker",
+    "args": [
+      "run", "--rm", "-i",
+      "--network=host",
+      "--pull=always",
+      "-e", "CONFIG_LOG_LEVEL='verbose'",
+      "furey/mongodb-lens",
+      "mongodb://your-connection-string"
+    ]
     ```
-
 
 ##### Option 1: NPX (Recommended)
 
@@ -583,7 +597,7 @@ For each option:
       "command": "/path/to/npx",
       "args": [
         "-y",
-        "mongodb-lens",
+        "mongodb-lens@latest",
         "mongodb://your-connection-string"
       ]
     }
@@ -599,9 +613,7 @@ For each option:
     "mongodb-lens": {
       "command": "docker",
       "args": [
-        "run",
-        "--rm",
-        "-i",
+        "run", "--rm", "-i",
         "--network=host",
         "--pull=always",
         "furey/mongodb-lens",
@@ -636,9 +648,7 @@ For each option:
     "mongodb-lens": {
       "command": "docker",
       "args": [
-        "run",
-        "--rm",
-        "-i",
+        "run", "--rm", "-i",
         "--network=host",
         "mongodb-lens",
         "mongodb://your-connection-string"
@@ -660,13 +670,13 @@ Example NPX usage:
 1. Run MCP Inspector:<br>
     ```console
     # Using default connection string mongodb://localhost:27017
-    npx -y @modelcontextprotocol/inspector npx -y mongodb-lens
+    npx -y @modelcontextprotocol/inspector npx -y mongodb-lens@latest
 
     # Using custom connection string
-    npx -y @modelcontextprotocol/inspector npx -y mongodb-lens mongodb://your-connection-string
+    npx -y @modelcontextprotocol/inspector npx -y mongodb-lens@latest mongodb://your-connection-string
 
     # Using custom ports
-    SERVER_PORT=1234 CLIENT_PORT=5678 npx -y @modelcontextprotocol/inspector npx -y mongodb-lens
+    SERVER_PORT=1234 CLIENT_PORT=5678 npx -y @modelcontextprotocol/inspector npx -y mongodb-lens@latest
     ```
 1. Open MCP Inspector: http://localhost:5173
 
@@ -728,7 +738,7 @@ MongoDB Lens implements a token-based confirmation system for potentially destru
 1. First tool invocation: Returns a 4-digit confirmation token that expires after 5 minutes
 1. Second tool invocation: Executes the operation if provided with the valid token
 
-For an example of the confirmation process, see: [Working with Confirmation Protection](#tutorial-5-working-with-confirmation-protection).
+For an example of the confirmation process, see: [Working with Confirmation Protection](#tutorial-5-working-with-confirmation-protection)
 
 Tools that require confirmation include:
 
@@ -753,10 +763,10 @@ Set the environment variable `CONFIG_DISABLE_DESTRUCTIVE_OPERATION_TOKENS` to `t
 
 ```console
 # Using NPX
-CONFIG_DISABLE_DESTRUCTIVE_OPERATION_TOKENS=true npx -y mongodb-lens
+CONFIG_DISABLE_DESTRUCTIVE_OPERATION_TOKENS=true npx -y mongodb-lens@latest
 
 # Using Docker
-docker run --rm -i --network=host -e CONFIG_DISABLE_DESTRUCTIVE_OPERATION_TOKENS='true' furey/mongodb-lens
+docker run --rm -i --network=host --pull=always -e CONFIG_DISABLE_DESTRUCTIVE_OPERATION_TOKENS='true' furey/mongodb-lens
 ```
 
 > [!WARNING]<br>
@@ -912,7 +922,7 @@ Example [Claude Desktop configuration](#client-setup-claude-desktop):
       "command": "/path/to/npx",
       "args": [
         "-y",
-        "mongodb-lens"
+        "mongodb-lens@latest"
       ]
     }
   }

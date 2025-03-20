@@ -2,12 +2,14 @@
 
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import stripJsonComments from 'strip-json-comments'
 import { readFileSync, existsSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { Transform } from 'stream'
 import mongodb from 'mongodb'
 import { z } from 'zod'
+import _ from 'lodash'
 
 const { MongoClient, ObjectId, GridFSBucket } = mongodb
 const __filename = fileURLToPath(import.meta.url)
@@ -215,2675 +217,2837 @@ const changeConnection = async (uri, validate = true) => {
   }
 }
 
+const isDisabled = (type, name) => {
+  if (!config.disabled || !config.disabled[type]) return false
+  if (config.disabled[type] === true) return true
+  return Array.isArray(config.disabled[type]) && config.disabled[type].includes(name)
+}
+
 const registerResources = (server) => {
-  server.resource(
-    'databases',
-    'mongodb://databases',
-    { description: 'List of all accessible MongoDB databases' },
-    async () => {
-      log('Resource: Retrieving list of databases…')
-      const dbs = await listDatabases()
-      log(`Resource: Found ${dbs.length} databases.`)
-      return {
-        contents: [{
-          uri: 'mongodb://databases',
-          text: formatDatabasesList(dbs)
-        }]
-      }
-    }
-  )
-
-  server.resource(
-    'database-users',
-    'mongodb://database/users',
-    { description: 'MongoDB database users and roles' },
-    async () => {
-      log('Resource: Retrieving database users…')
-      const users = await getDatabaseUsers()
-      log(`Resource: Retrieved user information.`)
-      return {
-        contents: [{
-          uri: 'mongodb://database/users',
-          text: formatDatabaseUsers(users)
-        }]
-      }
-    }
-  )
-
-  server.resource(
-    'database-triggers',
-    'mongodb://database/triggers',
-    { description: 'Database change streams and event triggers configuration' },
-    async () => {
-      log('Resource: Retrieving database triggers and event configuration…')
-      const triggers = await getDatabaseTriggers()
-      return {
-        contents: [{
-          uri: 'mongodb://database/triggers',
-          text: formatTriggerConfiguration(triggers)
-        }]
-      }
-    }
-  )
-
-  server.resource(
-    'stored-functions',
-    'mongodb://database/functions',
-    { description: 'MongoDB stored JavaScript functions' },
-    async () => {
-      log('Resource: Retrieving stored JavaScript functions…')
-      const functions = await getStoredFunctions()
-      log(`Resource: Retrieved stored functions.`)
-      return {
-        contents: [{
-          uri: 'mongodb://database/functions',
-          text: formatStoredFunctions(functions)
-        }]
-      }
-    }
-  )
-
-  server.resource(
-    'collections',
-    'mongodb://collections',
-    { description: 'List of collections in the current database' },
-    async () => {
-      log(`Resource: Retrieving collections from database '${currentDbName}'…`)
-      const collections = await listCollections()
-      log(`Resource: Found ${collections.length} collections.`)
-      return {
-        contents: [{
-          uri: 'mongodb://collections',
-          text: formatCollectionsList(collections)
-        }]
-      }
-    }
-  )
-
-  server.resource(
-    'collection-indexes',
-    new ResourceTemplate('mongodb://collection/{name}/indexes', {
-      list: async () => {
-        try {
-          log('Resource: Listing collection indexes resources…')
-          const collections = await listCollections()
-          log(`Resource: Preparing index resources for ${collections.length} collections.`)
-          return {
-            resources: collections.map(coll => ({
-              uri: `mongodb://collection/${coll.name}/indexes`,
-              name: `${coll.name} Indexes`,
-              description: `Indexes for ${coll.name} collection`
-            }))
-          }
-        } catch (error) {
-          log(`Error listing collections for indexes: ${error.message}`, true)
-          return { resources: [] }
-        }
-      },
-      complete: {
-        name: async (value) => {
-          try {
-            log(`Resource: Autocompleting collection name for indexes with prefix '${value}'…`)
-            const collections = await listCollections()
-            const matches = collections
-              .map(coll => coll.name)
-              .filter(name => name.toLowerCase().includes(value.toLowerCase()))
-            log(`Resource: Found ${matches.length} matching collections for indexes.`)
-            return matches
-          } catch (error) {
-            log(`Error completing collection names: ${error.message}`, true)
-            return []
-          }
-        }
-      }
-    }),
-    { description: 'Index information for a MongoDB collection' },
-    async (uri, { name }) => {
-      log(`Resource: Retrieving indexes for collection '${name}'…`)
-      const indexes = await getCollectionIndexes(name)
-      log(`Resource: Retrieved ${indexes.length} indexes for collection '${name}'.`)
-      return {
-        contents: [{
-          uri: uri.href,
-          text: formatIndexes(indexes)
-        }]
-      }
-    }
-  )
-
-  server.resource(
-    'collection-schema',
-    new ResourceTemplate('mongodb://collection/{name}/schema', {
-      list: async () => {
-        try {
-          log('Resource: Listing collection schemas…')
-          const collections = await listCollections()
-          log(`Resource: Preparing schema resources for ${collections.length} collections.`)
-          return {
-            resources: collections.map(coll => ({
-              uri: `mongodb://collection/${coll.name}/schema`,
-              name: `${coll.name} Schema`,
-              description: `Schema for ${coll.name} collection`
-            }))
-          }
-        } catch (error) {
-          log(`Error listing collection schemas: ${error.message}`, true)
-          return { resources: [] }
-        }
-      },
-      complete: {
-        name: async (value) => {
-          try {
-            log(`Resource: Autocompleting collection name with prefix '${value}'…`)
-            const collections = await listCollections()
-            const matches = collections
-              .map(coll => coll.name)
-              .filter(name => name.toLowerCase().includes(value.toLowerCase()))
-            log(`Resource: Found ${matches.length} matching collections.`)
-            return matches
-          } catch (error) {
-            log(`Error completing collection names: ${error.message}`, true)
-            return []
-          }
-        },
-        field: async (value, params) => {
-          try {
-            if (!params.name) return []
-
-            log(`Resource: Autocompleting field name with prefix '${value}' for collection '${params.name}'…`)
-            const fields = await getCollectionFields(params.name)
-            const matches = fields.filter(field =>
-              field.toLowerCase().includes(value.toLowerCase())
-            )
-            log(`Resource: Found ${matches.length} matching fields for collection '${params.name}'.`)
-            return matches
-          } catch (error) {
-            log(`Error completing field names: ${error.message}`, true)
-            return []
-          }
-        }
-      }
-    }),
-    { description: 'Schema information for a MongoDB collection' },
-    async (uri, { name }) => {
-      log(`Resource: Inferring schema for collection '${name}'…`)
-      const schema = await inferSchema(name)
-      log(`Resource: Schema inference complete for '${name}', identified ${Object.keys(schema.fields).length} fields.`)
-      return {
-        contents: [{
-          uri: uri.href,
-          text: formatSchema(schema)
-        }]
-      }
-    }
-  )
-
-  server.resource(
-    'collection-stats',
-    new ResourceTemplate('mongodb://collection/{name}/stats', {
-      list: async () => {
-        try {
-          log('Resource: Listing collection stats resources…')
-          const collections = await listCollections()
-          log(`Resource: Preparing stats resources for ${collections.length} collections.`)
-          return {
-            resources: collections.map(coll => ({
-              uri: `mongodb://collection/${coll.name}/stats`,
-              name: `${coll.name} Stats`,
-              description: `Statistics for ${coll.name} collection`
-            }))
-          }
-        } catch (error) {
-          log(`Error listing collections for stats: ${error.message}`, true)
-          return { resources: [] }
-        }
-      },
-      complete: {
-        name: async (value) => {
-          try {
-            log(`Resource: Autocompleting collection name for stats with prefix '${value}'…`)
-            const collections = await listCollections()
-            const matches = collections
-              .map(coll => coll.name)
-              .filter(name => name.toLowerCase().includes(value.toLowerCase()))
-            log(`Resource: Found ${matches.length} matching collections for stats.`)
-            return matches
-          } catch (error) {
-            log(`Error completing collection names: ${error.message}`, true)
-            return []
-          }
-        }
-      }
-    }),
-    { description: 'Performance statistics for a MongoDB collection' },
-    async (uri, { name }) => {
-      log(`Resource: Retrieving stats for collection '${name}'…`)
-      const stats = await getCollectionStats(name)
-      log(`Resource: Retrieved stats for collection '${name}'.`)
-      return {
-        contents: [{
-          uri: uri.href,
-          text: formatStats(stats)
-        }]
-      }
-    }
-  )
-
-  server.resource(
-    'collection-validation',
-    new ResourceTemplate('mongodb://collection/{name}/validation', {
-      list: async () => {
-        try {
-          log('Resource: Listing collection validation resources…')
-          const collections = await listCollections()
-          log(`Resource: Preparing validation resources for ${collections.length} collections.`)
-          return {
-            resources: collections.map(coll => ({
-              uri: `mongodb://collection/${coll.name}/validation`,
-              name: `${coll.name} Validation`,
-              description: `Validation rules for ${coll.name} collection`
-            }))
-          }
-        } catch (error) {
-          log(`Error listing collections for validation: ${error.message}`, true)
-          return { resources: [] }
-        }
-      },
-      complete: {
-        name: async (value) => {
-          try {
-            log(`Resource: Autocompleting collection name for validation with prefix '${value}'…`)
-            const collections = await listCollections()
-            const matches = collections
-              .map(coll => coll.name)
-              .filter(name => name.toLowerCase().includes(value.toLowerCase()))
-            return matches
-          } catch (error) {
-            log(`Error completing collection names: ${error.message}`, true)
-            return []
-          }
-        }
-      }
-    }),
-    { description: 'Validation rules for a MongoDB collection' },
-    async (uri, { name }) => {
-      log(`Resource: Retrieving validation rules for collection '${name}'…`)
-      const validation = await getCollectionValidation(name)
-      log(`Resource: Retrieved validation rules for collection '${name}'.`)
-      return {
-        contents: [{
-          uri: uri.href,
-          text: formatValidationRules(validation)
-        }]
-      }
-    }
-  )
-
-  server.resource(
-    'server-status',
-    'mongodb://server/status',
-    { description: 'MongoDB server status information' },
-    async () => {
-      log('Resource: Retrieving server status…')
-      const status = await getServerStatus()
-      log('Resource: Retrieved server status information.')
-      return {
-        contents: [{
-          uri: 'mongodb://server/status',
-          text: formatServerStatus(status)
-        }]
-      }
-    }
-  )
-
-  server.resource(
-    'replica-status',
-    'mongodb://server/replica',
-    { description: 'MongoDB replica set status and configuration' },
-    async () => {
-      log('Resource: Retrieving replica set status…')
-      const status = await getReplicaSetStatus()
-      log('Resource: Retrieved replica set status information.')
-      return {
-        contents: [{
-          uri: 'mongodb://server/replica',
-          text: formatReplicaSetStatus(status)
-        }]
-      }
-    }
-  )
-
-  server.resource(
-    'performance-metrics',
-    'mongodb://server/metrics',
-    { description: 'Real-time MongoDB performance metrics and profiling data' },
-    async () => {
-      log('Resource: Retrieving performance metrics…')
-      const metrics = await getPerformanceMetrics()
-      return {
-        contents: [{
-          uri: 'mongodb://server/metrics',
-          text: formatPerformanceMetrics(metrics)
-        }]
-      }
-    }
-  )
-}
-
-const registerPrompts = (server) => {
-  server.prompt(
-    'query-builder',
-    'Help construct MongoDB query filters',
-    {
-      collection: z.string().min(1).describe('Collection name to query'),
-      condition: z.string().describe('Describe the condition in natural language (e.g. "users older than 30")')
-    },
-    async ({ collection, condition }) => {
-      log(`Prompt: Initializing [query-builder] for collection '${collection}' with condition: "${condition}".`)
-
-      const fields = await getCollectionFields(collection)
-      const fieldInfo = fields.length > 0 ? `\nAvailable fields: ${fields.join(', ')}` : ''
-
-      return {
-        description: `MongoDB Query Builder for ${collection}`,
-        messages: [
-          {
-            role: 'user',
-            content: {
-              type: 'text',
-              text: `Please help me create a MongoDB query for the '${collection}' collection based on this condition: "${condition}".
-
-  I need both the filter object and a complete example showing how to use it with the findDocuments tool.
-
-  Guidelines:
-  1. Create a valid MongoDB query filter as a JSON object
-  2. Show me how special MongoDB operators work if needed (like $gt, $in, etc.)
-  3. Provide a complete example of using this with the findDocuments tool
-  4. Suggest any relevant projections or sort options
-  ${fieldInfo}
-
-  Remember: I'm working with the ${currentDbName} database and the ${collection} collection.`
-            }
-          }
-        ]
-      }
-    }
-  )
-
-  server.prompt(
-    'aggregation-builder',
-    'Help construct MongoDB aggregation pipelines',
-    {
-      collection: z.string().min(1).describe('Collection name for aggregation'),
-      goal: z.string().describe('What you want to calculate or analyze')
-    },
-    ({ collection, goal }) => {
-      log(`Prompt: Initializing [aggregation-builder] for collection '${collection}' with goal: "${goal}".`)
-      return {
-        description: `MongoDB Aggregation Pipeline Builder for ${collection}`,
-        messages: [
-          {
-            role: 'user',
-            content: {
-              type: 'text',
-              text: `I need to create a MongoDB aggregation pipeline for the '${collection}' collection to ${goal}.
-
-Please help me create:
-1. A complete aggregation pipeline as a JSON array
-2. An explanation of each stage in the pipeline
-3. How to execute this with the aggregateData tool
-
-Remember: I'm working with the ${currentDbName} database and the ${collection} collection.`
-            }
-          }
-        ]
-      }
-    }
-  )
-
-  server.prompt(
-    'schema-analysis',
-    'Analyze collection schema and recommend improvements',
-    {
-      collection: z.string().min(1).describe('Collection name to analyze')
-    },
-    async ({ collection }) => {
-      log(`Prompt: Initializing [schema-analysis] for collection '${collection}'…`)
-      const schema = await inferSchema(collection)
-      log(`Prompt: Retrieved schema for '${collection}' with ${Object.keys(schema.fields).length} fields.`)
-      return {
-        description: `MongoDB Schema Analysis for ${collection}`,
-        messages: [
-          {
-            role: 'user',
-            content: {
-              type: 'text',
-              text: `Please analyze the schema of the '${collection}' collection and provide recommendations:
-
-Here's the current schema:
-${formatSchema(schema)}
-
-Could you help with:
-1. Identifying any schema design issues or inconsistencies
-2. Suggesting schema improvements for better performance
-3. Recommending appropriate indexes based on the data structure
-4. Best practices for this type of data model
-5. Any potential MongoDB-specific optimizations`
-            }
-          }
-        ]
-      }
-    }
-  )
-
-  server.prompt(
-    'index-recommendation',
-    'Get index recommendations for query patterns',
-    {
-      collection: z.string().min(1).describe('Collection name'),
-      queryPattern: z.string().describe('Common query pattern or operation')
-    },
-    ({ collection, queryPattern }) => {
-      log(`Prompt: Initializing [index-recommendation] for collection '${collection}' with query pattern: "${queryPattern}".`)
-      return {
-        description: `MongoDB Index Recommendations for ${collection}`,
-        messages: [
-          {
-            role: 'user',
-            content: {
-              type: 'text',
-              text: `I need index recommendations for the '${collection}' collection to optimize this query pattern: "${queryPattern}".
-
-Please provide:
-1. Recommended index(es) with proper key specification
-2. Explanation of why this index would help
-3. The exact command to create this index using the createIndex tool
-4. How to verify the index is being used
-5. Any potential trade-offs or considerations for this index
-
-Remember: I'm working with the ${currentDbName} database and the ${collection} collection.`
-            }
-          }
-        ]
-      }
-    }
-  )
-
-  server.prompt(
-    'mongo-shell',
-    'Generate MongoDB shell commands',
-    {
-      operation: z.string().describe('Operation you want to perform'),
-      details: z.string().optional().describe('Additional details about the operation')
-    },
-    ({ operation, details }) => {
-      log(`Prompt: Initializing [mongo-shell] for operation: "${operation}" with${details ? ' details: "' + details + '"' : 'out details'}.`)
-      return {
-        description: 'MongoDB Shell Command Generator',
-        messages: [
-          {
-            role: 'user',
-            content: {
-              type: 'text',
-              text: `Please generate MongoDB shell commands to ${operation}${details ? ` with these details: ${details}` : ''}.
-
-I need:
-1. The exact MongoDB shell command(s)
-2. Explanation of each part of the command
-3. How this translates to using MongoDB Lens tools
-4. Any important considerations or variations
-
-Current database: ${currentDbName}`
-            }
-          }
-        ]
-      }
-    }
-  )
-
-  server.prompt(
-    'data-modeling',
-    'Get MongoDB data modeling advice for specific use cases',
-    {
-      useCase: z.string().describe('Describe your application or data use case'),
-      requirements: z.string().describe('Key requirements (performance, access patterns, etc.)'),
-      existingData: z.string().optional().describe('Optional: describe any existing data structure')
-    },
-    ({ useCase, requirements, existingData }) => {
-      log(`Prompt: Initializing [data-modeling] for use case: "${useCase}".`)
-      return {
-        description: 'MongoDB Data Modeling Guide',
-        messages: [
-          {
-            role: 'user',
-            content: {
-              type: 'text',
-              text: `I need help designing a MongoDB data model for this use case: "${useCase}".
-
-Key requirements:
-${requirements}
-
-${existingData ? `Existing data structure:\n${existingData}\n\n` : ''}
-Please provide:
-1. Recommended data model with collection structures
-2. Sample document structures in JSON format
-3. Explanation of design decisions and trade-offs
-4. Appropriate indexing strategy
-5. Any MongoDB-specific features or patterns I should consider
-6. How this model addresses the stated requirements`
-            }
-          }
-        ]
-      }
-    }
-  )
-
-  server.prompt(
-    'query-optimizer',
-    'Get optimization advice for slow queries',
-    {
-      collection: z.string().min(1).describe('Collection name'),
-      query: z.string().describe('The slow query (as a JSON filter)'),
-      performance: z.string().optional().describe('Optional: current performance metrics')
-    },
-    async ({ collection, query, performance }) => {
-      log(`Prompt: Initializing [query-optimizer] for collection '${collection}' with query: ${query}.`)
-      const stats = await getCollectionStats(collection)
-      const indexes = await getCollectionIndexes(collection)
-      return {
-        description: 'MongoDB Query Optimization Advisor',
-        messages: [
-          {
-            role: 'user',
-            content: {
-              type: 'text',
-              text: `I have a slow MongoDB query on the '${collection}' collection and need help optimizing it.
-
-Query filter: ${query}
-
-${performance ? `Current performance: ${performance}\n\n` : ''}
-Collection stats:
-${formatStats(stats)}
-
-Current indexes:
-${formatIndexes(indexes)}
-
-Please provide:
-1. Analysis of why this query might be slow
-2. Recommend index changes (additions or modifications)
-3. Suggest query structure improvements
-4. Explain how to verify performance improvements
-5. Other optimization techniques I should consider`
-            }
-          }
-        ]
-      }
-    }
-  )
-
-  server.prompt(
-    'security-audit',
-    'Get MongoDB security recommendations',
-    {},
-    async () => {
-      log('Prompt: Initializing [security-audit].')
-      const serverStatus = await getServerStatus()
-      const users = await getDatabaseUsers()
-      return {
-        description: 'MongoDB Security Audit',
-        messages: [
-          {
-            role: 'user',
-            content: {
-              type: 'text',
-              text: `Please help me perform a security audit on my MongoDB deployment.
-
-Server information:
-${formatServerStatus(serverStatus)}
-
-User information:
-${formatDatabaseUsers(users)}
-
-Please provide:
-1. Potential security vulnerabilities in my current setup
-2. Recommendations for improving security
-3. Authentication and authorization best practices
-4. Network security considerations
-5. Data encryption options
-6. Audit logging recommendations
-7. Backup security considerations`
-            }
-          }
-        ]
-      }
-    }
-  )
-
-  server.prompt(
-    'backup-strategy',
-    'Get advice on MongoDB backup and recovery approaches',
-    {
-      databaseSize: z.string().optional().describe('Optional: database size information'),
-      uptime: z.string().optional().describe('Optional: uptime requirements (e.g. "99.9%")'),
-      rpo: z.string().optional().describe('Optional: recovery point objective'),
-      rto: z.string().optional().describe('Optional: recovery time objective')
-    },
-    ({ databaseSize, uptime, rpo, rto }) => {
-      log('Prompt: Initializing [backup-strategy].')
-      return {
-        description: 'MongoDB Backup & Recovery Strategy',
-        messages: [
-          {
-            role: 'user',
-            content: {
-              type: 'text',
-              text: `I need recommendations for a MongoDB backup and recovery strategy.
-
-${databaseSize ? `Database size: ${databaseSize}\n` : ''}${uptime ? `Uptime requirement: ${uptime}\n` : ''}${rpo ? `Recovery Point Objective (RPO): ${rpo}\n` : ''}${rto ? `Recovery Time Objective (RTO): ${rto}\n` : ''}
-Current database: ${currentDbName}
-
-Please provide:
-1. Recommended backup methods for my scenario
-2. Backup frequency and retention recommendations
-3. Storage considerations and best practices
-4. Restoration procedures and testing strategy
-5. Monitoring and validation approaches
-6. High availability considerations
-7. Tools and commands for implementing the strategy`
-            }
-          }
-        ]
-      }
-    }
-  )
-
-  server.prompt(
-    'migration-guide',
-    'Generate MongoDB migration steps between versions',
-    {
-      sourceVersion: z.string().describe('Source MongoDB version'),
-      targetVersion: z.string().describe('Target MongoDB version'),
-      features: z.string().optional().describe('Optional: specific features you use')
-    },
-    ({ sourceVersion, targetVersion, features }) => {
-      log(`Prompt: Initializing [migration-guide] from ${sourceVersion} to ${targetVersion}.`)
-      return {
-        description: 'MongoDB Version Migration Guide',
-        messages: [
-          {
-            role: 'user',
-            content: {
-              type: 'text',
-              text: `I need to migrate my MongoDB deployment from version ${sourceVersion} to ${targetVersion}.
-
-${features ? `Key features I'm using: ${features}\n\n` : ''}
-Please provide:
-1. Step-by-step migration plan
-2. Pre-migration checks and preparations
-3. Breaking changes and deprecated features to be aware of
-4. New features or improvements I can leverage
-5. Common pitfalls and how to avoid them
-6. Performance considerations
-7. Rollback strategy in case of issues`
-            }
-          }
-        ]
-      }
-    }
-  )
-
-  server.prompt(
-    'sql-to-mongodb',
-    'Convert SQL queries to MongoDB aggregation pipelines',
-    {
-      sqlQuery: z.string().min(1).describe('SQL query to convert'),
-      targetCollection: z.string().optional().describe('Target MongoDB collection name')
-    },
-    ({ sqlQuery, targetCollection }) => {
-      log(`Prompt: Initializing [sql-to-mongodb] for query: "${sqlQuery}".`)
-      return {
-        description: 'SQL to MongoDB Query Translator',
-        messages: [
-          {
-            role: 'user',
-            content: {
-              type: 'text',
-              text: `Please convert this SQL query to MongoDB syntax:\n\n\`\`\`sql\n${sqlQuery}\n\`\`\`\n\n${targetCollection ? `Target collection: ${targetCollection}` : ''}\n\nI need:
-  1. The equivalent MongoDB query/aggregation pipeline with proper MongoDB operators
-  2. Explanation of how each part of the SQL query maps to MongoDB
-  3. How to execute this using MongoDB Lens tools
-  4. Any important considerations or MongoDB-specific optimizations
-
-  Please provide both the find() query format (if applicable) and the aggregation pipeline format.`
-            }
-          }
-        ]
-      }
-    }
-  )
-
-  server.prompt(
-    'database-health-check',
-    'Comprehensive database health assessment',
-    {
-      includePerformance: z.string().default('true').describe('Include performance metrics'),
-      includeSchema: z.string().default('true').describe('Include schema analysis'),
-      includeSecurity: z.string().default('true').describe('Include security assessment')
-    },
-    async ({ includePerformance, includeSchema, includeSecurity }) => {
-      const includePerformanceBool = includePerformance.toLowerCase() === 'true'
-      const includeSchemaBool = includeSchema.toLowerCase() === 'true'
-      const includeSecurityBool = includeSecurity.toLowerCase() === 'true'
-
-      log('Prompt: Initializing [database-health-check].')
-
-      const dbStats = await getDatabaseStats()
-      const collections = await listCollections()
-
-      let serverStatus = null
-      let indexes = {}
-      let schemaAnalysis = {}
-
-      if (includePerformanceBool) {
-        serverStatus = await getServerStatus()
-        const collectionsToAnalyze = collections.slice(0, 5)
-        for (const coll of collectionsToAnalyze) {
-          indexes[coll.name] = await getCollectionIndexes(coll.name)
-        }
-      }
-
-      if (includeSchemaBool) {
-        const collectionsToAnalyze = collections.slice(0, 3)
-        for (const coll of collectionsToAnalyze) {
-          schemaAnalysis[coll.name] = await inferSchema(coll.name, 10)
-        }
-      }
-
-      let securityInfo = null
-      if (includeSecurityBool) {
-        const users = await getDatabaseUsers()
-        securityInfo = {
-          users,
-          auth: serverStatus ? serverStatus.security : null
-        }
-      }
-
-      return {
-        description: `MongoDB Health Check: ${currentDbName}`,
-        messages: [
-          {
-            role: 'user',
-            content: {
-              type: 'text',
-              text: `Please perform a comprehensive health check on my MongoDB database "${currentDbName}" and provide recommendations for improvements.
-
-    Database Statistics:
-    ${JSON.stringify(dbStats, null, 2)}
-
-    Collections (${collections.length}):
-    ${collections.map(c => `- ${c.name}`).join('\n')}
-
-    ${includePerformanceBool ? `\nPerformance Metrics:
-    ${JSON.stringify(serverStatus ? {
-      connections: serverStatus.connections,
-      opcounters: serverStatus.opcounters,
-      mem: serverStatus.mem
-    } : {}, null, 2)}
-
-    Indexes:
-    ${Object.entries(indexes).map(([coll, idxs]) =>
-      `- ${coll}: ${idxs.length} indexes`
-    ).join('\n')}` : ''}
-
-    ${includeSchemaBool ? `\nSchema Samples:
-    ${Object.keys(schemaAnalysis).join(', ')}` : ''}
-
-    ${includeSecurityBool ? `\nSecurity Information:
-    - Users: ${securityInfo.users.users ? securityInfo.users.users.length : 'N/A'}
-    - Authentication: ${securityInfo.auth && securityInfo.auth.authentication ?
-    JSON.stringify(securityInfo.auth.authentication.mechanisms || securityInfo.auth.authentication) : 'N/A'}` : ''}
-
-    Please provide:
-    1. Overall health assessment
-    2. Urgent issues that need addressing
-    3. Performance optimization recommendations
-    4. Schema design suggestions and improvements
-    5. Security best practices and concerns
-    6. Monitoring and maintenance recommendations
-    7. Specific MongoDB Lens tools to use for implementing your recommendations`
-            }
-          }
-        ]
-      }
-    }
-   )
-
-  server.prompt(
-    'multi-tenant-design',
-    'Design MongoDB multi-tenant database architecture',
-    {
-      tenantIsolation: z.enum(['database', 'collection', 'field']).describe('Level of tenant isolation required'),
-      estimatedTenants: z.string().describe('Estimated number of tenants'),
-      sharedFeatures: z.string().describe('Features/data that will be shared across tenants'),
-      tenantSpecificFeatures: z.string().describe('Features/data unique to each tenant'),
-      scalingPriorities: z.string().optional().describe('Primary scaling concerns (e.g., read-heavy, write-heavy)')
-    },
-    ({ tenantIsolation, estimatedTenants, sharedFeatures, tenantSpecificFeatures, scalingPriorities }) => {
-      const estimatedTenantsNum = parseInt(estimatedTenants, 10) || 1
-      log(`Prompt: Initializing [multi-tenant-design] with ${tenantIsolation} isolation level for ${estimatedTenantsNum} tenants.`)
-      return {
-        description: 'MongoDB Multi-Tenant Architecture Design',
-        messages: [
-          {
-            role: 'user',
-            content: {
-              type: 'text',
-              text: `I need to design a multi-tenant MongoDB architecture with the following requirements:
-
-  - Tenant isolation level: ${tenantIsolation}
-  - Estimated number of tenants: ${estimatedTenants}
-  - Shared features/data: ${sharedFeatures}
-  - Tenant-specific features/data: ${tenantSpecificFeatures}
-  ${scalingPriorities ? `- Scaling priorities: ${scalingPriorities}` : ''}
-
-  Please provide:
-  1. Recommended multi-tenant architecture for MongoDB
-  2. Data model with collection structures and relationships
-  3. Schema examples (in JSON) for each collection
-  4. Indexing strategy for optimal tenant isolation and performance
-  5. Security considerations and access control patterns
-  6. Scaling approach as tenant count and data volume grow
-  7. Query patterns to efficiently retrieve tenant-specific data
-  8. Specific MongoDB features to leverage for multi-tenancy
-  9. Potential challenges and mitigation strategies
-
-  For context, I'm using MongoDB version ${mongoClient.topology?.lastIsMaster?.version || 'recent'} and want to ensure my architecture follows best practices.`
-            }
-          }
-        ]
-      }
-    }
-  )
-
-  server.prompt(
-    'schema-versioning',
-    'Manage schema evolution in MongoDB applications',
-    {
-      collection: z.string().min(1).describe('Collection name to version'),
-      currentSchema: z.string().describe('Current schema structure (brief description)'),
-      plannedChanges: z.string().describe('Planned schema changes'),
-      migrationConstraints: z.string().optional().describe('Migration constraints (e.g., zero downtime)')
-    },
-    async ({ collection, currentSchema, plannedChanges, migrationConstraints }) => {
-      log(`Prompt: Initializing [schema-versioning] for collection '${collection}'…`)
-
-      const schema = await inferSchema(collection)
-
-      return {
-        description: 'MongoDB Schema Versioning Strategy',
-        messages: [
-          {
-            role: 'user',
-            content: {
-              type: 'text',
-              text: `I need to implement schema versioning/evolution for the '${collection}' collection in MongoDB. Please help me design a strategy.
-
-  Current Schema Information:
-  ${formatSchema(schema)}
-
-  Current Schema Description:
-  ${currentSchema}
-
-  Planned Schema Changes:
-  ${plannedChanges}
-
-  ${migrationConstraints ? `Migration Constraints: ${migrationConstraints}` : ''}
-
-  Please provide:
-  1. Recommended approach to schema versioning in MongoDB
-  2. Step-by-step migration plan for these specific changes
-  3. Code examples showing how to handle both old and new schema versions
-  4. Schema validation rules to enforce the new schema
-  5. Performance considerations during migration
-  6. Rollback strategy if needed
-  7. Testing approach to validate the migration
-  8. MongoDB Lens tools and commands to use for the migration process
-
-  I want to ensure backward compatibility during this transition.`
-            }
-          }
-        ]
-      }
-    }
-  )
-}
-
-const registerTools = (server) => {
-  server.tool(
-    'connect-mongodb',
-    'Connect to a different MongoDB URI',
-    {
-      uri: z.string().min(1).describe('MongoDB connection URI to connect to'),
-      validateConnection: createBooleanSchema('Whether to validate the connection', 'true')
-    },
-    async ({ uri, validateConnection }) => {
-      return withErrorHandling(async () => {
-        try {
-          await changeConnection(uri, validateConnection === 'true')
-          return {
-            content: [{
-              type: 'text',
-              text: `Successfully connected to MongoDB at URI: ${uri}`
-            }]
-          }
-        } catch (error) {
-          if (mongoUriCurrent && mongoUriCurrent !== uri) {
-            try {
-              await changeConnection(mongoUriCurrent, true)
-            } catch (reconnectError) {
-              log(`Failed to reconnect to current URI: ${reconnectError.message}`, true)
-            }
-          }
-          throw error
-        }
-      }, 'Error connecting to new MongoDB URI')
-    }
-  )
-
-  server.tool(
-    'connect-original',
-    'Connect back to the original MongoDB URI used at startup',
-    {
-      validateConnection: createBooleanSchema('Whether to validate the connection', 'true')
-    },
-    async ({ validateConnection }) => {
-      return withErrorHandling(async () => {
-        if (!mongoUriOriginal) throw new Error('Original MongoDB URI not available')
-        await changeConnection(mongoUriOriginal, validateConnection === 'true')
-        return {
-          content: [{
-            type: 'text',
-            text: `Successfully connected back to original MongoDB URI: ${mongoUriOriginal}`
-          }]
-        }
-      }, 'Error connecting to original MongoDB URI')
-    }
-  )
-
-  server.tool(
-    'list-databases',
-    'List all accessible MongoDB databases',
-    async () => {
-      return withErrorHandling(async () => {
-        log('Tool: Listing databases…')
+  if (isDisabled('resources', true)) {
+    log('All MCP resources disabled via configuration', true)
+    return
+  }
+
+  if (!isDisabled('resources', 'databases')) {
+    server.resource(
+      'databases',
+      'mongodb://databases',
+      { description: 'List of all accessible MongoDB databases' },
+      async () => {
+        log('Resource: Retrieving list of databases…')
         const dbs = await listDatabases()
-        log(`Tool: Found ${dbs.length} databases.`)
+        log(`Resource: Found ${dbs.length} databases.`)
         return {
-          content: [{
-            type: 'text',
+          contents: [{
+            uri: 'mongodb://databases',
             text: formatDatabasesList(dbs)
           }]
         }
-      }, 'Error listing databases')
-    }
-  )
+      }
+    )
+  }
 
-  server.tool(
-    'current-database',
-    'Get the name of the current database',
-    async () => {
-      return withErrorHandling(async () => {
-        log('Tool: Getting current database name…')
+  if (!isDisabled('resources', 'database-users')) {
+    server.resource(
+      'database-users',
+      'mongodb://database/users',
+      { description: 'MongoDB database users and roles' },
+      async () => {
+        log('Resource: Retrieving database users…')
+        const users = await getDatabaseUsers()
+        log(`Resource: Retrieved user information.`)
         return {
-          content: [{
-            type: 'text',
-            text: `Current database: ${currentDbName}`
+          contents: [{
+            uri: 'mongodb://database/users',
+            text: formatDatabaseUsers(users)
           }]
-        }
-      }, 'Error getting current database')
-    }
-  )
-
-  server.tool(
-    'create-database',
-    'Create a new MongoDB database with option to switch',
-    {
-      name: z.string().min(1).describe('Database name to create'),
-      switch: createBooleanSchema('Whether to switch to the new database after creation', 'false'),
-      validateName: createBooleanSchema('Whether to validate database name', 'true')
-    },
-    async ({ name, switch: shouldSwitch, validateName }) => {
-      return withErrorHandling(async () => {
-        log(`Tool: Creating database '${name}'${shouldSwitch === 'true' ? ' and switching to it' : ''}…`)
-        const db = await createDatabase(name, validateName)
-
-        if (shouldSwitch === 'true') {
-          currentDbName = name
-          currentDb = db
-          log(`Tool: Switched to database '${name}'.`)
-          return {
-            content: [{
-              type: 'text',
-              text: `Database '${name}' created successfully and connected.`
-            }]
-          }
-        } else {
-          log(`Tool: Database '${name}' created successfully. Current database is still '${currentDbName}'.`)
-          return {
-            content: [{
-              type: 'text',
-              text: `Database '${name}' created successfully. Current database is still '${currentDbName}'.`
-            }]
-          }
-        }
-      }, `Error creating database '${name}'${shouldSwitch === 'true' ? ' and switching to it' : ''}`)
-    }
-  )
-
-  server.tool(
-    'use-database',
-    'Switch to a specific database',
-    {
-      database: z.string().min(1).describe('Database name to use')
-    },
-    async ({ database }) => {
-      try {
-        log(`Tool: Switching to database '${database}'…`)
-        await switchDatabase(database)
-        log(`Tool: Successfully switched to database '${database}'.`)
-        return {
-          content: [{
-            type: 'text',
-            text: `Switched to database: ${database}`
-          }]
-        }
-      } catch (error) {
-        log(`Error switching database: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error switching database: ${error.message}`
-          }],
-          isError: true
         }
       }
-    }
-  )
+    )
+  }
 
-  server.tool(
-    'drop-database',
-    'Drop a database (requires confirmation)',
-    {
-      name: z.string().min(1).describe('Database name to drop'),
-      token: z.string().optional().describe('Confirmation token from previous request')
-    },
-    async ({ name, token }) => {
-      return withErrorHandling(async () => {
-        log(`Tool: Processing drop database request for '${name}'…`)
-
-        if (config.disableDestructiveOperationTokens) {
-          const result = await dropDatabase(name)
-          return {
-            content: [{
-              type: 'text',
-              text: result.message
-            }]
-          }
-        }
-
-        if (token) {
-          if (!validateDropDatabaseToken(name, token)) {
-            throw new Error(`Invalid or expired confirmation token for dropping '${name}'. Please try again without a token to generate a new confirmation code.`)
-          }
-          const result = await dropDatabase(name)
-          return {
-            content: [{
-              type: 'text',
-              text: result.message
-            }]
-          }
-        }
-
-        const dbs = await listDatabases()
-        const dbExists = dbs.some(db => db.name === name)
-        if (!dbExists) {
-          throw new Error(`Database '${name}' does not exist`)
-        }
-        const newToken = storeDropDatabaseToken(name)
+  if (!isDisabled('resources', 'database-triggers')) {
+    server.resource(
+      'database-triggers',
+      'mongodb://database/triggers',
+      { description: 'Database change streams and event triggers configuration' },
+      async () => {
+        log('Resource: Retrieving database triggers and event configuration…')
+        const triggers = await getDatabaseTriggers()
         return {
-          content: [{
-            type: 'text',
-            text: `⚠️ DESTRUCTIVE OPERATION WARNING ⚠️\n\nYou've requested to drop the database '${name}'.\n\nThis operation is irreversible and will permanently delete all collections and data in this database.\n\nTo confirm, you must type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.\n\n${importantNoticeToAI}`
+          contents: [{
+            uri: 'mongodb://database/triggers',
+            text: formatTriggerConfiguration(triggers)
           }]
-        }
-      }, `Error processing database drop for '${name}'`)
-    }
-  )
-
-  server.tool(
-    'create-user',
-    'Create a new database user',
-    {
-      username: z.string().min(1).describe('Username'),
-      password: z.string().min(1).describe('Password'),
-      roles: z.string().describe('Roles as JSON array, e.g. [{"role": "readWrite", "db": "mydb"}]')
-    },
-    async ({ username, password, roles }) => {
-      try {
-        log(`Tool: Creating user '${username}'…`)
-        const parsedRoles = JSON.parse(roles)
-        await createUser(username, password, parsedRoles)
-        log(`Tool: User created successfully.`)
-        return {
-          content: [{
-            type: 'text',
-            text: `User '${username}' created with roles: ${JSON.stringify(parsedRoles)}`
-          }]
-        }
-      } catch (error) {
-        log(`Error creating user: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error creating user: ${error.message}`
-          }],
-          isError: true
         }
       }
-    }
-  )
+    )
+  }
 
-  server.tool(
-    'drop-user',
-    'Drop an existing database user',
-    {
-      username: z.string().min(1).describe('Username to drop'),
-      token: z.string().optional().describe('Confirmation token from previous request')
-    },
-    async ({ username, token }) => {
-      return withErrorHandling(async () => {
-        log(`Tool: Processing drop user request for '${username}'…`)
-
-        if (config.disableDestructiveOperationTokens) {
-          await dropUser(username)
-          return {
-            content: [{
-              type: 'text',
-              text: `User '${username}' dropped successfully.`
-            }]
-          }
-        }
-
-        if (token) {
-          if (!validateDropUserToken(username, token)) {
-            throw new Error(`Invalid or expired confirmation token. Please try again without a token to generate a new confirmation code.`)
-          }
-          await dropUser(username)
-          return {
-            content: [{
-              type: 'text',
-              text: `User '${username}' dropped successfully.`
-            }]
-          }
-        }
-
-        const newToken = storeDropUserToken(username)
+  if (!isDisabled('resources', 'stored-functions')) {
+    server.resource(
+      'stored-functions',
+      'mongodb://database/functions',
+      { description: 'MongoDB stored JavaScript functions' },
+      async () => {
+        log('Resource: Retrieving stored JavaScript functions…')
+        const functions = await getStoredFunctions()
+        log(`Resource: Retrieved stored functions.`)
         return {
-          content: [{
-            type: 'text',
-            text: `⚠️ SECURITY OPERATION WARNING ⚠️\n\nYou've requested to drop the user '${username}'.\n\nThis operation will remove all access permissions for this user and is irreversible.\n\nTo confirm, type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.\n\n${importantNoticeToAI}`
+          contents: [{
+            uri: 'mongodb://database/functions',
+            text: formatStoredFunctions(functions)
           }]
         }
-      }, `Error processing user drop for '${username}'`)
-    }
-  )
+      }
+    )
+  }
 
-  server.tool(
-    'list-collections',
-    'List collections in the current database',
-    async () => {
-      try {
-        log(`Tool: Listing collections in database '${currentDbName}'…`)
+  if (!isDisabled('resources', 'collections')) {
+    server.resource(
+      'collections',
+      'mongodb://collections',
+      { description: 'List of collections in the current database' },
+      async () => {
+        log(`Resource: Retrieving collections from database '${currentDbName}'…`)
         const collections = await listCollections()
-        log(`Tool: Found ${collections.length} collections in database '${currentDbName}'.`)
+        log(`Resource: Found ${collections.length} collections.`)
         return {
-          content: [{
-            type: 'text',
+          contents: [{
+            uri: 'mongodb://collections',
             text: formatCollectionsList(collections)
           }]
         }
-      } catch (error) {
-        log(`Error listing collections: ${error.message}`, true)
+      }
+    )
+  }
+
+  if (!isDisabled('resources', 'collection-indexes')) {
+    server.resource(
+      'collection-indexes',
+      new ResourceTemplate('mongodb://collection/{name}/indexes', {
+        list: async () => {
+          try {
+            log('Resource: Listing collection indexes resources…')
+            const collections = await listCollections()
+            log(`Resource: Preparing index resources for ${collections.length} collections.`)
+            return {
+              resources: collections.map(coll => ({
+                uri: `mongodb://collection/${coll.name}/indexes`,
+                name: `${coll.name} Indexes`,
+                description: `Indexes for ${coll.name} collection`
+              }))
+            }
+          } catch (error) {
+            log(`Error listing collections for indexes: ${error.message}`, true)
+            return { resources: [] }
+          }
+        },
+        complete: {
+          name: async (value) => {
+            try {
+              log(`Resource: Autocompleting collection name for indexes with prefix '${value}'…`)
+              const collections = await listCollections()
+              const matches = collections
+                .map(coll => coll.name)
+                .filter(name => name.toLowerCase().includes(value.toLowerCase()))
+              log(`Resource: Found ${matches.length} matching collections for indexes.`)
+              return matches
+            } catch (error) {
+              log(`Error completing collection names: ${error.message}`, true)
+              return []
+            }
+          }
+        }
+      }),
+      { description: 'Index information for a MongoDB collection' },
+      async (uri, { name }) => {
+        log(`Resource: Retrieving indexes for collection '${name}'…`)
+        const indexes = await getCollectionIndexes(name)
+        log(`Resource: Retrieved ${indexes.length} indexes for collection '${name}'.`)
         return {
-          content: [{
-            type: 'text',
-            text: `Error listing collections: ${error.message}`
-          }],
-          isError: true
+          contents: [{
+            uri: uri.href,
+            text: formatIndexes(indexes)
+          }]
         }
       }
-    }
-  )
+    )
+  }
 
-  server.tool(
-    'create-collection',
-    'Create a new collection with options',
-    {
-      name: z.string().min(1).describe('Collection name'),
-      options: z.string().default('{}').describe('Collection options as JSON string (capped, size, etc.)')
-    },
-    async ({ name, options }) => {
-      try {
-        log(`Tool: Creating collection '${name}'…`)
-        log(`Tool: Using options: ${options}`)
+  if (!isDisabled('resources', 'collection-schema')) {
+    server.resource(
+      'collection-schema',
+      new ResourceTemplate('mongodb://collection/{name}/schema', {
+        list: async () => {
+          try {
+            log('Resource: Listing collection schemas…')
+            const collections = await listCollections()
+            log(`Resource: Preparing schema resources for ${collections.length} collections.`)
+            return {
+              resources: collections.map(coll => ({
+                uri: `mongodb://collection/${coll.name}/schema`,
+                name: `${coll.name} Schema`,
+                description: `Schema for ${coll.name} collection`
+              }))
+            }
+          } catch (error) {
+            log(`Error listing collection schemas: ${error.message}`, true)
+            return { resources: [] }
+          }
+        },
+        complete: {
+          name: async (value) => {
+            try {
+              log(`Resource: Autocompleting collection name with prefix '${value}'…`)
+              const collections = await listCollections()
+              const matches = collections
+                .map(coll => coll.name)
+                .filter(name => name.toLowerCase().includes(value.toLowerCase()))
+              log(`Resource: Found ${matches.length} matching collections.`)
+              return matches
+            } catch (error) {
+              log(`Error completing collection names: ${error.message}`, true)
+              return []
+            }
+          },
+          field: async (value, params) => {
+            try {
+              if (!params.name) return []
 
-        const parsedOptions = options ? JSON.parse(options) : {}
-        const result = await createCollection(name, parsedOptions)
-        log(`Tool: Collection created successfully.`)
-        return {
-          content: [{
-            type: 'text',
-            text: `Collection '${name}' created successfully.`
-          }]
-        }
-      } catch (error) {
-        log(`Error creating collection: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error creating collection: ${error.message}`
-          }],
-          isError: true
-        }
-      }
-    }
-  )
-
-  server.tool(
-    'drop-collection',
-    'Drop a collection (requires confirmation)',
-    {
-      name: z.string().min(1).describe('Collection name to drop'),
-      token: z.string().optional().describe('Confirmation token from previous request')
-    },
-    async ({ name, token }) => {
-      return withErrorHandling(async () => {
-        log(`Tool: Processing drop collection request for '${name}'…`)
-
-        if (config.disableDestructiveOperationTokens) {
-          await dropCollection(name)
-          return {
-            content: [{
-              type: 'text',
-              text: `Collection '${name}' has been permanently deleted.`
-            }]
+              log(`Resource: Autocompleting field name with prefix '${value}' for collection '${params.name}'…`)
+              const fields = await getCollectionFields(params.name)
+              const matches = fields.filter(field =>
+                field.toLowerCase().includes(value.toLowerCase())
+              )
+              log(`Resource: Found ${matches.length} matching fields for collection '${params.name}'.`)
+              return matches
+            } catch (error) {
+              log(`Error completing field names: ${error.message}`, true)
+              return []
+            }
           }
         }
-
-        if (token) {
-          if (!validateDropCollectionToken(name, token)) {
-            throw new Error(`Invalid or expired confirmation token for dropping '${name}'. Please try again without a token to generate a new confirmation code.`)
-          }
-          await dropCollection(name)
-          return {
-            content: [{
-              type: 'text',
-              text: `Collection '${name}' has been permanently deleted.`
-            }]
-          }
-        }
-
-        await throwIfCollectionNotExists(name)
-        const newToken = storeDropCollectionToken(name)
+      }),
+      { description: 'Schema information for a MongoDB collection' },
+      async (uri, { name }) => {
+        log(`Resource: Inferring schema for collection '${name}'…`)
+        const schema = await inferSchema(name)
+        log(`Resource: Schema inference complete for '${name}', identified ${Object.keys(schema.fields).length} fields.`)
         return {
-          content: [{
-            type: 'text',
-            text: `⚠️ DESTRUCTIVE OPERATION WARNING ⚠️\n\nYou've requested to drop the collection '${name}'.\n\nThis operation is irreversible and will permanently delete all data in this collection.\n\nTo confirm, you must type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.\n\n${importantNoticeToAI}`
-          }]
-        }
-      }, `Error processing collection drop for '${name}'`)
-    }
-  )
-
-  server.tool(
-    'rename-collection',
-    'Rename an existing collection',
-    {
-      oldName: z.string().min(1).describe('Current collection name'),
-      newName: z.string().min(1).describe('New collection name'),
-      dropTarget: createBooleanSchema('Whether to drop target collection if it exists', 'false'),
-      token: z.string().optional().describe('Confirmation token from previous request')
-    },
-    async ({ oldName, newName, dropTarget, token }) => {
-      return withErrorHandling(async () => {
-        log(`Tool: Processing rename collection from '${oldName}' to '${newName}'…`)
-        await throwIfCollectionNotExists(oldName)
-
-        const collections = await listCollections()
-        const targetExists = collections.some(c => c.name === newName)
-
-        if (!targetExists || dropTarget !== 'true' || config.disableDestructiveOperationTokens) {
-          const result = await renameCollection(oldName, newName, dropTarget === 'true')
-          return {
-            content: [{
-              type: 'text',
-              text: `Collection '${oldName}' renamed to '${newName}' successfully.`
-            }]
-          }
-        }
-
-        if (token) {
-          if (!validateRenameCollectionToken(oldName, newName, dropTarget, token)) {
-            throw new Error(`Invalid or expired confirmation token. Please try again without a token to generate a new confirmation code.`)
-          }
-          const result = await renameCollection(oldName, newName, true)
-          return {
-            content: [{
-              type: 'text',
-              text: `Collection '${oldName}' renamed to '${newName}' successfully.`
-            }]
-          }
-        }
-
-        const newToken = storeRenameCollectionToken(oldName, newName, dropTarget)
-        return {
-          content: [{
-            type: 'text',
-            text: `⚠️ DESTRUCTIVE OPERATION WARNING ⚠️\n\nYou've requested to rename collection '${oldName}' to '${newName}' and drop the existing target collection.\n\nDropping a collection is irreversible. To confirm, type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.\n\n${importantNoticeToAI}`
-          }]
-        }
-      }, `Error processing rename for collection '${oldName}'`)
-    }
-  )
-
-  server.tool(
-    'validate-collection',
-    'Run validation on a collection to check for inconsistencies',
-    {
-      collection: z.string().min(1).describe('Collection name'),
-      full: createBooleanSchema('Perform full validation (slower but more thorough)', 'false')
-    },
-    async ({ collection, full }) => {
-      try {
-        log(`Tool: Validating collection '${collection}'…`)
-        log(`Tool: Full validation: ${full}`)
-
-        const results = await validateCollection(collection, full)
-        log(`Tool: Validation complete.`)
-        return {
-          content: [{
-            type: 'text',
-            text: formatValidationResults(results)
-          }]
-        }
-      } catch (error) {
-        log(`Error validating collection: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error validating collection: ${error.message}`
-          }],
-          isError: true
-        }
-      }
-    }
-  )
-
-  server.tool(
-    'distinct-values',
-    'Get unique values for a field',
-    {
-      collection: z.string().min(1).describe('Collection name'),
-      field: z.string().min(1).describe('Field name to get distinct values for'),
-      filter: z.string().default('{}').describe('Optional filter as JSON string')
-    },
-    async ({ collection, field, filter }) => {
-      try {
-        log(`Tool: Getting distinct values for field '${field}' in collection '${collection}'…`)
-        log(`Tool: Using filter: ${filter}`)
-
-        const parsedFilter = filter ? JSON.parse(filter) : {}
-        const values = await getDistinctValues(collection, field, parsedFilter)
-        log(`Tool: Found ${values.length} distinct values.`)
-        return {
-          content: [{
-            type: 'text',
-            text: formatDistinctValues(field, values)
-          }]
-        }
-      } catch (error) {
-        log(`Error getting distinct values: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error getting distinct values: ${error.message}`
-          }],
-          isError: true
-        }
-      }
-    }
-  )
-
-  server.tool(
-    'find-documents',
-    'Run queries with filters and projections',
-    {
-      collection: z.string().min(1).describe('Collection name'),
-      filter: z.string().default('{}').describe('MongoDB query filter (JSON string)'),
-      projection: z.string().optional().describe('Fields to include/exclude (JSON string)'),
-      limit: z.number().int().min(1).default(10).describe('Maximum number of documents to return'),
-      skip: z.number().int().min(0).default(0).describe('Number of documents to skip'),
-      sort: z.string().optional().describe('Sort specification (JSON string)'),
-      streaming: createBooleanSchema('Enable streaming for large result sets', 'false')
-    },
-    async ({ collection, filter, projection, limit, skip, sort, streaming }) => {
-      try {
-        log(`Tool: Finding documents in collection '${collection}'…`)
-        log(`Tool: Using filter: ${filter}`)
-        if (projection) log(`Tool: Using projection: ${projection}`)
-        if (sort) log(`Tool: Using sort: ${sort}`)
-        log(`Tool: Using limit: ${limit}, skip: ${skip}, streaming: ${streaming}`)
-
-        const parsedFilter = filter ? JSON.parse(filter) : {}
-        const parsedProjection = projection ? JSON.parse(projection) : null
-        const parsedSort = sort ? JSON.parse(sort) : null
-
-        const documents = await findDocuments(collection, parsedFilter, parsedProjection, limit, skip, parsedSort)
-        log(`Tool: Found ${documents.length} documents in collection '${collection}'.`)
-        return {
-          content: [{
-            type: 'text',
-            text: formatDocuments(documents, limit)
-          }]
-        }
-      } catch (error) {
-        log(`Error finding documents: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error finding documents: ${error.message}`
-          }],
-          isError: true,
-          error: {
-            code: JSONRPC_ERROR_CODES.MONGODB_QUERY_ERROR,
-            message: error.message,
-            data: { type: error.name }
-          }
-        }
-      }
-    }
-  )
-
-  server.tool(
-    'count-documents',
-    'Count documents with optional filter',
-    {
-      collection: z.string().min(1).describe('Collection name'),
-      filter: z.string().default('{}').describe('MongoDB query filter (JSON string)')
-    },
-    async ({ collection, filter }) => {
-      try {
-        log(`Tool: Counting documents in collection '${collection}'…`)
-        log(`Tool: Using filter: ${filter}`)
-
-        const parsedFilter = filter ? JSON.parse(filter) : {}
-        const count = await countDocuments(collection, parsedFilter)
-        log(`Tool: Count result: ${count} documents.`)
-        return {
-          content: [{
-            type: 'text',
-            text: `Count: ${count} document(s)`
-          }]
-        }
-      } catch (error) {
-        log(`Error counting documents: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error counting documents: ${error.message}`
-          }],
-          isError: true
-        }
-      }
-    }
-  )
-
-  server.tool(
-    'modify-document',
-    'Insert or update specific documents',
-    {
-      collection: z.string().min(1).describe('Collection name'),
-      operation: z.enum(['insert', 'update']).describe('Operation type'),
-      document: z.string().optional().describe('Document as JSON string (for insert)'),
-      filter: z.string().optional().describe('Filter as JSON string (for update)'),
-      update: z.string().optional().describe('Update operations as JSON string (for update)'),
-      options: z.string().optional().describe('Options as JSON string')
-    },
-    async ({ collection, operation, document, filter, update, options }) => {
-      try {
-        log(`Tool: Modifying documents in collection '${collection}' with operation '${operation}'…`)
-
-        let result
-        const parsedOptions = options ? JSON.parse(options) : {}
-
-        if (operation === 'insert') {
-          if (!document) throw new Error('Document is required for insert operation')
-          const parsedDocument = JSON.parse(document)
-          result = await insertDocument(collection, parsedDocument, parsedOptions)
-          log(`Tool: Document inserted successfully.`)
-          return {
-            content: [{
-              type: 'text',
-              text: formatModifyResult(operation, result)
-            }]
-          }
-        } else if (operation === 'update') {
-          if (!filter) throw new Error('Filter is required for update operation')
-          if (!update) throw new Error('Update is required for update operation')
-          const parsedFilter = JSON.parse(filter)
-          const parsedUpdate = JSON.parse(update)
-          result = await updateDocument(collection, parsedFilter, parsedUpdate, parsedOptions)
-          log(`Tool: Document(s) updated successfully.`)
-          return {
-            content: [{
-              type: 'text',
-              text: formatModifyResult(operation, result)
-            }]
-          }
-        }
-      } catch (error) {
-        console.error(`Error in ${operation} operation:`, error)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error in ${operation} operation: ${error.message}`
-          }],
-          isError: true
-        }
-      }
-    }
-  )
-
-  server.tool(
-    'delete-document',
-    'Delete document(s) (requires confirmation)',
-    {
-      collection: z.string().min(1).describe('Collection name'),
-      filter: z.string().min(1).describe('Filter as JSON string'),
-      many: createBooleanSchema('Delete multiple documents if true', 'false'),
-      token: z.string().optional().describe('Confirmation token from previous request')
-    },
-    async ({ collection, filter, many, token }) => {
-      return withErrorHandling(async () => {
-        log(`Tool: Processing delete document request for collection '${collection}'…`)
-        const parsedFilter = JSON.parse(filter)
-
-        if (config.disableDestructiveOperationTokens) {
-          const options = { many: many === 'true' }
-          const result = await deleteDocument(collection, parsedFilter, options)
-          return {
-            content: [{
-              type: 'text',
-              text: `Successfully deleted ${result.deletedCount} document(s) from collection '${collection}'.`
-            }]
-          }
-        }
-
-        if (token) {
-          if (!validateDeleteDocumentToken(collection, parsedFilter, token)) {
-            throw new Error(`Invalid or expired confirmation token. Please try again without a token to generate a new confirmation code.`)
-          }
-          const options = { many: many === 'true' }
-          const result = await deleteDocument(collection, parsedFilter, options)
-          return {
-            content: [{
-              type: 'text',
-              text: `Successfully deleted ${result.deletedCount} document(s) from collection '${collection}'.`
-            }]
-          }
-        }
-
-        await throwIfCollectionNotExists(collection)
-        const count = await countDocuments(collection, parsedFilter)
-        const newToken = storeDeleteDocumentToken(collection, parsedFilter)
-        return {
-          content: [{
-            type: 'text',
-            text: `⚠️ DESTRUCTIVE OPERATION WARNING ⚠️\n\nYou've requested to delete ${many === 'true' ? 'all' : 'one'} document(s) from collection '${collection}' matching:\n${filter}\n\nThis matches approximately ${count} document(s).\n\nThis operation is irreversible. To confirm, type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.\n\n${importantNoticeToAI}`
-          }]
-        }
-      }, `Error processing document delete for collection '${collection}'`)
-    }
-  )
-
-  server.tool(
-    'aggregate-data',
-    'Run aggregation pipelines',
-    {
-      collection: z.string().min(1).describe('Collection name'),
-      pipeline: z.string().describe('Aggregation pipeline as JSON string array'),
-      streaming: createBooleanSchema('Enable streaming results for large datasets', 'false'),
-      limit: z.number().int().min(1).default(1000).describe('Maximum number of results to return when streaming')
-    },
-    async ({ collection, pipeline, streaming, limit }) => {
-      try {
-        log(`Tool: Running aggregation on collection '${collection}'…`)
-        log(`Tool: Using pipeline: ${pipeline}`)
-        log(`Tool: Streaming: ${streaming}, Limit: ${limit}`)
-
-        const parsedPipeline = JSON.parse(pipeline)
-        const processedPipeline = processAggregationPipeline(parsedPipeline)
-
-        const results = await aggregateData(collection, processedPipeline)
-        log(`Tool: Aggregation returned ${results.length} results.`)
-        return {
-          content: [{
-            type: 'text',
-            text: formatDocuments(results, 100)
-          }]
-        }
-      } catch (error) {
-        log(`Error running aggregation: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error running aggregation: ${error.message}`
-          }],
-          isError: true,
-          error: {
-            code: JSONRPC_ERROR_CODES.MONGODB_QUERY_ERROR,
-            message: error.message,
-            data: { type: error.name }
-          }
-        }
-      }
-    }
-  )
-
-  server.tool(
-    'create-index',
-    'Create new index on collection',
-    {
-      collection: z.string().min(1).describe('Collection name'),
-      keys: z.string().describe('Index keys as JSON object'),
-      options: z.string().optional().describe('Index options as JSON object')
-    },
-    async ({ collection, keys, options }) => {
-      try {
-        log(`Tool: Creating index on collection '${collection}'…`)
-        log(`Tool: Index keys: ${keys}`)
-        if (options) log(`Tool: Index options: ${options}`)
-
-        const parsedKeys = JSON.parse(keys)
-        const parsedOptions = options ? JSON.parse(options) : {}
-
-        const result = await createIndex(collection, parsedKeys, parsedOptions)
-        log(`Tool: Index created successfully: ${result}`)
-        return {
-          content: [{
-            type: 'text',
-            text: `Index created: ${result}`
-          }]
-        }
-      } catch (error) {
-        log(`Error creating index: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error creating index: ${error.message}`
-          }],
-          isError: true
-        }
-      }
-    }
-  )
-
-  server.tool(
-    'drop-index',
-    'Drop an existing index from a collection',
-    {
-      collection: z.string().min(1).describe('Collection name'),
-      indexName: z.string().min(1).describe('Name of the index to drop'),
-      token: z.string().optional().describe('Confirmation token from previous request')
-    },
-    async ({ collection, indexName, token }) => {
-      return withErrorHandling(async () => {
-        log(`Tool: Processing drop index request for '${indexName}' on collection '${collection}'…`)
-
-        if (config.disableDestructiveOperationTokens) {
-          await dropIndex(collection, indexName)
-          return {
-            content: [{
-              type: 'text',
-              text: `Index '${indexName}' dropped from collection '${collection}' successfully.`
-            }]
-          }
-        }
-
-        if (token) {
-          if (!validateDropIndexToken(collection, indexName, token)) {
-            throw new Error(`Invalid or expired confirmation token. Please try again without a token to generate a new confirmation code.`)
-          }
-          await dropIndex(collection, indexName)
-          return {
-            content: [{
-              type: 'text',
-              text: `Index '${indexName}' dropped from collection '${collection}' successfully.`
-            }]
-          }
-        }
-
-        await throwIfCollectionNotExists(collection)
-        const indexes = await getCollectionIndexes(collection)
-        const indexExists = indexes.some(idx => idx.name === indexName)
-
-        if (!indexExists) {
-          throw new Error(`Index '${indexName}' does not exist on collection '${collection}'`)
-        }
-
-        const newToken = storeDropIndexToken(collection, indexName)
-        return {
-          content: [{
-            type: 'text',
-            text: `⚠️ PERFORMANCE IMPACT WARNING ⚠️\n\nYou've requested to drop the index '${indexName}' from collection '${collection}'.\n\nDropping this index may impact query performance. To confirm, type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.\n\n${importantNoticeToAI}`
-          }]
-        }
-      }, `Error processing index drop for '${indexName}' on collection '${collection}'`)
-    }
-  )
-
-  server.tool(
-    'get-stats',
-    'Get database or collection statistics',
-    {
-      target: z.enum(['database', 'collection']).describe('Target type'),
-      name: z.string().optional().describe('Collection name (for collection stats)')
-    },
-    async ({ target, name }) => {
-      try {
-        let stats
-        if (target === 'database') {
-          log(`Tool: Getting statistics for database '${currentDbName}'…`)
-          stats = await getDatabaseStats()
-          log(`Tool: Retrieved database statistics.`)
-        } else if (target === 'collection') {
-          if (!name) throw new Error('Collection name is required for collection stats')
-          log(`Tool: Getting statistics for collection '${name}'…`)
-          stats = await getCollectionStats(name)
-          log(`Tool: Retrieved collection statistics.`)
-        }
-
-        return {
-          content: [{
-            type: 'text',
-            text: formatStats(stats)
-          }]
-        }
-      } catch (error) {
-        log(`Error getting stats: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error getting stats: ${error.message}`
-          }],
-          isError: true
-        }
-      }
-    }
-  )
-
-  server.tool(
-    'analyze-schema',
-    'Automatically infer schema from collection',
-    {
-      collection: z.string().min(1).describe('Collection name'),
-      sampleSize: z.number().int().min(1).default(100).describe('Number of documents to sample')
-    },
-    async ({ collection, sampleSize }) => {
-      try {
-        log(`Tool: Analyzing schema for collection '${collection}' with sample size ${sampleSize}…`)
-        const schema = await inferSchema(collection, sampleSize)
-        log(`Tool: Schema analysis complete for '${collection}', found ${Object.keys(schema.fields).length} fields.`)
-        return {
-          content: [{
-            type: 'text',
+          contents: [{
+            uri: uri.href,
             text: formatSchema(schema)
           }]
         }
-      } catch (error) {
-        log(`Error inferring schema: ${error.message}`, true)
+      }
+    )
+  }
+
+  if (!isDisabled('resources', 'collection-stats')) {
+    server.resource(
+      'collection-stats',
+      new ResourceTemplate('mongodb://collection/{name}/stats', {
+        list: async () => {
+          try {
+            log('Resource: Listing collection stats resources…')
+            const collections = await listCollections()
+            log(`Resource: Preparing stats resources for ${collections.length} collections.`)
+            return {
+              resources: collections.map(coll => ({
+                uri: `mongodb://collection/${coll.name}/stats`,
+                name: `${coll.name} Stats`,
+                description: `Statistics for ${coll.name} collection`
+              }))
+            }
+          } catch (error) {
+            log(`Error listing collections for stats: ${error.message}`, true)
+            return { resources: [] }
+          }
+        },
+        complete: {
+          name: async (value) => {
+            try {
+              log(`Resource: Autocompleting collection name for stats with prefix '${value}'…`)
+              const collections = await listCollections()
+              const matches = collections
+                .map(coll => coll.name)
+                .filter(name => name.toLowerCase().includes(value.toLowerCase()))
+              log(`Resource: Found ${matches.length} matching collections for stats.`)
+              return matches
+            } catch (error) {
+              log(`Error completing collection names: ${error.message}`, true)
+              return []
+            }
+          }
+        }
+      }),
+      { description: 'Performance statistics for a MongoDB collection' },
+      async (uri, { name }) => {
+        log(`Resource: Retrieving stats for collection '${name}'…`)
+        const stats = await getCollectionStats(name)
+        log(`Resource: Retrieved stats for collection '${name}'.`)
         return {
-          content: [{
-            type: 'text',
-            text: `Error inferring schema: ${error.message}`
-          }],
-          isError: true
+          contents: [{
+            uri: uri.href,
+            text: formatStats(stats)
+          }]
         }
       }
-    }
-  )
-
-  server.tool(
-    'generate-schema-validator',
-    'Generate a JSON Schema validator for a collection',
-    {
-      collection: z.string().min(1).describe('Collection name'),
-      strictness: z.enum(['strict', 'moderate', 'relaxed']).default('moderate').describe('Validation strictness level')
-    },
-    async ({ collection, strictness }) => {
-      return withErrorHandling(async () => {
-        log(`Tool: Generating schema validator for '${collection}' with ${strictness} strictness`)
-
-        const schema = await inferSchema(collection, 200)
-
-        const validator = generateJsonSchemaValidator(schema, strictness)
-
-        const result = `# MongoDB JSON Schema Validator for '${collection}'
-
-## Schema Validator
-\`\`\`json
-${JSON.stringify(validator, null, 2)}
-\`\`\`
-
-## How to Apply This Validator
-
-### MongoDB Shell Command
-\`\`\`javascript
-db.runCommand({
-  collMod: "${collection}",
-  validator: ${JSON.stringify(validator, null, 2)},
-  validationLevel: "${strictness === 'relaxed' ? 'moderate' : strictness}",
-  validationAction: "${strictness === 'strict' ? 'error' : 'warn'}"
-})
-\`\`\`
-
-### Using modify-document Tool in MongoDB Lens
-\`\`\`
-modify-document {
-  "collection": "system.command",
-  "operation": "insert",
-  "document": {
-    "collMod": "${collection}",
-    "validator": ${JSON.stringify(validator)},
-    "validationLevel": "${strictness === 'relaxed' ? 'moderate' : strictness}",
-    "validationAction": "${strictness === 'strict' ? 'error' : 'warn'}"
+    )
   }
+
+  if (!isDisabled('resources', 'collection-validation')) {
+    server.resource(
+      'collection-validation',
+      new ResourceTemplate('mongodb://collection/{name}/validation', {
+        list: async () => {
+          try {
+            log('Resource: Listing collection validation resources…')
+            const collections = await listCollections()
+            log(`Resource: Preparing validation resources for ${collections.length} collections.`)
+            return {
+              resources: collections.map(coll => ({
+                uri: `mongodb://collection/${coll.name}/validation`,
+                name: `${coll.name} Validation`,
+                description: `Validation rules for ${coll.name} collection`
+              }))
+            }
+          } catch (error) {
+            log(`Error listing collections for validation: ${error.message}`, true)
+            return { resources: [] }
+          }
+        },
+        complete: {
+          name: async (value) => {
+            try {
+              log(`Resource: Autocompleting collection name for validation with prefix '${value}'…`)
+              const collections = await listCollections()
+              const matches = collections
+                .map(coll => coll.name)
+                .filter(name => name.toLowerCase().includes(value.toLowerCase()))
+              return matches
+            } catch (error) {
+              log(`Error completing collection names: ${error.message}`, true)
+              return []
+            }
+          }
+        }
+      }),
+      { description: 'Validation rules for a MongoDB collection' },
+      async (uri, { name }) => {
+        log(`Resource: Retrieving validation rules for collection '${name}'…`)
+        const validation = await getCollectionValidation(name)
+        log(`Resource: Retrieved validation rules for collection '${name}'.`)
+        return {
+          contents: [{
+            uri: uri.href,
+            text: formatValidationRules(validation)
+          }]
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('resources', 'server-status')) {
+    server.resource(
+      'server-status',
+      'mongodb://server/status',
+      { description: 'MongoDB server status information' },
+      async () => {
+        log('Resource: Retrieving server status…')
+        const status = await getServerStatus()
+        log('Resource: Retrieved server status information.')
+        return {
+          contents: [{
+            uri: 'mongodb://server/status',
+            text: formatServerStatus(status)
+          }]
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('resources', 'replica-status')) {
+    server.resource(
+      'replica-status',
+      'mongodb://server/replica',
+      { description: 'MongoDB replica set status and configuration' },
+      async () => {
+        log('Resource: Retrieving replica set status…')
+        const status = await getReplicaSetStatus()
+        log('Resource: Retrieved replica set status information.')
+        return {
+          contents: [{
+            uri: 'mongodb://server/replica',
+            text: formatReplicaSetStatus(status)
+          }]
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('resources', 'performance-metrics')) {
+    server.resource(
+      'performance-metrics',
+      'mongodb://server/metrics',
+      { description: 'Real-time MongoDB performance metrics and profiling data' },
+      async () => {
+        log('Resource: Retrieving performance metrics…')
+        const metrics = await getPerformanceMetrics()
+        return {
+          contents: [{
+            uri: 'mongodb://server/metrics',
+            text: formatPerformanceMetrics(metrics)
+          }]
+        }
+      }
+    )
+  }
+
+  const totalRegisteredResources =
+    Object.keys(server._registeredResources).length +
+    Object.keys(server._registeredResourceTemplates).length
+  log(`Total MCP resources: ${totalRegisteredResources}`)
 }
-\`\`\`
 
-This schema validator was generated based on ${schema.sampleSize} sample documents with ${Object.keys(schema.fields).length} fields.
-`
+const registerPrompts = (server) => {
+  if (isDisabled('prompts', true)) {
+    log('All MCP prompts disabled via configuration', true)
+    return
+  }
 
-        return {
-          content: [{
-            type: 'text',
-            text: result
-          }]
-        }
-      }, `Error generating schema validator for '${collection}'`)
-    }
-  )
-
-  server.tool(
-    'compare-schemas',
-    'Compare schemas between two collections',
-    {
-      sourceCollection: z.string().min(1).describe('Source collection name'),
-      targetCollection: z.string().min(1).describe('Target collection name'),
-      sampleSize: z.number().int().min(1).default(100).describe('Number of documents to sample')
-    },
-    async ({ sourceCollection, targetCollection, sampleSize }) => {
-      return withErrorHandling(async () => {
-        log(`Tool: Comparing schemas between '${sourceCollection}' and '${targetCollection}'…`)
-
-        const sourceSchema = await inferSchema(sourceCollection, sampleSize)
-        const targetSchema = await inferSchema(targetCollection, sampleSize)
-
-        const comparison = compareSchemas(sourceSchema, targetSchema)
-
-        return {
-          content: [{
-            type: 'text',
-            text: formatSchemaComparison(comparison, sourceCollection, targetCollection)
-          }]
-        }
-      }, `Error comparing schemas between '${sourceCollection}' and '${targetCollection}'`)
-    }
-  )
-
-  server.tool(
-    'explain-query',
-    'Analyze query performance',
-    {
-      collection: z.string().min(1).describe('Collection name'),
-      filter: z.string().describe('MongoDB query filter (JSON string)'),
-      verbosity: z.enum(['queryPlanner', 'executionStats', 'allPlansExecution']).default('executionStats').describe('Explain verbosity level')
-    },
-    async ({ collection, filter, verbosity }) => {
-      try {
-        log(`Tool: Explaining query on collection '${collection}'…`)
-        log(`Tool: Filter: ${filter}`)
-        log(`Tool: Verbosity level: ${verbosity}`)
-
-        const parsedFilter = JSON.parse(filter)
-        const explanation = await explainQuery(collection, parsedFilter, verbosity)
-        log(`Tool: Query explanation generated.`)
+  if (!isDisabled('prompts', 'query-builder')) {
+    server.prompt(
+      'query-builder',
+      'Help construct MongoDB query filters',
+      {
+        collection: z.string().min(1).describe('Collection name to query'),
+        condition: z.string().describe('Describe the condition in natural language (e.g. "users older than 30")')
+      },
+      async ({ collection, condition }) => {
+        log(`Prompt: Initializing [query-builder] for collection '${collection}' with condition: "${condition}".`)
 
         const fields = await getCollectionFields(collection)
-        const fieldInfo = fields.length > 0 ?
-          `\n\nAvailable fields for projection: ${fields.join(', ')}` : ''
-
-        const suggestedProjection = getSuggestedProjection(parsedFilter, fields)
-        const projectionInfo = suggestedProjection ?
-          `\n\nSuggested projection: ${suggestedProjection}` : ''
+        const fieldInfo = fields.length > 0 ? `\nAvailable fields: ${fields.join(', ')}` : ''
 
         return {
-          content: [{
-            type: 'text',
-            text: formatExplanation(explanation) + fieldInfo + projectionInfo
-          }]
-        }
-      } catch (error) {
-        log(`Error explaining query: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error explaining query: ${error.message}`
-          }],
-          isError: true
+          description: `MongoDB Query Builder for ${collection}`,
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `Please help me create a MongoDB query for the '${collection}' collection based on this condition: "${condition}".
+
+    I need both the filter object and a complete example showing how to use it with the findDocuments tool.
+
+    Guidelines:
+    1. Create a valid MongoDB query filter as a JSON object
+    2. Show me how special MongoDB operators work if needed (like $gt, $in, etc.)
+    3. Provide a complete example of using this with the findDocuments tool
+    4. Suggest any relevant projections or sort options
+    ${fieldInfo}
+
+    Remember: I'm working with the ${currentDbName} database and the ${collection} collection.`
+              }
+            }
+          ]
         }
       }
-    }
-  )
+    )
+  }
 
-  server.tool(
-    'analyze-query-patterns',
-    'Analyze query patterns and suggest optimizations',
-    {
-      collection: z.string().min(1).describe('Collection name to analyze'),
-      duration: z.number().int().min(1).max(60).default(config.tools.queryAnalysis.defaultDurationSeconds).describe('Duration to analyze in seconds')
-    },
-    async ({ collection, duration }) => {
-      return withErrorHandling(async () => {
-        log(`Tool: Analyzing query patterns for collection '${collection}'…`)
+  if (!isDisabled('prompts', 'aggregation-builder')) {
+    server.prompt(
+      'aggregation-builder',
+      'Help construct MongoDB aggregation pipelines',
+      {
+        collection: z.string().min(1).describe('Collection name for aggregation'),
+        goal: z.string().describe('What you want to calculate or analyze')
+      },
+      ({ collection, goal }) => {
+        log(`Prompt: Initializing [aggregation-builder] for collection '${collection}' with goal: "${goal}".`)
+        return {
+          description: `MongoDB Aggregation Pipeline Builder for ${collection}`,
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `I need to create a MongoDB aggregation pipeline for the '${collection}' collection to ${goal}.
 
-        await throwIfCollectionNotExists(collection)
+  Please help me create:
+  1. A complete aggregation pipeline as a JSON array
+  2. An explanation of each stage in the pipeline
+  3. How to execute this with the aggregateData tool
+
+  Remember: I'm working with the ${currentDbName} database and the ${collection} collection.`
+              }
+            }
+          ]
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('prompts', 'schema-analysis')) {
+    server.prompt(
+      'schema-analysis',
+      'Analyze collection schema and recommend improvements',
+      {
+        collection: z.string().min(1).describe('Collection name to analyze')
+      },
+      async ({ collection }) => {
+        log(`Prompt: Initializing [schema-analysis] for collection '${collection}'…`)
+        const schema = await inferSchema(collection)
+        log(`Prompt: Retrieved schema for '${collection}' with ${Object.keys(schema.fields).length} fields.`)
+        return {
+          description: `MongoDB Schema Analysis for ${collection}`,
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `Please analyze the schema of the '${collection}' collection and provide recommendations:
+
+  Here's the current schema:
+  ${formatSchema(schema)}
+
+  Could you help with:
+  1. Identifying any schema design issues or inconsistencies
+  2. Suggesting schema improvements for better performance
+  3. Recommending appropriate indexes based on the data structure
+  4. Best practices for this type of data model
+  5. Any potential MongoDB-specific optimizations`
+              }
+            }
+          ]
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('prompts', 'index-recommendation')) {
+    server.prompt(
+      'index-recommendation',
+      'Get index recommendations for query patterns',
+      {
+        collection: z.string().min(1).describe('Collection name'),
+        queryPattern: z.string().describe('Common query pattern or operation')
+      },
+      ({ collection, queryPattern }) => {
+        log(`Prompt: Initializing [index-recommendation] for collection '${collection}' with query pattern: "${queryPattern}".`)
+        return {
+          description: `MongoDB Index Recommendations for ${collection}`,
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `I need index recommendations for the '${collection}' collection to optimize this query pattern: "${queryPattern}".
+
+  Please provide:
+  1. Recommended index(es) with proper key specification
+  2. Explanation of why this index would help
+  3. The exact command to create this index using the createIndex tool
+  4. How to verify the index is being used
+  5. Any potential trade-offs or considerations for this index
+
+  Remember: I'm working with the ${currentDbName} database and the ${collection} collection.`
+              }
+            }
+          ]
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('prompts', 'mongo-shell')) {
+    server.prompt(
+      'mongo-shell',
+      'Generate MongoDB shell commands',
+      {
+        operation: z.string().describe('Operation you want to perform'),
+        details: z.string().optional().describe('Additional details about the operation')
+      },
+      ({ operation, details }) => {
+        log(`Prompt: Initializing [mongo-shell] for operation: "${operation}" with${details ? ' details: "' + details + '"' : 'out details'}.`)
+        return {
+          description: 'MongoDB Shell Command Generator',
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `Please generate MongoDB shell commands to ${operation}${details ? ` with these details: ${details}` : ''}.
+
+  I need:
+  1. The exact MongoDB shell command(s)
+  2. Explanation of each part of the command
+  3. How this translates to using MongoDB Lens tools
+  4. Any important considerations or variations
+
+  Current database: ${currentDbName}`
+              }
+            }
+          ]
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('prompts', 'data-modeling')) {
+    server.prompt(
+      'data-modeling',
+      'Get MongoDB data modeling advice for specific use cases',
+      {
+        useCase: z.string().describe('Describe your application or data use case'),
+        requirements: z.string().describe('Key requirements (performance, access patterns, etc.)'),
+        existingData: z.string().optional().describe('Optional: describe any existing data structure')
+      },
+      ({ useCase, requirements, existingData }) => {
+        log(`Prompt: Initializing [data-modeling] for use case: "${useCase}".`)
+        return {
+          description: 'MongoDB Data Modeling Guide',
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `I need help designing a MongoDB data model for this use case: "${useCase}".
+
+  Key requirements:
+  ${requirements}
+
+  ${existingData ? `Existing data structure:\n${existingData}\n\n` : ''}
+  Please provide:
+  1. Recommended data model with collection structures
+  2. Sample document structures in JSON format
+  3. Explanation of design decisions and trade-offs
+  4. Appropriate indexing strategy
+  5. Any MongoDB-specific features or patterns I should consider
+  6. How this model addresses the stated requirements`
+              }
+            }
+          ]
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('prompts', 'query-optimizer')) {
+    server.prompt(
+      'query-optimizer',
+      'Get optimization advice for slow queries',
+      {
+        collection: z.string().min(1).describe('Collection name'),
+        query: z.string().describe('The slow query (as a JSON filter)'),
+        performance: z.string().optional().describe('Optional: current performance metrics')
+      },
+      async ({ collection, query, performance }) => {
+        log(`Prompt: Initializing [query-optimizer] for collection '${collection}' with query: ${query}.`)
+        const stats = await getCollectionStats(collection)
         const indexes = await getCollectionIndexes(collection)
+        return {
+          description: 'MongoDB Query Optimization Advisor',
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `I have a slow MongoDB query on the '${collection}' collection and need help optimizing it.
+
+  Query filter: ${query}
+
+  ${performance ? `Current performance: ${performance}\n\n` : ''}
+  Collection stats:
+  ${formatStats(stats)}
+
+  Current indexes:
+  ${formatIndexes(indexes)}
+
+  Please provide:
+  1. Analysis of why this query might be slow
+  2. Recommend index changes (additions or modifications)
+  3. Suggest query structure improvements
+  4. Explain how to verify performance improvements
+  5. Other optimization techniques I should consider`
+              }
+            }
+          ]
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('prompts', 'security-audit')) {
+    server.prompt(
+      'security-audit',
+      'Get MongoDB security recommendations',
+      {},
+      async () => {
+        log('Prompt: Initializing [security-audit].')
+        const serverStatus = await getServerStatus()
+        const users = await getDatabaseUsers()
+        return {
+          description: 'MongoDB Security Audit',
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `Please help me perform a security audit on my MongoDB deployment.
+
+  Server information:
+  ${formatServerStatus(serverStatus)}
+
+  User information:
+  ${formatDatabaseUsers(users)}
+
+  Please provide:
+  1. Potential security vulnerabilities in my current setup
+  2. Recommendations for improving security
+  3. Authentication and authorization best practices
+  4. Network security considerations
+  5. Data encryption options
+  6. Audit logging recommendations
+  7. Backup security considerations`
+              }
+            }
+          ]
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('prompts', 'backup-strategy')) {
+    server.prompt(
+      'backup-strategy',
+      'Get advice on MongoDB backup and recovery approaches',
+      {
+        databaseSize: z.string().optional().describe('Optional: database size information'),
+        uptime: z.string().optional().describe('Optional: uptime requirements (e.g. "99.9%")'),
+        rpo: z.string().optional().describe('Optional: recovery point objective'),
+        rto: z.string().optional().describe('Optional: recovery time objective')
+      },
+      ({ databaseSize, uptime, rpo, rto }) => {
+        log('Prompt: Initializing [backup-strategy].')
+        return {
+          description: 'MongoDB Backup & Recovery Strategy',
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `I need recommendations for a MongoDB backup and recovery strategy.
+
+  ${databaseSize ? `Database size: ${databaseSize}\n` : ''}${uptime ? `Uptime requirement: ${uptime}\n` : ''}${rpo ? `Recovery Point Objective (RPO): ${rpo}\n` : ''}${rto ? `Recovery Time Objective (RTO): ${rto}\n` : ''}
+  Current database: ${currentDbName}
+
+  Please provide:
+  1. Recommended backup methods for my scenario
+  2. Backup frequency and retention recommendations
+  3. Storage considerations and best practices
+  4. Restoration procedures and testing strategy
+  5. Monitoring and validation approaches
+  6. High availability considerations
+  7. Tools and commands for implementing the strategy`
+              }
+            }
+          ]
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('prompts', 'migration-guide')) {
+    server.prompt(
+      'migration-guide',
+      'Generate MongoDB migration steps between versions',
+      {
+        sourceVersion: z.string().describe('Source MongoDB version'),
+        targetVersion: z.string().describe('Target MongoDB version'),
+        features: z.string().optional().describe('Optional: specific features you use')
+      },
+      ({ sourceVersion, targetVersion, features }) => {
+        log(`Prompt: Initializing [migration-guide] from ${sourceVersion} to ${targetVersion}.`)
+        return {
+          description: 'MongoDB Version Migration Guide',
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `I need to migrate my MongoDB deployment from version ${sourceVersion} to ${targetVersion}.
+
+  ${features ? `Key features I'm using: ${features}\n\n` : ''}
+  Please provide:
+  1. Step-by-step migration plan
+  2. Pre-migration checks and preparations
+  3. Breaking changes and deprecated features to be aware of
+  4. New features or improvements I can leverage
+  5. Common pitfalls and how to avoid them
+  6. Performance considerations
+  7. Rollback strategy in case of issues`
+              }
+            }
+          ]
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('prompts', 'sql-to-mongodb')) {
+    server.prompt(
+      'sql-to-mongodb',
+      'Convert SQL queries to MongoDB aggregation pipelines',
+      {
+        sqlQuery: z.string().min(1).describe('SQL query to convert'),
+        targetCollection: z.string().optional().describe('Target MongoDB collection name')
+      },
+      ({ sqlQuery, targetCollection }) => {
+        log(`Prompt: Initializing [sql-to-mongodb] for query: "${sqlQuery}".`)
+        return {
+          description: 'SQL to MongoDB Query Translator',
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `Please convert this SQL query to MongoDB syntax:\n\n\`\`\`sql\n${sqlQuery}\n\`\`\`\n\n${targetCollection ? `Target collection: ${targetCollection}` : ''}\n\nI need:
+    1. The equivalent MongoDB query/aggregation pipeline with proper MongoDB operators
+    2. Explanation of how each part of the SQL query maps to MongoDB
+    3. How to execute this using MongoDB Lens tools
+    4. Any important considerations or MongoDB-specific optimizations
+
+    Please provide both the find() query format (if applicable) and the aggregation pipeline format.`
+              }
+            }
+          ]
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('prompts', 'database-health-check')) {
+    server.prompt(
+      'database-health-check',
+      'Comprehensive database health assessment',
+      {
+        includePerformance: z.string().default('true').describe('Include performance metrics'),
+        includeSchema: z.string().default('true').describe('Include schema analysis'),
+        includeSecurity: z.string().default('true').describe('Include security assessment')
+      },
+      async ({ includePerformance, includeSchema, includeSecurity }) => {
+        const includePerformanceBool = includePerformance.toLowerCase() === 'true'
+        const includeSchemaBool = includeSchema.toLowerCase() === 'true'
+        const includeSecurityBool = includeSecurity.toLowerCase() === 'true'
+
+        log('Prompt: Initializing [database-health-check].')
+
+        const dbStats = await getDatabaseStats()
+        const collections = await listCollections()
+
+        let serverStatus = null
+        let indexes = {}
+        let schemaAnalysis = {}
+
+        if (includePerformanceBool) {
+          serverStatus = await getServerStatus()
+          const collectionsToAnalyze = collections.slice(0, 5)
+          for (const coll of collectionsToAnalyze) {
+            indexes[coll.name] = await getCollectionIndexes(coll.name)
+          }
+        }
+
+        if (includeSchemaBool) {
+          const collectionsToAnalyze = collections.slice(0, 3)
+          for (const coll of collectionsToAnalyze) {
+            schemaAnalysis[coll.name] = await inferSchema(coll.name, 10)
+          }
+        }
+
+        let securityInfo = null
+        if (includeSecurityBool) {
+          const users = await getDatabaseUsers()
+          securityInfo = {
+            users,
+            auth: serverStatus ? serverStatus.security : null
+          }
+        }
+
+        return {
+          description: `MongoDB Health Check: ${currentDbName}`,
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `Please perform a comprehensive health check on my MongoDB database "${currentDbName}" and provide recommendations for improvements.
+
+      Database Statistics:
+      ${JSON.stringify(dbStats, null, 2)}
+
+      Collections (${collections.length}):
+      ${collections.map(c => `- ${c.name}`).join('\n')}
+
+      ${includePerformanceBool ? `\nPerformance Metrics:
+      ${JSON.stringify(serverStatus ? {
+        connections: serverStatus.connections,
+        opcounters: serverStatus.opcounters,
+        mem: serverStatus.mem
+      } : {}, null, 2)}
+
+      Indexes:
+      ${Object.entries(indexes).map(([coll, idxs]) =>
+        `- ${coll}: ${idxs.length} indexes`
+      ).join('\n')}` : ''}
+
+      ${includeSchemaBool ? `\nSchema Samples:
+      ${Object.keys(schemaAnalysis).join(', ')}` : ''}
+
+      ${includeSecurityBool ? `\nSecurity Information:
+      - Users: ${securityInfo.users.users ? securityInfo.users.users.length : 'N/A'}
+      - Authentication: ${securityInfo.auth && securityInfo.auth.authentication ?
+      JSON.stringify(securityInfo.auth.authentication.mechanisms || securityInfo.auth.authentication) : 'N/A'}` : ''}
+
+      Please provide:
+      1. Overall health assessment
+      2. Urgent issues that need addressing
+      3. Performance optimization recommendations
+      4. Schema design suggestions and improvements
+      5. Security best practices and concerns
+      6. Monitoring and maintenance recommendations
+      7. Specific MongoDB Lens tools to use for implementing your recommendations`
+              }
+            }
+          ]
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('prompts', 'multi-tenant-design')) {
+    server.prompt(
+      'multi-tenant-design',
+      'Design MongoDB multi-tenant database architecture',
+      {
+        tenantIsolation: z.enum(['database', 'collection', 'field']).describe('Level of tenant isolation required'),
+        estimatedTenants: z.string().describe('Estimated number of tenants'),
+        sharedFeatures: z.string().describe('Features/data that will be shared across tenants'),
+        tenantSpecificFeatures: z.string().describe('Features/data unique to each tenant'),
+        scalingPriorities: z.string().optional().describe('Primary scaling concerns (e.g., read-heavy, write-heavy)')
+      },
+      ({ tenantIsolation, estimatedTenants, sharedFeatures, tenantSpecificFeatures, scalingPriorities }) => {
+        const estimatedTenantsNum = parseInt(estimatedTenants, 10) || 1
+        log(`Prompt: Initializing [multi-tenant-design] with ${tenantIsolation} isolation level for ${estimatedTenantsNum} tenants.`)
+        return {
+          description: 'MongoDB Multi-Tenant Architecture Design',
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `I need to design a multi-tenant MongoDB architecture with the following requirements:
+
+    - Tenant isolation level: ${tenantIsolation}
+    - Estimated number of tenants: ${estimatedTenants}
+    - Shared features/data: ${sharedFeatures}
+    - Tenant-specific features/data: ${tenantSpecificFeatures}
+    ${scalingPriorities ? `- Scaling priorities: ${scalingPriorities}` : ''}
+
+    Please provide:
+    1. Recommended multi-tenant architecture for MongoDB
+    2. Data model with collection structures and relationships
+    3. Schema examples (in JSON) for each collection
+    4. Indexing strategy for optimal tenant isolation and performance
+    5. Security considerations and access control patterns
+    6. Scaling approach as tenant count and data volume grow
+    7. Query patterns to efficiently retrieve tenant-specific data
+    8. Specific MongoDB features to leverage for multi-tenancy
+    9. Potential challenges and mitigation strategies
+
+    For context, I'm using MongoDB version ${mongoClient.topology?.lastIsMaster?.version || 'recent'} and want to ensure my architecture follows best practices.`
+              }
+            }
+          ]
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('prompts', 'schema-versioning')) {
+    server.prompt(
+      'schema-versioning',
+      'Manage schema evolution in MongoDB applications',
+      {
+        collection: z.string().min(1).describe('Collection name to version'),
+        currentSchema: z.string().describe('Current schema structure (brief description)'),
+        plannedChanges: z.string().describe('Planned schema changes'),
+        migrationConstraints: z.string().optional().describe('Migration constraints (e.g., zero downtime)')
+      },
+      async ({ collection, currentSchema, plannedChanges, migrationConstraints }) => {
+        log(`Prompt: Initializing [schema-versioning] for collection '${collection}'…`)
+
         const schema = await inferSchema(collection)
 
-        await setProfilerSlowMs()
-
-        let queryStats = []
-        try {
-          const adminDb = mongoClient.db('admin')
-          const profilerStatus = await currentDb.command({ profile: -1 })
-
-          let prevProfileLevel = profilerStatus.was
-          let prevSlowMs = profilerStatus.slowms
-
-          await currentDb.command({ profile: 2, slowms: 0 })
-
-          log(`Tool: Monitoring queries for ${duration} seconds…`)
-
-          await new Promise(resolve => setTimeout(resolve, duration * 1000))
-
-          queryStats = await currentDb.collection('system.profile')
-            .find({ ns: `${currentDbName}.${collection}`, op: 'query' })
-            .sort({ ts: -1 })
-            .limit(100)
-            .toArray()
-
-          await currentDb.command({ profile: prevProfileLevel, slowms: prevSlowMs })
-
-        } catch (profileError) {
-          log(`Tool: Unable to use profiler: ${profileError.message}`)
-        }
-
-        const analysis = analyzeQueryPatterns(collection, schema, indexes, queryStats)
-
         return {
-          content: [{
-            type: 'text',
-            text: formatQueryAnalysis(analysis)
-          }]
-        }
-      }, `Error analyzing query patterns for '${collection}'`)
-    }
-  )
+          description: 'MongoDB Schema Versioning Strategy',
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `I need to implement schema versioning/evolution for the '${collection}' collection in MongoDB. Please help me design a strategy.
 
-  server.tool(
-    'bulk-operations',
-    'Perform bulk inserts, updates, or deletes',
-    {
-      collection: z.string().min(1).describe('Collection name'),
-      operations: z.string().describe('Array of operations as JSON string'),
-      ordered: createBooleanSchema('Whether operations should be performed in order', 'true'),
-      token: z.string().optional().describe('Confirmation token from previous request')
-    },
-    async ({ collection, operations, ordered, token }) => {
-      return withErrorHandling(async () => {
-        log(`Tool: Processing bulk operations on collection '${collection}'…`)
-        const parsedOperations = JSON.parse(operations)
+    Current Schema Information:
+    ${formatSchema(schema)}
 
-        const deleteOps = parsedOperations.filter(op =>
-          op.deleteOne || op.deleteMany
-        )
+    Current Schema Description:
+    ${currentSchema}
 
-        if (deleteOps.length === 0 || config.disableDestructiveOperationTokens) {
-          const result = await bulkOperations(collection, parsedOperations, ordered === 'true')
-          return {
-            content: [{
-              type: 'text',
-              text: formatBulkResult(result)
-            }]
-          }
-        }
+    Planned Schema Changes:
+    ${plannedChanges}
 
-        if (token) {
-          if (!validateBulkOperationsToken(collection, parsedOperations, token)) {
-            throw new Error(`Invalid or expired confirmation token. Please try again without a token to generate a new confirmation code.`)
-          }
-          const result = await bulkOperations(collection, parsedOperations, ordered === 'true')
-          return {
-            content: [{
-              type: 'text',
-              text: formatBulkResult(result)
-            }]
-          }
-        }
+    ${migrationConstraints ? `Migration Constraints: ${migrationConstraints}` : ''}
 
-        await throwIfCollectionNotExists(collection)
-        const newToken = storeBulkOperationsToken(collection, parsedOperations)
-        return {
-          content: [{
-            type: 'text',
-            text: `⚠️ DESTRUCTIVE OPERATION WARNING ⚠️\n\nYou've requested to perform bulk operations on collection '${collection}' including ${deleteOps.length} delete operation(s).\n\nDelete operations are irreversible. To confirm, type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.\n\n${importantNoticeToAI}`
-          }]
-        }
-      }, `Error processing bulk operations for collection '${collection}'`)
-    }
-  )
+    Please provide:
+    1. Recommended approach to schema versioning in MongoDB
+    2. Step-by-step migration plan for these specific changes
+    3. Code examples showing how to handle both old and new schema versions
+    4. Schema validation rules to enforce the new schema
+    5. Performance considerations during migration
+    6. Rollback strategy if needed
+    7. Testing approach to validate the migration
+    8. MongoDB Lens tools and commands to use for the migration process
 
-  server.tool(
-    'create-timeseries',
-    'Create a time series collection for temporal data',
-    {
-      name: z.string().min(1).describe('Collection name'),
-      timeField: z.string().min(1).describe('Field that contains the time value'),
-      metaField: z.string().optional().describe('Field that contains metadata for grouping'),
-      granularity: z.enum(['seconds', 'minutes', 'hours']).default('seconds').describe('Time series granularity'),
-      expireAfterSeconds: z.number().int().optional().describe('Optional TTL in seconds')
-    },
-    async ({ name, timeField, metaField, granularity, expireAfterSeconds }) => {
-      try {
-        log(`Tool: Creating time series collection '${name}'…`)
-
-        const adminDb = mongoClient.db('admin')
-        const serverInfo = await adminDb.command({ buildInfo: 1 })
-        const versionParts = serverInfo.version.split('.').map(Number)
-        if (versionParts[0] < 5) {
-          return { content: [{ type: 'text', text: `Time series collections require MongoDB 5.0+` }] }
-        }
-
-        const options = {
-          timeseries: {
-            timeField,
-            granularity
-          }
-        }
-
-        if (metaField) options.timeseries.metaField = metaField
-        if (expireAfterSeconds) options.expireAfterSeconds = expireAfterSeconds
-
-        const result = await createCollection(name, options)
-        return {
-          content: [{
-            type: 'text',
-            text: `Time series collection '${name}' created successfully.`
-          }]
-        }
-      } catch (error) {
-        return {
-          content: [{
-            type: 'text',
-            text: `Error creating time series collection: ${error.message}`
-          }],
-          isError: true
+    I want to ensure backward compatibility during this transition.`
+              }
+            }
+          ]
         }
       }
-    }
-  )
+    )
+  }
 
-  server.tool(
-    'collation-query',
-    'Find documents with language-specific collation rules',
-    {
-      collection: z.string().min(1).describe('Collection name'),
-      filter: z.string().default('{}').describe('Query filter as JSON string'),
-      locale: z.string().min(2).describe('Locale code (e.g., "en", "fr", "de")'),
-      strength: z.number().int().min(1).max(5).default(3).describe('Collation strength (1-5)'),
-      caseLevel: createBooleanSchema('Consider case in first-level differences', 'false'),
-      sort: z.string().optional().describe('Sort specification as JSON string')
-    },
-    async ({ collection, filter, locale, strength, caseLevel, sort }) => {
-      try {
-        log(`Tool: Running collation query on collection '${collection}' with locale '${locale}'`)
+  const totalRegisteredPrompts = Object.keys(server._registeredPrompts).length
+  log(`Total MCP prompts: ${totalRegisteredPrompts}`)
+}
 
-        const parsedFilter = JSON.parse(filter)
-        const parsedSort = sort ? JSON.parse(sort) : null
+const registerTools = (server) => {
+  if (isDisabled('tools', true)) {
+    log('All MCP tools disabled via configuration', true)
+    return
+  }
 
-        const collationOptions = {
-          locale,
-          strength,
-          caseLevel
-        }
-
-        const coll = currentDb.collection(collection)
-        let query = coll.find(parsedFilter).collation(collationOptions)
-
-        if (parsedSort) query = query.sort(parsedSort)
-
-        const results = await query.toArray()
-
-        return {
-          content: [{
-            type: 'text',
-            text: formatCollationResults(results, locale, strength, caseLevel)
-          }]
-        }
-      } catch (error) {
-        return {
-          content: [{
-            type: 'text',
-            text: `Error running collation query: ${error.message}`
-          }],
-          isError: true
-        }
-      }
-    }
-  )
-
-  server.tool(
-    'text-search',
-    'Perform full-text search across text-indexed fields',
-    {
-      collection: z.string().min(1).describe('Collection name'),
-      searchText: z.string().min(1).describe('Text to search for'),
-      language: z.string().optional().describe('Optional language for text search'),
-      caseSensitive: createBooleanSchema('Case sensitive search', 'false'),
-      diacriticSensitive: createBooleanSchema('Diacritic sensitive search', 'false'),
-      limit: z.number().int().min(1).default(10).describe('Maximum results to return')
-    },
-    async ({ collection, searchText, language, caseSensitive, diacriticSensitive, limit }) => {
-      try {
-        log(`Tool: Performing text search in collection '${collection}' for: "${searchText}"`)
-
-        try {
-          const coll = currentDb.collection(collection)
-          const indexes = await coll.listIndexes().toArray()
-          const hasTextIndex = indexes.some(idx => Object.values(idx.key).includes('text'))
-
-          if (!hasTextIndex) {
+  if (!isDisabled('tools', 'connect-mongodb')) {
+    server.tool(
+      'connect-mongodb',
+      'Connect to a different MongoDB URI',
+      {
+        uri: z.string().min(1).describe('MongoDB connection URI to connect to'),
+        validateConnection: createBooleanSchema('Whether to validate the connection', 'true')
+      },
+      async ({ uri, validateConnection }) => {
+        return withErrorHandling(async () => {
+          try {
+            await changeConnection(uri, validateConnection === 'true')
             return {
               content: [{
                 type: 'text',
-                text: `No text index found on collection '${collection}'.\n\nText search requires a text index. Create one with:\n\ncreate-index {\n  "collection": "${collection}",\n  "keys": "{\\"fieldName\\": \\"text\\"}"\n}`
+                text: `Successfully connected to MongoDB at URI: ${uri}`
+              }]
+            }
+          } catch (error) {
+            if (mongoUriCurrent && mongoUriCurrent !== uri) {
+              try {
+                await changeConnection(mongoUriCurrent, true)
+              } catch (reconnectError) {
+                log(`Failed to reconnect to current URI: ${reconnectError.message}`, true)
+              }
+            }
+            throw error
+          }
+        }, 'Error connecting to new MongoDB URI')
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'connect-original')) {
+    server.tool(
+      'connect-original',
+      'Connect back to the original MongoDB URI used at startup',
+      {
+        validateConnection: createBooleanSchema('Whether to validate the connection', 'true')
+      },
+      async ({ validateConnection }) => {
+        return withErrorHandling(async () => {
+          if (!mongoUriOriginal) throw new Error('Original MongoDB URI not available')
+          await changeConnection(mongoUriOriginal, validateConnection === 'true')
+          return {
+            content: [{
+              type: 'text',
+              text: `Successfully connected back to original MongoDB URI: ${mongoUriOriginal}`
+            }]
+          }
+        }, 'Error connecting to original MongoDB URI')
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'list-databases')) {
+    server.tool(
+      'list-databases',
+      'List all accessible MongoDB databases',
+      async () => {
+        return withErrorHandling(async () => {
+          log('Tool: Listing databases…')
+          const dbs = await listDatabases()
+          log(`Tool: Found ${dbs.length} databases.`)
+          return {
+            content: [{
+              type: 'text',
+              text: formatDatabasesList(dbs)
+            }]
+          }
+        }, 'Error listing databases')
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'current-database')) {
+    server.tool(
+      'current-database',
+      'Get the name of the current database',
+      async () => {
+        return withErrorHandling(async () => {
+          log('Tool: Getting current database name…')
+          return {
+            content: [{
+              type: 'text',
+              text: `Current database: ${currentDbName}`
+            }]
+          }
+        }, 'Error getting current database')
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'create-database')) {
+    server.tool(
+      'create-database',
+      'Create a new MongoDB database with option to switch',
+      {
+        name: z.string().min(1).describe('Database name to create'),
+        switch: createBooleanSchema('Whether to switch to the new database after creation', 'false'),
+        validateName: createBooleanSchema('Whether to validate database name', 'true')
+      },
+      async ({ name, switch: shouldSwitch, validateName }) => {
+        return withErrorHandling(async () => {
+          log(`Tool: Creating database '${name}'${shouldSwitch === 'true' ? ' and switching to it' : ''}…`)
+          const db = await createDatabase(name, validateName)
+
+          if (shouldSwitch === 'true') {
+            currentDbName = name
+            currentDb = db
+            log(`Tool: Switched to database '${name}'.`)
+            return {
+              content: [{
+                type: 'text',
+                text: `Database '${name}' created successfully and connected.`
+              }]
+            }
+          } else {
+            log(`Tool: Database '${name}' created successfully. Current database is still '${currentDbName}'.`)
+            return {
+              content: [{
+                type: 'text',
+                text: `Database '${name}' created successfully. Current database is still '${currentDbName}'.`
               }]
             }
           }
-        } catch (indexError) {
-          log(`Warning: Unable to check for text indexes: ${indexError.message}`, true)
-        }
-
-        const textQuery = { $search: searchText }
-        if (language) textQuery.$language = language
-        if (caseSensitive === 'true') textQuery.$caseSensitive = true
-        if (diacriticSensitive === 'true') textQuery.$diacriticSensitive = true
-
-        const query = { $text: textQuery }
-        const projection = { score: { $meta: 'textScore' } }
-        const sort = { score: { $meta: 'textScore' } }
-
-        const results = await findDocuments(collection, query, projection, limit, 0, sort)
-
-        return {
-          content: [{
-            type: 'text',
-            text: formatTextSearchResults(results, searchText)
-          }]
-        }
-      } catch (error) {
-        return {
-          content: [{
-            type: 'text',
-            text: `Error performing text search: ${error.message}`
-          }],
-          isError: true
-        }
+        }, `Error creating database '${name}'${shouldSwitch === 'true' ? ' and switching to it' : ''}`)
       }
-    }
-  )
+    )
+  }
 
-  server.tool(
-    'geo-query',
-    'Run geospatial queries with various operators',
-    {
-      collection: z.string().min(1).describe('Collection name'),
-      operator: z.enum(['near', 'geoWithin', 'geoIntersects']).describe('Geospatial operator type'),
-      field: z.string().min(1).describe('Geospatial field name'),
-      geometry: z.string().describe('GeoJSON geometry as JSON string'),
-      maxDistance: z.number().optional().describe('Maximum distance in meters (for near queries)'),
-      limit: z.number().int().min(1).default(10).describe('Maximum number of documents to return')
-    },
-    async ({ collection, operator, field, geometry, maxDistance, limit }) => {
-      try {
-        log(`Tool: Running geospatial query on collection '${collection}'…`)
-
-        let indexMessage = ''
+  if (!isDisabled('tools', 'use-database')) {
+    server.tool(
+      'use-database',
+      'Switch to a specific database',
+      {
+        database: z.string().min(1).describe('Database name to use')
+      },
+      async ({ database }) => {
         try {
-          const coll = currentDb.collection(collection)
-          const indexes = await coll.listIndexes().toArray()
-
-          const hasGeoIndex = indexes.some(idx => {
-            if (!idx.key[field]) return false
-            const indexType = idx.key[field]
-            return indexType === '2dsphere' || indexType === '2d'
-          })
-
-          if (!hasGeoIndex) {
-            log(`Warning: No geospatial index found for field '${field}' in collection '${collection}'`, true)
-            indexMessage = "\n\nNote: This query would be more efficient with a geospatial index. " +
-              `Consider creating a 2dsphere index with: create-index {"collection": "${collection}", "keys": "{\\"${field}\\": \\"2dsphere\\"}"}`
+          log(`Tool: Switching to database '${database}'…`)
+          await switchDatabase(database)
+          log(`Tool: Successfully switched to database '${database}'.`)
+          return {
+            content: [{
+              type: 'text',
+              text: `Switched to database: ${database}`
+            }]
           }
-        } catch (indexError) {
-          log(`Warning: Unable to check for geospatial indexes: ${indexError.message}`, true)
-        }
-
-        const geoJson = JSON.parse(geometry)
-        let query = {}
-
-        if (operator === 'near') {
-          query[field] = { $near: { $geometry: geoJson } }
-          if (maxDistance) query[field].$near.$maxDistance = maxDistance
-        } else if (operator === 'geoWithin') {
-          query[field] = { $geoWithin: { $geometry: geoJson } }
-        } else if (operator === 'geoIntersects') {
-          query[field] = { $geoIntersects: { $geometry: geoJson } }
-        }
-
-        const results = await findDocuments(collection, query, null, limit, 0)
-        const resultText = formatDocuments(results, limit) + indexMessage
-
-        return {
-          content: [{
-            type: 'text',
-            text: resultText
-          }]
-        }
-      } catch (error) {
-        return {
-          content: [{
-            type: 'text',
-            text: `Error running geospatial query: ${error.message}`
-          }],
-          isError: true
+        } catch (error) {
+          log(`Error switching database: ${error.message}`, true)
+          return {
+            content: [{
+              type: 'text',
+              text: `Error switching database: ${error.message}`
+            }],
+            isError: true
+          }
         }
       }
-    }
-  )
+    )
+  }
 
-  server.tool(
-    'transaction',
-    'Execute multiple operations in a single transaction',
-    {
-      operations: z.string().describe('JSON array of operations with collection, operation type, and parameters')
-    },
-    async ({ operations }) => {
-      try {
-        log('Tool: Executing operations in a transaction…')
+  if (!isDisabled('tools', 'drop-database')) {
+    server.tool(
+      'drop-database',
+      'Drop a database (requires confirmation)',
+      {
+        name: z.string().min(1).describe('Database name to drop'),
+        token: z.string().optional().describe('Confirmation token from previous request')
+      },
+      async ({ name, token }) => {
+        return withErrorHandling(async () => {
+          log(`Tool: Processing drop database request for '${name}'…`)
 
+          if (config.disableDestructiveOperationTokens) {
+            const result = await dropDatabase(name)
+            return {
+              content: [{
+                type: 'text',
+                text: result.message
+              }]
+            }
+          }
+
+          if (token) {
+            if (!validateDropDatabaseToken(name, token)) {
+              throw new Error(`Invalid or expired confirmation token for dropping '${name}'. Please try again without a token to generate a new confirmation code.`)
+            }
+            const result = await dropDatabase(name)
+            return {
+              content: [{
+                type: 'text',
+                text: result.message
+              }]
+            }
+          }
+
+          const dbs = await listDatabases()
+          const dbExists = dbs.some(db => db.name === name)
+          if (!dbExists) {
+            throw new Error(`Database '${name}' does not exist`)
+          }
+          const newToken = storeDropDatabaseToken(name)
+          return {
+            content: [{
+              type: 'text',
+              text: `⚠️ DESTRUCTIVE OPERATION WARNING ⚠️\n\nYou've requested to drop the database '${name}'.\n\nThis operation is irreversible and will permanently delete all collections and data in this database.\n\nTo confirm, you must type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.\n\n${importantNoticeToAI}`
+            }]
+          }
+        }, `Error processing database drop for '${name}'`)
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'create-user')) {
+    server.tool(
+      'create-user',
+      'Create a new database user',
+      {
+        username: z.string().min(1).describe('Username'),
+        password: z.string().min(1).describe('Password'),
+        roles: z.string().describe('Roles as JSON array, e.g. [{"role": "readWrite", "db": "mydb"}]')
+      },
+      async ({ username, password, roles }) => {
         try {
+          log(`Tool: Creating user '${username}'…`)
+          const parsedRoles = JSON.parse(roles)
+          await createUser(username, password, parsedRoles)
+          log(`Tool: User created successfully.`)
+          return {
+            content: [{
+              type: 'text',
+              text: `User '${username}' created with roles: ${JSON.stringify(parsedRoles)}`
+            }]
+          }
+        } catch (error) {
+          log(`Error creating user: ${error.message}`, true)
+          return {
+            content: [{
+              type: 'text',
+              text: `Error creating user: ${error.message}`
+            }],
+            isError: true
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'drop-user')) {
+    server.tool(
+      'drop-user',
+      'Drop an existing database user',
+      {
+        username: z.string().min(1).describe('Username to drop'),
+        token: z.string().optional().describe('Confirmation token from previous request')
+      },
+      async ({ username, token }) => {
+        return withErrorHandling(async () => {
+          log(`Tool: Processing drop user request for '${username}'…`)
+
+          if (config.disableDestructiveOperationTokens) {
+            await dropUser(username)
+            return {
+              content: [{
+                type: 'text',
+                text: `User '${username}' dropped successfully.`
+              }]
+            }
+          }
+
+          if (token) {
+            if (!validateDropUserToken(username, token)) {
+              throw new Error(`Invalid or expired confirmation token. Please try again without a token to generate a new confirmation code.`)
+            }
+            await dropUser(username)
+            return {
+              content: [{
+                type: 'text',
+                text: `User '${username}' dropped successfully.`
+              }]
+            }
+          }
+
+          const newToken = storeDropUserToken(username)
+          return {
+            content: [{
+              type: 'text',
+              text: `⚠️ SECURITY OPERATION WARNING ⚠️\n\nYou've requested to drop the user '${username}'.\n\nThis operation will remove all access permissions for this user and is irreversible.\n\nTo confirm, type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.\n\n${importantNoticeToAI}`
+            }]
+          }
+        }, `Error processing user drop for '${username}'`)
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'list-collections')) {
+    server.tool(
+      'list-collections',
+      'List collections in the current database',
+      async () => {
+        try {
+          log(`Tool: Listing collections in database '${currentDbName}'…`)
+          const collections = await listCollections()
+          log(`Tool: Found ${collections.length} collections in database '${currentDbName}'.`)
+          return {
+            content: [{
+              type: 'text',
+              text: formatCollectionsList(collections)
+            }]
+          }
+        } catch (error) {
+          log(`Error listing collections: ${error.message}`, true)
+          return {
+            content: [{
+              type: 'text',
+              text: `Error listing collections: ${error.message}`
+            }],
+            isError: true
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'create-collection')) {
+    server.tool(
+      'create-collection',
+      'Create a new collection with options',
+      {
+        name: z.string().min(1).describe('Collection name'),
+        options: z.string().default('{}').describe('Collection options as JSON string (capped, size, etc.)')
+      },
+      async ({ name, options }) => {
+        try {
+          log(`Tool: Creating collection '${name}'…`)
+          log(`Tool: Using options: ${options}`)
+
+          const parsedOptions = options ? JSON.parse(options) : {}
+          const result = await createCollection(name, parsedOptions)
+          log(`Tool: Collection created successfully.`)
+          return {
+            content: [{
+              type: 'text',
+              text: `Collection '${name}' created successfully.`
+            }]
+          }
+        } catch (error) {
+          log(`Error creating collection: ${error.message}`, true)
+          return {
+            content: [{
+              type: 'text',
+              text: `Error creating collection: ${error.message}`
+            }],
+            isError: true
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'drop-collection')) {
+    server.tool(
+      'drop-collection',
+      'Drop a collection (requires confirmation)',
+      {
+        name: z.string().min(1).describe('Collection name to drop'),
+        token: z.string().optional().describe('Confirmation token from previous request')
+      },
+      async ({ name, token }) => {
+        return withErrorHandling(async () => {
+          log(`Tool: Processing drop collection request for '${name}'…`)
+
+          if (config.disableDestructiveOperationTokens) {
+            await dropCollection(name)
+            return {
+              content: [{
+                type: 'text',
+                text: `Collection '${name}' has been permanently deleted.`
+              }]
+            }
+          }
+
+          if (token) {
+            if (!validateDropCollectionToken(name, token)) {
+              throw new Error(`Invalid or expired confirmation token for dropping '${name}'. Please try again without a token to generate a new confirmation code.`)
+            }
+            await dropCollection(name)
+            return {
+              content: [{
+                type: 'text',
+                text: `Collection '${name}' has been permanently deleted.`
+              }]
+            }
+          }
+
+          await throwIfCollectionNotExists(name)
+          const newToken = storeDropCollectionToken(name)
+          return {
+            content: [{
+              type: 'text',
+              text: `⚠️ DESTRUCTIVE OPERATION WARNING ⚠️\n\nYou've requested to drop the collection '${name}'.\n\nThis operation is irreversible and will permanently delete all data in this collection.\n\nTo confirm, you must type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.\n\n${importantNoticeToAI}`
+            }]
+          }
+        }, `Error processing collection drop for '${name}'`)
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'rename-collection')) {
+    server.tool(
+      'rename-collection',
+      'Rename an existing collection',
+      {
+        oldName: z.string().min(1).describe('Current collection name'),
+        newName: z.string().min(1).describe('New collection name'),
+        dropTarget: createBooleanSchema('Whether to drop target collection if it exists', 'false'),
+        token: z.string().optional().describe('Confirmation token from previous request')
+      },
+      async ({ oldName, newName, dropTarget, token }) => {
+        return withErrorHandling(async () => {
+          log(`Tool: Processing rename collection from '${oldName}' to '${newName}'…`)
+          await throwIfCollectionNotExists(oldName)
+
+          const collections = await listCollections()
+          const targetExists = collections.some(c => c.name === newName)
+
+          if (!targetExists || dropTarget !== 'true' || config.disableDestructiveOperationTokens) {
+            const result = await renameCollection(oldName, newName, dropTarget === 'true')
+            return {
+              content: [{
+                type: 'text',
+                text: `Collection '${oldName}' renamed to '${newName}' successfully.`
+              }]
+            }
+          }
+
+          if (token) {
+            if (!validateRenameCollectionToken(oldName, newName, dropTarget, token)) {
+              throw new Error(`Invalid or expired confirmation token. Please try again without a token to generate a new confirmation code.`)
+            }
+            const result = await renameCollection(oldName, newName, true)
+            return {
+              content: [{
+                type: 'text',
+                text: `Collection '${oldName}' renamed to '${newName}' successfully.`
+              }]
+            }
+          }
+
+          const newToken = storeRenameCollectionToken(oldName, newName, dropTarget)
+          return {
+            content: [{
+              type: 'text',
+              text: `⚠️ DESTRUCTIVE OPERATION WARNING ⚠️\n\nYou've requested to rename collection '${oldName}' to '${newName}' and drop the existing target collection.\n\nDropping a collection is irreversible. To confirm, type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.\n\n${importantNoticeToAI}`
+            }]
+          }
+        }, `Error processing rename for collection '${oldName}'`)
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'validate-collection')) {
+    server.tool(
+      'validate-collection',
+      'Run validation on a collection to check for inconsistencies',
+      {
+        collection: z.string().min(1).describe('Collection name'),
+        full: createBooleanSchema('Perform full validation (slower but more thorough)', 'false')
+      },
+      async ({ collection, full }) => {
+        try {
+          log(`Tool: Validating collection '${collection}'…`)
+          log(`Tool: Full validation: ${full}`)
+
+          const results = await validateCollection(collection, full)
+          log(`Tool: Validation complete.`)
+          return {
+            content: [{
+              type: 'text',
+              text: formatValidationResults(results)
+            }]
+          }
+        } catch (error) {
+          log(`Error validating collection: ${error.message}`, true)
+          return {
+            content: [{
+              type: 'text',
+              text: `Error validating collection: ${error.message}`
+            }],
+            isError: true
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'distinct-values')) {
+    server.tool(
+      'distinct-values',
+      'Get unique values for a field',
+      {
+        collection: z.string().min(1).describe('Collection name'),
+        field: z.string().min(1).describe('Field name to get distinct values for'),
+        filter: z.string().default('{}').describe('Optional filter as JSON string')
+      },
+      async ({ collection, field, filter }) => {
+        try {
+          log(`Tool: Getting distinct values for field '${field}' in collection '${collection}'…`)
+          log(`Tool: Using filter: ${filter}`)
+
+          const parsedFilter = filter ? JSON.parse(filter) : {}
+          const values = await getDistinctValues(collection, field, parsedFilter)
+          log(`Tool: Found ${values.length} distinct values.`)
+          return {
+            content: [{
+              type: 'text',
+              text: formatDistinctValues(field, values)
+            }]
+          }
+        } catch (error) {
+          log(`Error getting distinct values: ${error.message}`, true)
+          return {
+            content: [{
+              type: 'text',
+              text: `Error getting distinct values: ${error.message}`
+            }],
+            isError: true
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'find-documents')) {
+    server.tool(
+      'find-documents',
+      'Run queries with filters and projections',
+      {
+        collection: z.string().min(1).describe('Collection name'),
+        filter: z.string().default('{}').describe('MongoDB query filter (JSON string)'),
+        projection: z.string().optional().describe('Fields to include/exclude (JSON string)'),
+        limit: z.number().int().min(1).default(10).describe('Maximum number of documents to return'),
+        skip: z.number().int().min(0).default(0).describe('Number of documents to skip'),
+        sort: z.string().optional().describe('Sort specification (JSON string)'),
+        streaming: createBooleanSchema('Enable streaming for large result sets', 'false')
+      },
+      async ({ collection, filter, projection, limit, skip, sort, streaming }) => {
+        try {
+          log(`Tool: Finding documents in collection '${collection}'…`)
+          log(`Tool: Using filter: ${filter}`)
+          if (projection) log(`Tool: Using projection: ${projection}`)
+          if (sort) log(`Tool: Using sort: ${sort}`)
+          log(`Tool: Using limit: ${limit}, skip: ${skip}, streaming: ${streaming}`)
+
+          const parsedFilter = filter ? JSON.parse(filter) : {}
+          const parsedProjection = projection ? JSON.parse(projection) : null
+          const parsedSort = sort ? JSON.parse(sort) : null
+
+          const documents = await findDocuments(collection, parsedFilter, parsedProjection, limit, skip, parsedSort)
+          log(`Tool: Found ${documents.length} documents in collection '${collection}'.`)
+          return {
+            content: [{
+              type: 'text',
+              text: formatDocuments(documents, limit)
+            }]
+          }
+        } catch (error) {
+          log(`Error finding documents: ${error.message}`, true)
+          return {
+            content: [{
+              type: 'text',
+              text: `Error finding documents: ${error.message}`
+            }],
+            isError: true,
+            error: {
+              code: JSONRPC_ERROR_CODES.MONGODB_QUERY_ERROR,
+              message: error.message,
+              data: { type: error.name }
+            }
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'count-documents')) {
+    server.tool(
+      'count-documents',
+      'Count documents with optional filter',
+      {
+        collection: z.string().min(1).describe('Collection name'),
+        filter: z.string().default('{}').describe('MongoDB query filter (JSON string)')
+      },
+      async ({ collection, filter }) => {
+        try {
+          log(`Tool: Counting documents in collection '${collection}'…`)
+          log(`Tool: Using filter: ${filter}`)
+
+          const parsedFilter = filter ? JSON.parse(filter) : {}
+          const count = await countDocuments(collection, parsedFilter)
+          log(`Tool: Count result: ${count} documents.`)
+          return {
+            content: [{
+              type: 'text',
+              text: `Count: ${count} document(s)`
+            }]
+          }
+        } catch (error) {
+          log(`Error counting documents: ${error.message}`, true)
+          return {
+            content: [{
+              type: 'text',
+              text: `Error counting documents: ${error.message}`
+            }],
+            isError: true
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'modify-document')) {
+    server.tool(
+      'modify-document',
+      'Insert or update specific documents',
+      {
+        collection: z.string().min(1).describe('Collection name'),
+        operation: z.enum(['insert', 'update']).describe('Operation type'),
+        document: z.string().optional().describe('Document as JSON string (for insert)'),
+        filter: z.string().optional().describe('Filter as JSON string (for update)'),
+        update: z.string().optional().describe('Update operations as JSON string (for update)'),
+        options: z.string().optional().describe('Options as JSON string')
+      },
+      async ({ collection, operation, document, filter, update, options }) => {
+        try {
+          log(`Tool: Modifying documents in collection '${collection}' with operation '${operation}'…`)
+
+          let result
+          const parsedOptions = options ? JSON.parse(options) : {}
+
+          if (operation === 'insert') {
+            if (!document) throw new Error('Document is required for insert operation')
+            const parsedDocument = JSON.parse(document)
+            result = await insertDocument(collection, parsedDocument, parsedOptions)
+            log(`Tool: Document inserted successfully.`)
+            return {
+              content: [{
+                type: 'text',
+                text: formatModifyResult(operation, result)
+              }]
+            }
+          } else if (operation === 'update') {
+            if (!filter) throw new Error('Filter is required for update operation')
+            if (!update) throw new Error('Update is required for update operation')
+            const parsedFilter = JSON.parse(filter)
+            const parsedUpdate = JSON.parse(update)
+            result = await updateDocument(collection, parsedFilter, parsedUpdate, parsedOptions)
+            log(`Tool: Document(s) updated successfully.`)
+            return {
+              content: [{
+                type: 'text',
+                text: formatModifyResult(operation, result)
+              }]
+            }
+          }
+        } catch (error) {
+          console.error(`Error in ${operation} operation:`, error)
+          return {
+            content: [{
+              type: 'text',
+              text: `Error in ${operation} operation: ${error.message}`
+            }],
+            isError: true
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'delete-document')) {
+    server.tool(
+      'delete-document',
+      'Delete document(s) (requires confirmation)',
+      {
+        collection: z.string().min(1).describe('Collection name'),
+        filter: z.string().min(1).describe('Filter as JSON string'),
+        many: createBooleanSchema('Delete multiple documents if true', 'false'),
+        token: z.string().optional().describe('Confirmation token from previous request')
+      },
+      async ({ collection, filter, many, token }) => {
+        return withErrorHandling(async () => {
+          log(`Tool: Processing delete document request for collection '${collection}'…`)
+          const parsedFilter = JSON.parse(filter)
+
+          if (config.disableDestructiveOperationTokens) {
+            const options = { many: many === 'true' }
+            const result = await deleteDocument(collection, parsedFilter, options)
+            return {
+              content: [{
+                type: 'text',
+                text: `Successfully deleted ${result.deletedCount} document(s) from collection '${collection}'.`
+              }]
+            }
+          }
+
+          if (token) {
+            if (!validateDeleteDocumentToken(collection, parsedFilter, token)) {
+              throw new Error(`Invalid or expired confirmation token. Please try again without a token to generate a new confirmation code.`)
+            }
+            const options = { many: many === 'true' }
+            const result = await deleteDocument(collection, parsedFilter, options)
+            return {
+              content: [{
+                type: 'text',
+                text: `Successfully deleted ${result.deletedCount} document(s) from collection '${collection}'.`
+              }]
+            }
+          }
+
+          await throwIfCollectionNotExists(collection)
+          const count = await countDocuments(collection, parsedFilter)
+          const newToken = storeDeleteDocumentToken(collection, parsedFilter)
+          return {
+            content: [{
+              type: 'text',
+              text: `⚠️ DESTRUCTIVE OPERATION WARNING ⚠️\n\nYou've requested to delete ${many === 'true' ? 'all' : 'one'} document(s) from collection '${collection}' matching:\n${filter}\n\nThis matches approximately ${count} document(s).\n\nThis operation is irreversible. To confirm, type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.\n\n${importantNoticeToAI}`
+            }]
+          }
+        }, `Error processing document delete for collection '${collection}'`)
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'aggregate-data')) {
+    server.tool(
+      'aggregate-data',
+      'Run aggregation pipelines',
+      {
+        collection: z.string().min(1).describe('Collection name'),
+        pipeline: z.string().describe('Aggregation pipeline as JSON string array'),
+        streaming: createBooleanSchema('Enable streaming results for large datasets', 'false'),
+        limit: z.number().int().min(1).default(1000).describe('Maximum number of results to return when streaming')
+      },
+      async ({ collection, pipeline, streaming, limit }) => {
+        try {
+          log(`Tool: Running aggregation on collection '${collection}'…`)
+          log(`Tool: Using pipeline: ${pipeline}`)
+          log(`Tool: Streaming: ${streaming}, Limit: ${limit}`)
+
+          const parsedPipeline = JSON.parse(pipeline)
+          const processedPipeline = processAggregationPipeline(parsedPipeline)
+
+          const results = await aggregateData(collection, processedPipeline)
+          log(`Tool: Aggregation returned ${results.length} results.`)
+          return {
+            content: [{
+              type: 'text',
+              text: formatDocuments(results, 100)
+            }]
+          }
+        } catch (error) {
+          log(`Error running aggregation: ${error.message}`, true)
+          return {
+            content: [{
+              type: 'text',
+              text: `Error running aggregation: ${error.message}`
+            }],
+            isError: true,
+            error: {
+              code: JSONRPC_ERROR_CODES.MONGODB_QUERY_ERROR,
+              message: error.message,
+              data: { type: error.name }
+            }
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'create-index')) {
+    server.tool(
+      'create-index',
+      'Create new index on collection',
+      {
+        collection: z.string().min(1).describe('Collection name'),
+        keys: z.string().describe('Index keys as JSON object'),
+        options: z.string().optional().describe('Index options as JSON object')
+      },
+      async ({ collection, keys, options }) => {
+        try {
+          log(`Tool: Creating index on collection '${collection}'…`)
+          log(`Tool: Index keys: ${keys}`)
+          if (options) log(`Tool: Index options: ${options}`)
+
+          const parsedKeys = JSON.parse(keys)
+          const parsedOptions = options ? JSON.parse(options) : {}
+
+          const result = await createIndex(collection, parsedKeys, parsedOptions)
+          log(`Tool: Index created successfully: ${result}`)
+          return {
+            content: [{
+              type: 'text',
+              text: `Index created: ${result}`
+            }]
+          }
+        } catch (error) {
+          log(`Error creating index: ${error.message}`, true)
+          return {
+            content: [{
+              type: 'text',
+              text: `Error creating index: ${error.message}`
+            }],
+            isError: true
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'drop-index')) {
+    server.tool(
+      'drop-index',
+      'Drop an existing index from a collection',
+      {
+        collection: z.string().min(1).describe('Collection name'),
+        indexName: z.string().min(1).describe('Name of the index to drop'),
+        token: z.string().optional().describe('Confirmation token from previous request')
+      },
+      async ({ collection, indexName, token }) => {
+        return withErrorHandling(async () => {
+          log(`Tool: Processing drop index request for '${indexName}' on collection '${collection}'…`)
+
+          if (config.disableDestructiveOperationTokens) {
+            await dropIndex(collection, indexName)
+            return {
+              content: [{
+                type: 'text',
+                text: `Index '${indexName}' dropped from collection '${collection}' successfully.`
+              }]
+            }
+          }
+
+          if (token) {
+            if (!validateDropIndexToken(collection, indexName, token)) {
+              throw new Error(`Invalid or expired confirmation token. Please try again without a token to generate a new confirmation code.`)
+            }
+            await dropIndex(collection, indexName)
+            return {
+              content: [{
+                type: 'text',
+                text: `Index '${indexName}' dropped from collection '${collection}' successfully.`
+              }]
+            }
+          }
+
+          await throwIfCollectionNotExists(collection)
+          const indexes = await getCollectionIndexes(collection)
+          const indexExists = indexes.some(idx => idx.name === indexName)
+
+          if (!indexExists) {
+            throw new Error(`Index '${indexName}' does not exist on collection '${collection}'`)
+          }
+
+          const newToken = storeDropIndexToken(collection, indexName)
+          return {
+            content: [{
+              type: 'text',
+              text: `⚠️ PERFORMANCE IMPACT WARNING ⚠️\n\nYou've requested to drop the index '${indexName}' from collection '${collection}'.\n\nDropping this index may impact query performance. To confirm, type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.\n\n${importantNoticeToAI}`
+            }]
+          }
+        }, `Error processing index drop for '${indexName}' on collection '${collection}'`)
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'get-stats')) {
+    server.tool(
+      'get-stats',
+      'Get database or collection statistics',
+      {
+        target: z.enum(['database', 'collection']).describe('Target type'),
+        name: z.string().optional().describe('Collection name (for collection stats)')
+      },
+      async ({ target, name }) => {
+        try {
+          let stats
+          if (target === 'database') {
+            log(`Tool: Getting statistics for database '${currentDbName}'…`)
+            stats = await getDatabaseStats()
+            log(`Tool: Retrieved database statistics.`)
+          } else if (target === 'collection') {
+            if (!name) throw new Error('Collection name is required for collection stats')
+            log(`Tool: Getting statistics for collection '${name}'…`)
+            stats = await getCollectionStats(name)
+            log(`Tool: Retrieved collection statistics.`)
+          }
+
+          return {
+            content: [{
+              type: 'text',
+              text: formatStats(stats)
+            }]
+          }
+        } catch (error) {
+          log(`Error getting stats: ${error.message}`, true)
+          return {
+            content: [{
+              type: 'text',
+              text: `Error getting stats: ${error.message}`
+            }],
+            isError: true
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'analyze-schema')) {
+    server.tool(
+      'analyze-schema',
+      'Automatically infer schema from collection',
+      {
+        collection: z.string().min(1).describe('Collection name'),
+        sampleSize: z.number().int().min(1).default(100).describe('Number of documents to sample')
+      },
+      async ({ collection, sampleSize }) => {
+        try {
+          log(`Tool: Analyzing schema for collection '${collection}' with sample size ${sampleSize}…`)
+          const schema = await inferSchema(collection, sampleSize)
+          log(`Tool: Schema analysis complete for '${collection}', found ${Object.keys(schema.fields).length} fields.`)
+          return {
+            content: [{
+              type: 'text',
+              text: formatSchema(schema)
+            }]
+          }
+        } catch (error) {
+          log(`Error inferring schema: ${error.message}`, true)
+          return {
+            content: [{
+              type: 'text',
+              text: `Error inferring schema: ${error.message}`
+            }],
+            isError: true
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'generate-schema-validator')) {
+    server.tool(
+      'generate-schema-validator',
+      'Generate a JSON Schema validator for a collection',
+      {
+        collection: z.string().min(1).describe('Collection name'),
+        strictness: z.enum(['strict', 'moderate', 'relaxed']).default('moderate').describe('Validation strictness level')
+      },
+      async ({ collection, strictness }) => {
+        return withErrorHandling(async () => {
+          log(`Tool: Generating schema validator for '${collection}' with ${strictness} strictness`)
+
+          const schema = await inferSchema(collection, 200)
+
+          const validator = generateJsonSchemaValidator(schema, strictness)
+
+          const result = `# MongoDB JSON Schema Validator for '${collection}'
+
+  ## Schema Validator
+  \`\`\`json
+  ${JSON.stringify(validator, null, 2)}
+  \`\`\`
+
+  ## How to Apply This Validator
+
+  ### MongoDB Shell Command
+  \`\`\`javascript
+  db.runCommand({
+    collMod: "${collection}",
+    validator: ${JSON.stringify(validator, null, 2)},
+    validationLevel: "${strictness === 'relaxed' ? 'moderate' : strictness}",
+    validationAction: "${strictness === 'strict' ? 'error' : 'warn'}"
+  })
+  \`\`\`
+
+  ### Using modify-document Tool in MongoDB Lens
+  \`\`\`
+  modify-document {
+    "collection": "system.command",
+    "operation": "insert",
+    "document": {
+      "collMod": "${collection}",
+      "validator": ${JSON.stringify(validator)},
+      "validationLevel": "${strictness === 'relaxed' ? 'moderate' : strictness}",
+      "validationAction": "${strictness === 'strict' ? 'error' : 'warn'}"
+    }
+  }
+  \`\`\`
+
+  This schema validator was generated based on ${schema.sampleSize} sample documents with ${Object.keys(schema.fields).length} fields.
+  `
+
+          return {
+            content: [{
+              type: 'text',
+              text: result
+            }]
+          }
+        }, `Error generating schema validator for '${collection}'`)
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'compare-schemas')) {
+    server.tool(
+      'compare-schemas',
+      'Compare schemas between two collections',
+      {
+        sourceCollection: z.string().min(1).describe('Source collection name'),
+        targetCollection: z.string().min(1).describe('Target collection name'),
+        sampleSize: z.number().int().min(1).default(100).describe('Number of documents to sample')
+      },
+      async ({ sourceCollection, targetCollection, sampleSize }) => {
+        return withErrorHandling(async () => {
+          log(`Tool: Comparing schemas between '${sourceCollection}' and '${targetCollection}'…`)
+
+          const sourceSchema = await inferSchema(sourceCollection, sampleSize)
+          const targetSchema = await inferSchema(targetCollection, sampleSize)
+
+          const comparison = compareSchemas(sourceSchema, targetSchema)
+
+          return {
+            content: [{
+              type: 'text',
+              text: formatSchemaComparison(comparison, sourceCollection, targetCollection)
+            }]
+          }
+        }, `Error comparing schemas between '${sourceCollection}' and '${targetCollection}'`)
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'explain-query')) {
+    server.tool(
+      'explain-query',
+      'Analyze query performance',
+      {
+        collection: z.string().min(1).describe('Collection name'),
+        filter: z.string().describe('MongoDB query filter (JSON string)'),
+        verbosity: z.enum(['queryPlanner', 'executionStats', 'allPlansExecution']).default('executionStats').describe('Explain verbosity level')
+      },
+      async ({ collection, filter, verbosity }) => {
+        try {
+          log(`Tool: Explaining query on collection '${collection}'…`)
+          log(`Tool: Filter: ${filter}`)
+          log(`Tool: Verbosity level: ${verbosity}`)
+
+          const parsedFilter = JSON.parse(filter)
+          const explanation = await explainQuery(collection, parsedFilter, verbosity)
+          log(`Tool: Query explanation generated.`)
+
+          const fields = await getCollectionFields(collection)
+          const fieldInfo = fields.length > 0 ?
+            `\n\nAvailable fields for projection: ${fields.join(', ')}` : ''
+
+          const suggestedProjection = getSuggestedProjection(parsedFilter, fields)
+          const projectionInfo = suggestedProjection ?
+            `\n\nSuggested projection: ${suggestedProjection}` : ''
+
+          return {
+            content: [{
+              type: 'text',
+              text: formatExplanation(explanation) + fieldInfo + projectionInfo
+            }]
+          }
+        } catch (error) {
+          log(`Error explaining query: ${error.message}`, true)
+          return {
+            content: [{
+              type: 'text',
+              text: `Error explaining query: ${error.message}`
+            }],
+            isError: true
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'analyze-query-patterns')) {
+    server.tool(
+      'analyze-query-patterns',
+      'Analyze query patterns and suggest optimizations',
+      {
+        collection: z.string().min(1).describe('Collection name to analyze'),
+        duration: z.number().int().min(1).max(60).default(config.tools.queryAnalysis.defaultDurationSeconds).describe('Duration to analyze in seconds')
+      },
+      async ({ collection, duration }) => {
+        return withErrorHandling(async () => {
+          log(`Tool: Analyzing query patterns for collection '${collection}'…`)
+
+          await throwIfCollectionNotExists(collection)
+          const indexes = await getCollectionIndexes(collection)
+          const schema = await inferSchema(collection)
+
+          await setProfilerSlowMs()
+
+          let queryStats = []
+          try {
+            const adminDb = mongoClient.db('admin')
+            const profilerStatus = await currentDb.command({ profile: -1 })
+
+            let prevProfileLevel = profilerStatus.was
+            let prevSlowMs = profilerStatus.slowms
+
+            await currentDb.command({ profile: 2, slowms: 0 })
+
+            log(`Tool: Monitoring queries for ${duration} seconds…`)
+
+            await new Promise(resolve => setTimeout(resolve, duration * 1000))
+
+            queryStats = await currentDb.collection('system.profile')
+              .find({ ns: `${currentDbName}.${collection}`, op: 'query' })
+              .sort({ ts: -1 })
+              .limit(100)
+              .toArray()
+
+            await currentDb.command({ profile: prevProfileLevel, slowms: prevSlowMs })
+
+          } catch (profileError) {
+            log(`Tool: Unable to use profiler: ${profileError.message}`)
+          }
+
+          const analysis = analyzeQueryPatterns(collection, schema, indexes, queryStats)
+
+          return {
+            content: [{
+              type: 'text',
+              text: formatQueryAnalysis(analysis)
+            }]
+          }
+        }, `Error analyzing query patterns for '${collection}'`)
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'bulk-operations')) {
+    server.tool(
+      'bulk-operations',
+      'Perform bulk inserts, updates, or deletes',
+      {
+        collection: z.string().min(1).describe('Collection name'),
+        operations: z.string().describe('Array of operations as JSON string'),
+        ordered: createBooleanSchema('Whether operations should be performed in order', 'true'),
+        token: z.string().optional().describe('Confirmation token from previous request')
+      },
+      async ({ collection, operations, ordered, token }) => {
+        return withErrorHandling(async () => {
+          log(`Tool: Processing bulk operations on collection '${collection}'…`)
+          const parsedOperations = JSON.parse(operations)
+
+          const deleteOps = parsedOperations.filter(op =>
+            op.deleteOne || op.deleteMany
+          )
+
+          if (deleteOps.length === 0 || config.disableDestructiveOperationTokens) {
+            const result = await bulkOperations(collection, parsedOperations, ordered === 'true')
+            return {
+              content: [{
+                type: 'text',
+                text: formatBulkResult(result)
+              }]
+            }
+          }
+
+          if (token) {
+            if (!validateBulkOperationsToken(collection, parsedOperations, token)) {
+              throw new Error(`Invalid or expired confirmation token. Please try again without a token to generate a new confirmation code.`)
+            }
+            const result = await bulkOperations(collection, parsedOperations, ordered === 'true')
+            return {
+              content: [{
+                type: 'text',
+                text: formatBulkResult(result)
+              }]
+            }
+          }
+
+          await throwIfCollectionNotExists(collection)
+          const newToken = storeBulkOperationsToken(collection, parsedOperations)
+          return {
+            content: [{
+              type: 'text',
+              text: `⚠️ DESTRUCTIVE OPERATION WARNING ⚠️\n\nYou've requested to perform bulk operations on collection '${collection}' including ${deleteOps.length} delete operation(s).\n\nDelete operations are irreversible. To confirm, type the 4-digit confirmation code EXACTLY as shown below:\n\nConfirmation code: ${newToken}\n\nThis code will expire in 5 minutes for security purposes.\n\n${importantNoticeToAI}`
+            }]
+          }
+        }, `Error processing bulk operations for collection '${collection}'`)
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'create-timeseries')) {
+    server.tool(
+      'create-timeseries',
+      'Create a time series collection for temporal data',
+      {
+        name: z.string().min(1).describe('Collection name'),
+        timeField: z.string().min(1).describe('Field that contains the time value'),
+        metaField: z.string().optional().describe('Field that contains metadata for grouping'),
+        granularity: z.enum(['seconds', 'minutes', 'hours']).default('seconds').describe('Time series granularity'),
+        expireAfterSeconds: z.number().int().optional().describe('Optional TTL in seconds')
+      },
+      async ({ name, timeField, metaField, granularity, expireAfterSeconds }) => {
+        try {
+          log(`Tool: Creating time series collection '${name}'…`)
+
+          const adminDb = mongoClient.db('admin')
+          const serverInfo = await adminDb.command({ buildInfo: 1 })
+          const versionParts = serverInfo.version.split('.').map(Number)
+          if (versionParts[0] < 5) {
+            return { content: [{ type: 'text', text: `Time series collections require MongoDB 5.0+` }] }
+          }
+
+          const options = {
+            timeseries: {
+              timeField,
+              granularity
+            }
+          }
+
+          if (metaField) options.timeseries.metaField = metaField
+          if (expireAfterSeconds) options.expireAfterSeconds = expireAfterSeconds
+
+          const result = await createCollection(name, options)
+          return {
+            content: [{
+              type: 'text',
+              text: `Time series collection '${name}' created successfully.`
+            }]
+          }
+        } catch (error) {
+          return {
+            content: [{
+              type: 'text',
+              text: `Error creating time series collection: ${error.message}`
+            }],
+            isError: true
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'collation-query')) {
+    server.tool(
+      'collation-query',
+      'Find documents with language-specific collation rules',
+      {
+        collection: z.string().min(1).describe('Collection name'),
+        filter: z.string().default('{}').describe('Query filter as JSON string'),
+        locale: z.string().min(2).describe('Locale code (e.g., "en", "fr", "de")'),
+        strength: z.number().int().min(1).max(5).default(3).describe('Collation strength (1-5)'),
+        caseLevel: createBooleanSchema('Consider case in first-level differences', 'false'),
+        sort: z.string().optional().describe('Sort specification as JSON string')
+      },
+      async ({ collection, filter, locale, strength, caseLevel, sort }) => {
+        try {
+          log(`Tool: Running collation query on collection '${collection}' with locale '${locale}'`)
+
+          const parsedFilter = JSON.parse(filter)
+          const parsedSort = sort ? JSON.parse(sort) : null
+
+          const collationOptions = {
+            locale,
+            strength,
+            caseLevel
+          }
+
+          const coll = currentDb.collection(collection)
+          let query = coll.find(parsedFilter).collation(collationOptions)
+
+          if (parsedSort) query = query.sort(parsedSort)
+
+          const results = await query.toArray()
+
+          return {
+            content: [{
+              type: 'text',
+              text: formatCollationResults(results, locale, strength, caseLevel)
+            }]
+          }
+        } catch (error) {
+          return {
+            content: [{
+              type: 'text',
+              text: `Error running collation query: ${error.message}`
+            }],
+            isError: true
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'text-search')) {
+    server.tool(
+      'text-search',
+      'Perform full-text search across text-indexed fields',
+      {
+        collection: z.string().min(1).describe('Collection name'),
+        searchText: z.string().min(1).describe('Text to search for'),
+        language: z.string().optional().describe('Optional language for text search'),
+        caseSensitive: createBooleanSchema('Case sensitive search', 'false'),
+        diacriticSensitive: createBooleanSchema('Diacritic sensitive search', 'false'),
+        limit: z.number().int().min(1).default(10).describe('Maximum results to return')
+      },
+      async ({ collection, searchText, language, caseSensitive, diacriticSensitive, limit }) => {
+        try {
+          log(`Tool: Performing text search in collection '${collection}' for: "${searchText}"`)
+
+          try {
+            const coll = currentDb.collection(collection)
+            const indexes = await coll.listIndexes().toArray()
+            const hasTextIndex = indexes.some(idx => Object.values(idx.key).includes('text'))
+
+            if (!hasTextIndex) {
+              return {
+                content: [{
+                  type: 'text',
+                  text: `No text index found on collection '${collection}'.\n\nText search requires a text index. Create one with:\n\ncreate-index {\n  "collection": "${collection}",\n  "keys": "{\\"fieldName\\": \\"text\\"}"\n}`
+                }]
+              }
+            }
+          } catch (indexError) {
+            log(`Warning: Unable to check for text indexes: ${indexError.message}`, true)
+          }
+
+          const textQuery = { $search: searchText }
+          if (language) textQuery.$language = language
+          if (caseSensitive === 'true') textQuery.$caseSensitive = true
+          if (diacriticSensitive === 'true') textQuery.$diacriticSensitive = true
+
+          const query = { $text: textQuery }
+          const projection = { score: { $meta: 'textScore' } }
+          const sort = { score: { $meta: 'textScore' } }
+
+          const results = await findDocuments(collection, query, projection, limit, 0, sort)
+
+          return {
+            content: [{
+              type: 'text',
+              text: formatTextSearchResults(results, searchText)
+            }]
+          }
+        } catch (error) {
+          return {
+            content: [{
+              type: 'text',
+              text: `Error performing text search: ${error.message}`
+            }],
+            isError: true
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'geo-query')) {
+    server.tool(
+      'geo-query',
+      'Run geospatial queries with various operators',
+      {
+        collection: z.string().min(1).describe('Collection name'),
+        operator: z.enum(['near', 'geoWithin', 'geoIntersects']).describe('Geospatial operator type'),
+        field: z.string().min(1).describe('Geospatial field name'),
+        geometry: z.string().describe('GeoJSON geometry as JSON string'),
+        maxDistance: z.number().optional().describe('Maximum distance in meters (for near queries)'),
+        limit: z.number().int().min(1).default(10).describe('Maximum number of documents to return')
+      },
+      async ({ collection, operator, field, geometry, maxDistance, limit }) => {
+        try {
+          log(`Tool: Running geospatial query on collection '${collection}'…`)
+
+          let indexMessage = ''
+          try {
+            const coll = currentDb.collection(collection)
+            const indexes = await coll.listIndexes().toArray()
+
+            const hasGeoIndex = indexes.some(idx => {
+              if (!idx.key[field]) return false
+              const indexType = idx.key[field]
+              return indexType === '2dsphere' || indexType === '2d'
+            })
+
+            if (!hasGeoIndex) {
+              log(`Warning: No geospatial index found for field '${field}' in collection '${collection}'`, true)
+              indexMessage = "\n\nNote: This query would be more efficient with a geospatial index. " +
+                `Consider creating a 2dsphere index with: create-index {"collection": "${collection}", "keys": "{\\"${field}\\": \\"2dsphere\\"}"}`
+            }
+          } catch (indexError) {
+            log(`Warning: Unable to check for geospatial indexes: ${indexError.message}`, true)
+          }
+
+          const geoJson = JSON.parse(geometry)
+          let query = {}
+
+          if (operator === 'near') {
+            query[field] = { $near: { $geometry: geoJson } }
+            if (maxDistance) query[field].$near.$maxDistance = maxDistance
+          } else if (operator === 'geoWithin') {
+            query[field] = { $geoWithin: { $geometry: geoJson } }
+          } else if (operator === 'geoIntersects') {
+            query[field] = { $geoIntersects: { $geometry: geoJson } }
+          }
+
+          const results = await findDocuments(collection, query, null, limit, 0)
+          const resultText = formatDocuments(results, limit) + indexMessage
+
+          return {
+            content: [{
+              type: 'text',
+              text: resultText
+            }]
+          }
+        } catch (error) {
+          return {
+            content: [{
+              type: 'text',
+              text: `Error running geospatial query: ${error.message}`
+            }],
+            isError: true
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'transaction')) {
+    server.tool(
+      'transaction',
+      'Execute multiple operations in a single transaction',
+      {
+        operations: z.string().describe('JSON array of operations with collection, operation type, and parameters')
+      },
+      async ({ operations }) => {
+        try {
+          log('Tool: Executing operations in a transaction…')
+
+          try {
+            const session = mongoClient.startSession()
+            await session.endSession()
+          } catch (error) {
+            if (error.message.includes('not supported') ||
+                error.message.includes('requires replica set') ||
+                error.codeName === 'NotAReplicaSet') {
+              return {
+                content: [{
+                  type: 'text',
+                  text: `Transactions are not supported on your MongoDB deployment.\n\nTransactions require MongoDB to be running as a replica set or sharded cluster. You appear to be running a standalone server.\n\nAlternative: You can set up a single-node replica set for development purposes by following these steps:\n\n1. Stop your MongoDB server\n2. Start it with the --replSet option: \`mongod --replSet rs0\`\n3. Connect to it and initialize the replica set: \`rs.initiate()\`\n\nThen try the transaction tool again.`
+                }]
+              }
+            }
+            throw error
+          }
+
+          const parsedOps = JSON.parse(operations)
           const session = mongoClient.startSession()
-          await session.endSession()
+          let results = []
+
+          try {
+            session.startTransaction({
+              readConcern: { level: config.tools.transaction.readConcern },
+              writeConcern: config.tools.transaction.writeConcern
+            })
+
+            for (let i = 0; i < parsedOps.length; i++) {
+              const op = parsedOps[i]
+              log(`Tool: Transaction step ${i+1}: ${op.operation} on ${op.collection}`)
+
+              let result
+              const collection = currentDb.collection(op.collection)
+
+              if (op.operation === 'insert') {
+                result = await collection.insertOne(op.document, { session })
+              } else if (op.operation === 'update') {
+                result = await collection.updateOne(op.filter, op.update, { session })
+              } else if (op.operation === 'delete') {
+                result = await collection.deleteOne(op.filter, { session })
+              } else if (op.operation === 'find') {
+                result = await collection.findOne(op.filter, { session })
+              } else {
+                throw new Error(`Unsupported operation: ${op.operation}`)
+              }
+
+              results.push({ step: i+1, operation: op.operation, result })
+            }
+
+            await session.commitTransaction()
+            log('Tool: Transaction committed successfully')
+          } catch (error) {
+            await session.abortTransaction()
+            log(`Tool: Transaction aborted due to error: ${error.message}`)
+            throw error
+          } finally {
+            await session.endSession()
+          }
+
+          return {
+            content: [{
+              type: 'text',
+              text: formatTransactionResults(results)
+            }]
+          }
         } catch (error) {
-          if (error.message.includes('not supported') ||
-              error.message.includes('requires replica set') ||
-              error.codeName === 'NotAReplicaSet') {
-            return {
-              content: [{
-                type: 'text',
-                text: `Transactions are not supported on your MongoDB deployment.\n\nTransactions require MongoDB to be running as a replica set or sharded cluster. You appear to be running a standalone server.\n\nAlternative: You can set up a single-node replica set for development purposes by following these steps:\n\n1. Stop your MongoDB server\n2. Start it with the --replSet option: \`mongod --replSet rs0\`\n3. Connect to it and initialize the replica set: \`rs.initiate()\`\n\nThen try the transaction tool again.`
-              }]
+          return {
+            content: [{
+              type: 'text',
+              text: `Error executing transaction: ${error.message}`
+            }],
+            isError: true
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'map-reduce')) {
+    server.tool(
+      'map-reduce',
+      'Run Map-Reduce operations (note: Map-Reduce deprecated as of MongoDB 5.0)',
+      {
+        collection: z.string().min(1).describe('Collection name'),
+        map: z.string().describe('Map function as string e.g. "function() { emit(this.field, 1); }"'),
+        reduce: z.string().describe('Reduce function as string e.g. "function(key, values) { return Array.sum(values); }"'),
+        options: z.string().optional().describe('Options as JSON string (query, limit, etc.)')
+      },
+      async ({ collection, map, reduce, options }) => {
+        try {
+          log(`Tool: Running Map-Reduce on collection '${collection}'…`)
+          const mapFunction = eval(`(${map})`)
+          const reduceFunction = eval(`(${reduce})`)
+          const parsedOptions = options ? JSON.parse(options) : {}
+          const results = await runMapReduce(collection, mapFunction, reduceFunction, parsedOptions)
+          log(`Tool: Map-Reduce operation complete.`)
+          return {
+            content: [{
+              type: 'text',
+              text: formatMapReduceResults(results)
+            }]
+          }
+        } catch (error) {
+          log(`Error running Map-Reduce: ${error.message}`, true)
+          return {
+            content: [{
+              type: 'text',
+              text: `Error running Map-Reduce: ${error.message}`
+            }],
+            isError: true
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'watch-changes')) {
+    server.tool(
+      'watch-changes',
+      'Watch for changes in a collection using change streams',
+      {
+        collection: z.string().min(1).describe('Collection name'),
+        operations: z.array(z.enum(['insert', 'update', 'delete', 'replace'])).default(['insert', 'update', 'delete']).describe('Operations to watch'),
+        duration: z.number().int().min(1).max(60).default(config.tools.watchChanges.defaultDurationSeconds).describe('Duration to watch in seconds'),
+        fullDocument: createBooleanSchema('Include full document in update events', 'false')
+      },
+      async ({ collection, operations, duration, fullDocument }) => {
+        try {
+          log(`Tool: Watching collection '${collection}' for changes…`)
+
+          let maxDuration = config.tools.watchChanges.maxDurationSeconds
+          let actualDuration = duration
+
+          if (actualDuration > maxDuration) {
+            log(`Requested duration ${actualDuration}s exceeds maximum ${maxDuration}s, using maximum`, true)
+            actualDuration = maxDuration
+          }
+
+          try {
+            const adminDb = mongoClient.db('admin')
+            await adminDb.command({ replSetGetStatus: 1 })
+          } catch (err) {
+            if (err.codeName === 'NotYetInitialized' ||
+                err.codeName === 'NoReplicationEnabled' ||
+                err.message.includes('not running with --replSet') ||
+                err.code === 76 || err.code === 40573) {
+              return {
+                content: [{
+                  type: 'text',
+                  text: `Change streams are not supported on your MongoDB deployment.\n\nChange streams require MongoDB to be running as a replica set or sharded cluster. You appear to be running a standalone server.\n\nAlternative: You can set up a single-node replica set for development purposes by following these steps:\n\n1. Stop your MongoDB server\n2. Start it with the --replSet option: \`mongod --replSet rs0\`\n3. Connect to it and initialize the replica set: \`rs.initiate()\`\n\nThen try the watch-changes tool again.`
+                }]
+              }
             }
           }
-          throw error
-        }
 
-        const parsedOps = JSON.parse(operations)
-        const session = mongoClient.startSession()
-        let results = []
+          const pipeline = [
+            { $match: { 'operationType': { $in: operations } } }
+          ]
 
-        try {
-          session.startTransaction({
-            readConcern: { level: config.tools.transaction.readConcern },
-            writeConcern: config.tools.transaction.writeConcern
+          const options = {}
+          if (fullDocument) options.fullDocument = 'updateLookup'
+
+          const coll = currentDb.collection(collection)
+          const changeStream = coll.watch(pipeline, options)
+
+          const changes = []
+          const timeout = setTimeout(() => {
+            changeStream.close()
+          }, actualDuration * 1000)
+
+          changeStream.on('change', change => {
+            changes.push(change)
           })
 
-          for (let i = 0; i < parsedOps.length; i++) {
-            const op = parsedOps[i]
-            log(`Tool: Transaction step ${i+1}: ${op.operation} on ${op.collection}`)
-
-            let result
-            const collection = currentDb.collection(op.collection)
-
-            if (op.operation === 'insert') {
-              result = await collection.insertOne(op.document, { session })
-            } else if (op.operation === 'update') {
-              result = await collection.updateOne(op.filter, op.update, { session })
-            } else if (op.operation === 'delete') {
-              result = await collection.deleteOne(op.filter, { session })
-            } else if (op.operation === 'find') {
-              result = await collection.findOne(op.filter, { session })
-            } else {
-              throw new Error(`Unsupported operation: ${op.operation}`)
-            }
-
-            results.push({ step: i+1, operation: op.operation, result })
-          }
-
-          await session.commitTransaction()
-          log('Tool: Transaction committed successfully')
-        } catch (error) {
-          await session.abortTransaction()
-          log(`Tool: Transaction aborted due to error: ${error.message}`)
-          throw error
-        } finally {
-          await session.endSession()
-        }
-
-        return {
-          content: [{
-            type: 'text',
-            text: formatTransactionResults(results)
-          }]
-        }
-      } catch (error) {
-        return {
-          content: [{
-            type: 'text',
-            text: `Error executing transaction: ${error.message}`
-          }],
-          isError: true
-        }
-      }
-    }
-  )
-
-  server.tool(
-    'map-reduce',
-    'Run Map-Reduce operations (note: Map-Reduce deprecated as of MongoDB 5.0)',
-    {
-      collection: z.string().min(1).describe('Collection name'),
-      map: z.string().describe('Map function as string e.g. "function() { emit(this.field, 1); }"'),
-      reduce: z.string().describe('Reduce function as string e.g. "function(key, values) { return Array.sum(values); }"'),
-      options: z.string().optional().describe('Options as JSON string (query, limit, etc.)')
-    },
-    async ({ collection, map, reduce, options }) => {
-      try {
-        log(`Tool: Running Map-Reduce on collection '${collection}'…`)
-        const mapFunction = eval(`(${map})`);
-        const reduceFunction = eval(`(${reduce})`);
-        const parsedOptions = options ? JSON.parse(options) : {}
-        const results = await runMapReduce(collection, mapFunction, reduceFunction, parsedOptions)
-        log(`Tool: Map-Reduce operation complete.`)
-        return {
-          content: [{
-            type: 'text',
-            text: formatMapReduceResults(results)
-          }]
-        }
-      } catch (error) {
-        log(`Error running Map-Reduce: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error running Map-Reduce: ${error.message}`
-          }],
-          isError: true
-        }
-      }
-    }
-  )
-
-  server.tool(
-    'watch-changes',
-    'Watch for changes in a collection using change streams',
-    {
-      collection: z.string().min(1).describe('Collection name'),
-      operations: z.array(z.enum(['insert', 'update', 'delete', 'replace'])).default(['insert', 'update', 'delete']).describe('Operations to watch'),
-      duration: z.number().int().min(1).max(60).default(config.tools.watchChanges.defaultDurationSeconds).describe('Duration to watch in seconds'),
-      fullDocument: createBooleanSchema('Include full document in update events', 'false')
-    },
-    async ({ collection, operations, duration, fullDocument }) => {
-      try {
-        log(`Tool: Watching collection '${collection}' for changes…`)
-
-        let maxDuration = config.tools.watchChanges.maxDurationSeconds
-        let actualDuration = duration
-
-        if (actualDuration > maxDuration) {
-          log(`Requested duration ${actualDuration}s exceeds maximum ${maxDuration}s, using maximum`, true)
-          actualDuration = maxDuration
-        }
-
-        try {
-          const adminDb = mongoClient.db('admin')
-          await adminDb.command({ replSetGetStatus: 1 })
-        } catch (err) {
-          if (err.codeName === 'NotYetInitialized' ||
-              err.codeName === 'NoReplicationEnabled' ||
-              err.message.includes('not running with --replSet') ||
-              err.code === 76 || err.code === 40573) {
-            return {
-              content: [{
-                type: 'text',
-                text: `Change streams are not supported on your MongoDB deployment.\n\nChange streams require MongoDB to be running as a replica set or sharded cluster. You appear to be running a standalone server.\n\nAlternative: You can set up a single-node replica set for development purposes by following these steps:\n\n1. Stop your MongoDB server\n2. Start it with the --replSet option: \`mongod --replSet rs0\`\n3. Connect to it and initialize the replica set: \`rs.initiate()\`\n\nThen try the watch-changes tool again.`
-              }]
-            }
-          }
-        }
-
-        const pipeline = [
-          { $match: { 'operationType': { $in: operations } } }
-        ]
-
-        const options = {}
-        if (fullDocument) options.fullDocument = 'updateLookup'
-
-        const coll = currentDb.collection(collection)
-        const changeStream = coll.watch(pipeline, options)
-
-        const changes = []
-        const timeout = setTimeout(() => {
-          changeStream.close()
-        }, actualDuration * 1000)
-
-        changeStream.on('change', change => {
-          changes.push(change)
-        })
-
-        return new Promise(resolve => {
-          changeStream.on('close', () => {
-            clearTimeout(timeout)
-            resolve({
-              content: [{
-                type: 'text',
-                text: formatChangeStreamResults(changes, actualDuration)
-              }]
+          return new Promise(resolve => {
+            changeStream.on('close', () => {
+              clearTimeout(timeout)
+              resolve({
+                content: [{
+                  type: 'text',
+                  text: formatChangeStreamResults(changes, actualDuration)
+                }]
+              })
             })
           })
-        })
-      } catch (error) {
-        return {
-          content: [{
-            type: 'text',
-            text: `Error watching for changes: ${error.message}`
-          }],
-          isError: true
-        }
-      }
-    }
-  )
-
-  server.tool(
-    'gridfs-operation',
-    'Manage large files with GridFS',
-    {
-      operation: z.enum(['list', 'info', 'delete']).describe('GridFS operation type'),
-      bucket: z.string().default('fs').describe('GridFS bucket name'),
-      filename: z.string().optional().describe('Filename for info/delete operations'),
-      limit: z.number().int().min(1).default(20).describe('Maximum files to list')
-    },
-    async ({ operation, bucket, filename, limit }) => {
-      try {
-        log(`Tool: Performing GridFS ${operation} operation on bucket '${bucket}'`)
-
-        const gridFsBucket = new mongodb.GridFSBucket(currentDb, { bucketName: bucket })
-        let result
-
-        if (operation === 'list') {
-          const files = await currentDb.collection(`${bucket}.files`).find({}).limit(limit).toArray()
-          result = formatGridFSList(files)
-        } else if (operation === 'info') {
-          if (!filename) throw new Error('Filename is required for info operation')
-          const file = await currentDb.collection(`${bucket}.files`).findOne({ filename })
-          if (!file) throw new Error(`File '${filename}' not found`)
-          result = formatGridFSInfo(file)
-        } else if (operation === 'delete') {
-          if (!filename) throw new Error('Filename is required for delete operation')
-          await gridFsBucket.delete(await getFileId(bucket, filename))
-          result = `File '${filename}' deleted successfully from bucket '${bucket}'`
-        }
-
-        return {
-          content: [{
-            type: 'text',
-            text: result
-          }]
-        }
-      } catch (error) {
-        return {
-          content: [{
-            type: 'text',
-            text: `Error performing GridFS operation: ${error.message}`
-          }],
-          isError: true
-        }
-      }
-    }
-  )
-
-  server.tool(
-    'shard-status',
-    'Get sharding status for database or collections',
-    {
-      target: z.enum(['database', 'collection']).default('database').describe('Target type'),
-      collection: z.string().optional().describe('Collection name (if target is collection)')
-    },
-    async ({ target, collection }) => {
-      return withErrorHandling(async () => {
-        log(`Tool: Getting shard status for ${target}${collection ? ` '${collection}'` : ''}`)
-
-        try {
-          const adminDb = mongoClient.db('admin')
-          await adminDb.command({ listShards: 1 })
         } catch (error) {
-          if (error.code === 72 || error.message.includes('not running with sharding') ||
-              error.codeName === 'InvalidOptions') {
-            return {
-              content: [{
-                type: 'text',
-                text: `Sharding is not enabled on your MongoDB deployment.\n\nThis command requires MongoDB to be running as a sharded cluster.\nYou appear to be running a standalone server or replica set without sharding enabled.\n\nTo use sharding features, you need to set up a sharded cluster with:\n- Config servers\n- Mongos router(s)\n- Shard replica sets`
-              }]
-            }
+          return {
+            content: [{
+              type: 'text',
+              text: `Error watching for changes: ${error.message}`
+            }],
+            isError: true
           }
-          throw error
-        }
-
-        const adminDb = mongoClient.db('admin')
-        let result
-
-        if (target === 'database') {
-          const listShards = await adminDb.command({ listShards: 1 })
-          const dbStats = await adminDb.command({ dbStats: 1, scale: 1 })
-          const dbShardStatus = await getShardingDbStatus(currentDbName)
-
-          result = formatShardDbStatus(listShards, dbStats, dbShardStatus, currentDbName)
-        } else {
-          if (!collection) throw new Error('Collection name is required when target is collection')
-
-          const collStats = await currentDb.command({ collStats: collection })
-          const collShardStatus = await getShardingCollectionStatus(currentDbName, collection)
-
-          result = formatShardCollectionStatus(collStats, collShardStatus, collection)
-        }
-
-        return {
-          content: [{
-            type: 'text',
-            text: result
-          }]
-        }
-      }, `Error getting shard status for ${target}${collection ? ` '${collection}'` : ''}`)
-    }
-  )
-
-  server.tool(
-    'export-data',
-    'Export query results to formatted JSON or CSV',
-    {
-      collection: z.string().min(1).describe('Collection name'),
-      filter: z.string().default('{}').describe('Filter as JSON string'),
-      format: z.enum(['json', 'csv']).default('json').describe('Export format'),
-      fields: z.string().optional().describe('Comma-separated list of fields to include (for CSV)'),
-      limit: z.number().int().min(1).default(1000).describe('Maximum documents to export'),
-      sort: z.string().optional().describe('Sort specification as JSON string (e.g. {"date": -1} for descending)')
-    },
-    async ({ collection, filter, format, fields, limit, sort }) => {
-      try {
-        log(`Tool: Exporting data from collection '${collection}' in ${format} format…`)
-        log(`Tool: Using filter: ${filter}`)
-        if (sort) log(`Tool: Using sort: ${sort}`)
-        log(`Tool: Max documents: ${limit}`)
-
-        const parsedFilter = filter ? JSON.parse(filter) : {}
-        const parsedSort = sort ? JSON.parse(sort) : null
-        let fieldsArray = fields ? fields.split(',').map(f => f.trim()) : null
-
-        const documents = await findDocuments(collection, parsedFilter, null, limit, 0, parsedSort)
-        log(`Tool: Found ${documents.length} documents to export.`)
-
-        const exportData = await formatExport(documents, format, fieldsArray)
-        log(`Tool: Data exported successfully in ${format} format.`)
-
-        return {
-          content: [{
-            type: 'text',
-            text: exportData
-          }]
-        }
-      } catch (error) {
-        log(`Error exporting data: ${error.message}`, true)
-        return {
-          content: [{
-            type: 'text',
-            text: `Error exporting data: ${error.message}`
-          }],
-          isError: true
         }
       }
-    }
-  )
+    )
+  }
+
+  if (!isDisabled('tools', 'gridfs-operation')) {
+    server.tool(
+      'gridfs-operation',
+      'Manage large files with GridFS',
+      {
+        operation: z.enum(['list', 'info', 'delete']).describe('GridFS operation type'),
+        bucket: z.string().default('fs').describe('GridFS bucket name'),
+        filename: z.string().optional().describe('Filename for info/delete operations'),
+        limit: z.number().int().min(1).default(20).describe('Maximum files to list')
+      },
+      async ({ operation, bucket, filename, limit }) => {
+        try {
+          log(`Tool: Performing GridFS ${operation} operation on bucket '${bucket}'`)
+
+          const gridFsBucket = new mongodb.GridFSBucket(currentDb, { bucketName: bucket })
+          let result
+
+          if (operation === 'list') {
+            const files = await currentDb.collection(`${bucket}.files`).find({}).limit(limit).toArray()
+            result = formatGridFSList(files)
+          } else if (operation === 'info') {
+            if (!filename) throw new Error('Filename is required for info operation')
+            const file = await currentDb.collection(`${bucket}.files`).findOne({ filename })
+            if (!file) throw new Error(`File '${filename}' not found`)
+            result = formatGridFSInfo(file)
+          } else if (operation === 'delete') {
+            if (!filename) throw new Error('Filename is required for delete operation')
+            await gridFsBucket.delete(await getFileId(bucket, filename))
+            result = `File '${filename}' deleted successfully from bucket '${bucket}'`
+          }
+
+          return {
+            content: [{
+              type: 'text',
+              text: result
+            }]
+          }
+        } catch (error) {
+          return {
+            content: [{
+              type: 'text',
+              text: `Error performing GridFS operation: ${error.message}`
+            }],
+            isError: true
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'shard-status')) {
+    server.tool(
+      'shard-status',
+      'Get sharding status for database or collections',
+      {
+        target: z.enum(['database', 'collection']).default('database').describe('Target type'),
+        collection: z.string().optional().describe('Collection name (if target is collection)')
+      },
+      async ({ target, collection }) => {
+        return withErrorHandling(async () => {
+          log(`Tool: Getting shard status for ${target}${collection ? ` '${collection}'` : ''}`)
+
+          try {
+            const adminDb = mongoClient.db('admin')
+            await adminDb.command({ listShards: 1 })
+          } catch (error) {
+            if (error.code === 72 || error.message.includes('not running with sharding') ||
+                error.codeName === 'InvalidOptions') {
+              return {
+                content: [{
+                  type: 'text',
+                  text: `Sharding is not enabled on your MongoDB deployment.\n\nThis command requires MongoDB to be running as a sharded cluster.\nYou appear to be running a standalone server or replica set without sharding enabled.\n\nTo use sharding features, you need to set up a sharded cluster with:\n- Config servers\n- Mongos router(s)\n- Shard replica sets`
+                }]
+              }
+            }
+            throw error
+          }
+
+          const adminDb = mongoClient.db('admin')
+          let result
+
+          if (target === 'database') {
+            const listShards = await adminDb.command({ listShards: 1 })
+            const dbStats = await adminDb.command({ dbStats: 1, scale: 1 })
+            const dbShardStatus = await getShardingDbStatus(currentDbName)
+
+            result = formatShardDbStatus(listShards, dbStats, dbShardStatus, currentDbName)
+          } else {
+            if (!collection) throw new Error('Collection name is required when target is collection')
+
+            const collStats = await currentDb.command({ collStats: collection })
+            const collShardStatus = await getShardingCollectionStatus(currentDbName, collection)
+
+            result = formatShardCollectionStatus(collStats, collShardStatus, collection)
+          }
+
+          return {
+            content: [{
+              type: 'text',
+              text: result
+            }]
+          }
+        }, `Error getting shard status for ${target}${collection ? ` '${collection}'` : ''}`)
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'export-data')) {
+    server.tool(
+      'export-data',
+      'Export query results to formatted JSON or CSV',
+      {
+        collection: z.string().min(1).describe('Collection name'),
+        filter: z.string().default('{}').describe('Filter as JSON string'),
+        format: z.enum(['json', 'csv']).default('json').describe('Export format'),
+        fields: z.string().optional().describe('Comma-separated list of fields to include (for CSV)'),
+        limit: z.number().int().min(1).default(1000).describe('Maximum documents to export'),
+        sort: z.string().optional().describe('Sort specification as JSON string (e.g. {"date": -1} for descending)')
+      },
+      async ({ collection, filter, format, fields, limit, sort }) => {
+        try {
+          log(`Tool: Exporting data from collection '${collection}' in ${format} format…`)
+          log(`Tool: Using filter: ${filter}`)
+          if (sort) log(`Tool: Using sort: ${sort}`)
+          log(`Tool: Max documents: ${limit}`)
+
+          const parsedFilter = filter ? JSON.parse(filter) : {}
+          const parsedSort = sort ? JSON.parse(sort) : null
+          let fieldsArray = fields ? fields.split(',').map(f => f.trim()) : null
+
+          const documents = await findDocuments(collection, parsedFilter, null, limit, 0, parsedSort)
+          log(`Tool: Found ${documents.length} documents to export.`)
+
+          const exportData = await formatExport(documents, format, fieldsArray)
+          log(`Tool: Data exported successfully in ${format} format.`)
+
+          return {
+            content: [{
+              type: 'text',
+              text: exportData
+            }]
+          }
+        } catch (error) {
+          log(`Error exporting data: ${error.message}`, true)
+          return {
+            content: [{
+              type: 'text',
+              text: `Error exporting data: ${error.message}`
+            }],
+            isError: true
+          }
+        }
+      }
+    )
+  }
+
+  const totalRegisteredTools = Object.keys(server._registeredTools).length
+  log(`Total MCP tools: ${totalRegisteredTools}`)
 }
 
 const withErrorHandling = async (operation, errorMessage, defaultValue = null) => {
@@ -5460,9 +5624,10 @@ const loadConfig = () => {
   let config = { ...defaultConfig }
 
   const configPath = process.env.CONFIG_PATH || join(process.env.HOME || __dirname, '.mongodb-lens.json')
+
   if (existsSync(configPath)) {
     try {
-      log(`Loading config file: ${configPath}`);
+      log(`Loading config file: ${configPath}`)
       const fileContent = readFileSync(configPath, 'utf8')
       const strippedContent = stripJsonComments(fileContent)
       const configFile = JSON.parse(strippedContent)
@@ -5472,103 +5637,94 @@ const loadConfig = () => {
     }
   }
 
+  config = applyEnvOverrides(config)
+
   if (process.argv.length > 2) config.mongoUri = process.argv[2]
-
-  if (process.env.DISABLE_DESTRUCTIVE_OPERATION_TOKENS === 'true') config.disableDestructiveOperationTokens = true
-
-  if (process.env.LOG_LEVEL) {
-    const validLogLevels = ['info', 'verbose']
-    if (validLogLevels.includes(process.env.LOG_LEVEL)) {
-      config.logLevel = process.env.LOG_LEVEL
-    } else {
-      console.error(`Invalid LOG_LEVEL: ${process.env.LOG_LEVEL}. Using default: ${config.logLevel}`)
-    }
-  }
 
   return config
 }
 
-const mergeConfigs = (target, source) => {
-  const result = { ...target }
-  for (const key in source) {
-    if (source[key] === null || source[key] === undefined) continue
-    if (typeof source[key] === 'object' && !Array.isArray(source[key])) {
-      if (typeof target[key] === 'object' && !Array.isArray(target[key])) {
-        result[key] = mergeConfigs(target[key], source[key])
-      } else {
-        result[key] = { ...source[key] }
-      }
-    } else {
-      result[key] = source[key]
-    }
-  }
+const mergeConfigs = (target, source) =>
+    _.merge({}, target, source)
+
+const applyEnvOverrides = (config) => {
+  const result = { ...config }
+
+  const mapping = createEnvMapping(config)
+
+  Object.entries(mapping).forEach(([configPath, envKey]) => {
+    if (process.env[envKey] === undefined) return
+    const defaultValue = getValueAtPath(config, configPath)
+    const value = parseEnvValue(process.env[envKey], defaultValue, configPath)
+    setValueAtPath(result, configPath, value)
+  })
+
   return result
 }
 
-const stripJsonComments = (jsonString) => {
-  let inString = false
-  let inMultiLineComment = false
-  let inSingleLineComment = false
-  let escaped = false
-  let result = ''
+const createEnvMapping = (obj, prefix = 'CONFIG', path = '') => {
+  let mapping = {}
 
-  for (let i = 0; i < jsonString.length; i++) {
-    const char = jsonString[i]
-    const nextChar = jsonString[i + 1] || ''
+  Object.entries(obj).forEach(([key, value]) => {
+    const currentPath = path ? `${path}.${key}` : key
+    const envKey = `${prefix}_${key.replace(/([A-Z])/g, '_$1').toUpperCase()}`
 
-    // Handle string literals
-    if (!inMultiLineComment && !inSingleLineComment && char === '"' && !escaped) {
-      inString = !inString
-    }
-
-    // Handle escape sequences in strings
-    if (inString && char === '\\' && !escaped) {
-      escaped = true
-      result += char
-      continue
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      const nestedMapping = createEnvMapping(value, `${prefix}_${key.toUpperCase()}`, currentPath)
+      mapping = { ...mapping, ...nestedMapping }
     } else {
-      escaped = false
+      mapping[currentPath] = envKey
+    }
+  })
+
+  return mapping
+}
+
+const parseEnvValue = (value, defaultValue, path) => {
+  try {
+    if (typeof defaultValue === 'number') {
+      const parsed = Number(value)
+      if (isNaN(parsed)) throw new Error(`Invalid number for config [${path}]: ${value}`)
+      return parsed
     }
 
-    // Start of multiline comment
-    if (!inString && !inSingleLineComment && char === '/' && nextChar === '*') {
-      inMultiLineComment = true
-      i++
-      continue
+    if (typeof defaultValue === 'boolean') {
+      if (value.toLowerCase() !== 'true' && value.toLowerCase() !== 'false') {
+        throw new Error(`Invalid boolean for config [${path}]: ${value}`)
+      }
+      return value.toLowerCase() === 'true'
     }
 
-    // End of multiline comment
-    if (inMultiLineComment && char === '*' && nextChar === '/') {
-      inMultiLineComment = false
-      i++
-      continue
+    if (Array.isArray(defaultValue)) {
+      try {
+        const parsed = JSON.parse(value)
+        if (!Array.isArray(parsed)) throw new Error(`Config [${path}] is not an array`)
+        return parsed
+      } catch (e) {
+        return value.split(',').map(item => item.trim())
+      }
     }
 
-    // Start of single line comment (// style)
-    if (!inString && !inMultiLineComment && char === '/' && nextChar === '/') {
-      inSingleLineComment = true
-      i++
-      continue
+    if (path === 'logLevel') {
+      const validLogLevels = ['info', 'verbose']
+      if (!validLogLevels.includes(value)) {
+        throw new Error(`Config [${path}] is invalid: ${value}`)
+      }
     }
 
-    // Start of single line comment (# style)
-    if (!inString && !inMultiLineComment && !inSingleLineComment && char === '#') {
-      inSingleLineComment = true
-      continue
-    }
-
-    // End of single line comment
-    if (inSingleLineComment && (char === '\n' || char === '\r')) {
-      inSingleLineComment = false
-    }
-
-    // Only add characters if not in a comment
-    if (!inMultiLineComment && !inSingleLineComment) {
-      result += char
-    }
+    return value
+  } catch (error) {
+    console.error(`Error parsing environment variable for config [${path}]: ${error.message}. Using default: ${defaultValue}`)
+    return defaultValue
   }
+}
 
-  return result
+const getValueAtPath = (obj, path) =>
+    _.get(obj, path)
+
+const setValueAtPath = (obj, path, value) => {
+  _.set(obj, path, value)
+  return obj
 }
 
 const getPackageVersion = () => {
@@ -5589,13 +5745,11 @@ const createBooleanSchema = (description, defaultValue = 'true') =>
 
 const arraysEqual = (a, b) => {
   if (a.length !== b.length) return false
-  const sortedA = [...a].sort()
-  const sortedB = [...b].sort()
-  return sortedA.every((item, i) => item === sortedB[i])
+  return _.isEqual(_.sortBy(a), _.sortBy(b))
 }
 
 const log = (message, forceLog = false) => {
-  if (forceLog || process.env.LOG_LEVEL === 'verbose' || config.logLevel === 'verbose') console.error(message)
+  if (forceLog || process.env.CONFIG_LOG_LEVEL === 'verbose' || globalThis.config && config.logLevel === 'verbose') console.error(message)
 }
 
 const cleanup = async () => {
@@ -5829,6 +5983,11 @@ const defaultConfig = {
     queryAnalysis: {
       defaultDurationSeconds: 10
     }
+  },
+  disabled: {
+    tools: [],
+    prompts: [],
+    resources: []
   }
 }
 

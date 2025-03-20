@@ -298,7 +298,7 @@ MongoDB Lens is now installed and ready to accept MCP requests.
 ## Configuration
 
 - [MongoDB Connection String](#configuration-mongodb-connection-string)
-- [Configuration via Config File](#configuration-config-file)
+- [Config File](#configuration-config-file)
 - [Environment Variable Overrides](#configuration-environment-variable-overrides)
 
 ### Configuration: MongoDB Connection String
@@ -330,7 +330,13 @@ If no connection string is provided, the server will attempt to connect via loca
 
 ### Configuration: Config File
 
-MongoDB Lens supports extensive customization via JSON config file.
+MongoDB Lens supports extensive customization via config file.
+
+> [!NOTE]<br>
+> The config file is optional. MongoDB Lens will run with default settings if no config file is provided.
+
+> [!TIP]<br>
+> MongoDB Lens supports both `.json` and `.jsonc` (JSON with comments) file formats.
 
 <details>
   <summary><strong>Example configuration file</strong></summary>

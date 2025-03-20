@@ -64,6 +64,7 @@
 - `get-stats`: Retrieve database or collection statistics
 - `gridfs-operation`: Manage large files with GridFS buckets
 - `list-collections`: Explore collections in the current database
+- `list-connections`: View all available MongoDB connection aliases
 - `list-databases`: View all accessible databases
 - `map-reduce`: Run MapReduce operations for complex data processing
 - `modify-document`: Insert or update specific documents
@@ -299,6 +300,7 @@ MongoDB Lens is now installed and ready to accept MCP requests.
 
 - [MongoDB Connection String](#configuration-mongodb-connection-string)
 - [Config File](#configuration-config-file)
+- [Multiple MongoDB Connections](#configuration-multiple-mongodb-connections)
 - [Environment Variable Overrides](#configuration-environment-variable-overrides)
 
 ### Configuration: MongoDB Connection String
@@ -343,7 +345,7 @@ MongoDB Lens supports extensive customization via JSON config file.
 
 ```jsonc
 {
-  "mongoUri": "mongodb://localhost:27017",         // Default MongoDB connection string
+  "mongoUri": "mongodb://localhost:27017",         // Default MongoDB connection string or object of alias-URI pairs
   "connectionOptions": {
     "maxPoolSize": 20,                             // Maximum number of connections in the pool
     "retryWrites": false,                          // Whether to retry write operations
@@ -489,6 +491,34 @@ Example Docker Hub usage:
 ```console
 docker run --rm -i --network=host -e CONFIG_DEFAULTS_QUERY_LIMIT='25' furey/mongodb-lens
 ```
+
+### Configuration: Multiple MongoDB Connections
+
+MongoDB Lens supports defining multiple MongoDB URIs with aliases in your [config file](#configuration-config-file), allowing you to easily switch between different MongoDB instances using simple names.
+
+To configure multiple connections, set the `mongoUri` setting to an object with alias-URI pairs:
+
+```json
+{
+  "mongoUri": {
+    "main": "mongodb://localhost:27017",
+    "backup": "mongodb://localhost:27018",
+    "atlas": "mongodb+srv://username:password@cluster.mongodb.net/mydb"
+  }
+}
+```
+
+With this configuration:
+
+- The first URI in the list (e.g. `main`) becomes the default connection at startup
+- You can switch connections using natural language: `"Connect to backup"` or `"Connect to atlas"`
+- The original syntax still works: `"Connect to mongodb://localhost:27018"`
+- The new `list-connections` tool shows all available connection aliases
+
+This feature makes it easier to manage connections to different environments (development, testing, production) or to switch between primary and replica databases.
+
+> [!NOTE]<br>
+> When using the command-line argument to specify a connection, you can use either a full MongoDB URI or an alias defined in your configuration file.
 
 ## Client Setup
 

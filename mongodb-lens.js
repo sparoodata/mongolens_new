@@ -72,7 +72,7 @@ const start = async (mongoUri) => {
 
 const connect = async (uri = 'mongodb://localhost:27017', validate = true) => {
   try {
-    log(`Connecting to MongoDB at: ${uri}`)
+    log(`Connecting to MongoDB at: ${obfuscateMongoUri(uri)}`)
 
     const connectionOptions = { ...config.connectionOptions }
 
@@ -201,15 +201,55 @@ const extractDbNameFromConnectionString = (uri) => {
   return currentDbName
 }
 
+const resolveMongoUri = (uriOrAlias) => {
+  if (uriOrAlias.includes('://') || uriOrAlias.includes('/') || uriOrAlias.includes('@')) {
+    return uriOrAlias
+  }
+
+  const uri = mongoUriMap.get(uriOrAlias.toLowerCase())
+  if (uri) {
+    mongoUriAlias = uriOrAlias
+    log(`Resolved alias "${uriOrAlias}" to URI: ${uri}`)
+    return uri
+  }
+
+  return uriOrAlias
+}
+
+const obfuscateMongoUri = (uri) => {
+  if (!uri || typeof uri !== 'string') return uri
+  try {
+    if (uri.includes('@') && uri.includes('://')) {
+      const parts = uri.split('@')
+      const authPart = parts[0]
+      const restPart = parts.slice(1).join('@')
+      const authIndex = authPart.lastIndexOf('://')
+      if (authIndex !== -1) {
+        const protocol = authPart.substring(0, authIndex + 3)
+        const credentials = authPart.substring(authIndex + 3)
+        if (credentials.includes(':')) {
+          const [username, ...passwordParts] = credentials.split(':')
+          return `${protocol}${username}:********@${restPart}`
+        }
+      }
+    }
+    return uri
+  } catch (error) {
+    log(`Error obfuscating URI: ${error.message}`, true)
+    return uri
+  }
+}
+
 const changeConnection = async (uri, validate = true) => {
   isChangingConnection = true
 
   try {
     if (mongoClient) await mongoClient.close()
     clearMemoryCache()
-    const connected = await connect(uri, validate)
+    const resolvedUri = resolveMongoUri(uri)
+    const connected = await connect(resolvedUri, validate)
     isChangingConnection = false
-    if (!connected) throw new Error(`Failed to connect to MongoDB at URI: ${uri}`)
+    if (!connected) throw new Error(`Failed to connect to MongoDB at URI: ${obfuscateMongoUri(resolvedUri)}`)
     return true
   } catch (error) {
     isChangingConnection = false
@@ -1245,19 +1285,20 @@ const registerTools = (server) => {
   if (!isDisabled('tools', 'connect-mongodb')) {
     server.tool(
       'connect-mongodb',
-      'Connect to a different MongoDB URI',
+      'Connect to a different MongoDB URI or alias',
       {
-        uri: z.string().min(1).describe('MongoDB connection URI to connect to'),
+        uri: z.string().min(1).describe('MongoDB connection URI or alias to connect to'),
         validateConnection: createBooleanSchema('Whether to validate the connection', 'true')
       },
       async ({ uri, validateConnection }) => {
         return withErrorHandling(async () => {
           try {
-            await changeConnection(uri, validateConnection === 'true')
+            const resolvedUri = resolveMongoUri(uri)
+            await changeConnection(resolvedUri, validateConnection === 'true')
             return {
               content: [{
                 type: 'text',
-                text: `Successfully connected to MongoDB at URI: ${uri}`
+                text: `Successfully connected to MongoDB${mongoUriAlias ? ` (${mongoUriAlias})` : ''} at URI: ${obfuscateMongoUri(resolvedUri)}`
               }]
             }
           } catch (error) {
@@ -1289,10 +1330,44 @@ const registerTools = (server) => {
           return {
             content: [{
               type: 'text',
-              text: `Successfully connected back to original MongoDB URI: ${mongoUriOriginal}`
+              text: `Successfully connected back to original MongoDB URI: ${obfuscateMongoUri(mongoUriOriginal)}`
             }]
           }
         }, 'Error connecting to original MongoDB URI')
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'list-connections')) {
+    server.tool(
+      'list-connections',
+      'List all configured MongoDB connection aliases',
+      async () => {
+        return withErrorHandling(async () => {
+          log('Tool: Listing configured MongoDB connections')
+
+          if (mongoUriMap.size === 0) {
+            return {
+              content: [{
+                type: 'text',
+                text: 'No connection aliases configured.'
+              }]
+            }
+          }
+
+          let result = 'Configured MongoDB connections:\n'
+          mongoUriMap.forEach((uri, alias) => {
+            const obfuscatedUri = obfuscateMongoUri(uri)
+            result += `- ${alias}: ${obfuscatedUri}${alias === mongoUriAlias ? ' (current)' : ''}\n`
+          })
+
+          return {
+            content: [{
+              type: 'text',
+              text: result
+            }]
+          }
+        }, 'Error listing MongoDB connections')
       }
     )
   }
@@ -5639,9 +5714,41 @@ const loadConfig = () => {
 
   config = applyEnvOverrides(config)
 
-  if (process.argv.length > 2) config.mongoUri = process.argv[2]
+  if (process.argv.length > 2) {
+    const cliArg = process.argv[2]
+    config._cliMongoUri = cliArg
+  }
+
+  setupMongoUriMap(config)
+
+  if (config._cliMongoUri) {
+    const resolvedUri = resolveMongoUri(config._cliMongoUri)
+    config.mongoUri = resolvedUri
+    delete config._cliMongoUri
+  }
 
   return config
+}
+
+const setupMongoUriMap = (config) => {
+  mongoUriMap.clear()
+
+  if (typeof config.mongoUri === 'object' && config.mongoUri !== null) {
+    Object.entries(config.mongoUri).forEach(([alias, uri]) => {
+      mongoUriMap.set(alias.toLowerCase(), uri)
+    })
+
+    const firstEntry = Object.entries(config.mongoUri)[0]
+    if (firstEntry) {
+      config.mongoUri = firstEntry[1]
+      mongoUriAlias = firstEntry[0]
+      log(`Using default connection alias: ${mongoUriAlias}`)
+    } else {
+      config.mongoUri = 'mongodb://localhost:27017'
+    }
+  } else if (typeof config.mongoUri === 'string') {
+    mongoUriMap.set('default', config.mongoUri)
+  }
 }
 
 const mergeConfigs = (target, source) =>
@@ -5818,10 +5925,12 @@ let transport = null
 let currentDb = null
 let mongoClient = null
 let currentDbName = null
+let mongoUriAlias = null
 let packageVersion = null
 let connectionRetries = 0
 let isShuttingDown = false
 let mongoUriCurrent = null
+let mongoUriMap = new Map()
 let mongoUriOriginal = null
 let isChangingConnection = false
 
@@ -5866,25 +5975,25 @@ const instructions = `
 MongoDB-Lens: NL→MongoDB via MCP
 
 CAPS:
-• DB: list/create/switch/drop
-• COLL: create/rename/drop/validate
-• DOC: find/count/insert/update/delete
-• SCH: infer/validate/compare/analyze
-• IDX: create/analyze/optimize
-• AGG: pipeline/mapreduce/distinct
-• PERF: explain/analyze/monitor
-• ADV: text/geo/timeseries/bulk/txn/gridfs/sharding/export
-• CONN: connect-mongodb/connect-original
+- DB: list/create/switch/drop
+- COLL: create/rename/drop/validate
+- DOC: find/count/insert/update/delete
+- SCH: infer/validate/compare/analyze
+- IDX: create/analyze/optimize
+- AGG: pipeline/mapreduce/distinct
+- PERF: explain/analyze/monitor
+- ADV: text/geo/timeseries/bulk/txn/gridfs/sharding/export
+- CONN: connect-mongodb{uri|alias}/list-connections/connect-original
 
 PTRNS:
-• DB_NAV: databases→use-database→collections
-• QRY: find-documents/count-documents/distinct-values
-• MOD: modify-document/delete-document/bulk-operations
-• SCH: collection-schema/analyze-schema/compare-schemas
-• OPT: explain-query/analyze-query-patterns/create-index
-• AGG: aggregate-data/map-reduce
-• MON: server-status/performance-metrics/watch-changes
-• CONN: connect-mongodb→database-operations→connect-original
+- DB_NAV: databases→use-database→collections
+- QRY: find-documents/count-documents/distinct-values
+- MOD: modify-document/delete-document/bulk-operations
+- SCH: collection-schema/analyze-schema/compare-schemas
+- OPT: explain-query/analyze-query-patterns/create-index
+- AGG: aggregate-data/map-reduce
+- MON: server-status/performance-metrics/watch-changes
+- CONN: connect-mongodb→database-operations→connect-original
 
 FLOWS:
 1. NAV: list-databases→use-database→list-collections
@@ -5895,7 +6004,7 @@ FLOWS:
 6. AGG: aggregate-data{multi-stage}
 7. BULK: bulk-operations{batch}
 8. TXN: transaction{atomic}
-9. CONN: connect-mongodb{uri}→operations→connect-original
+9. CONN: connect-mongodb{uri|alias}→operations→connect-original
 
 SAFE: destructive ops require confirmation tokens
 

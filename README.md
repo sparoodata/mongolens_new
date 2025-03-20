@@ -23,7 +23,7 @@
 
 - [Install](#installation) MongoDB Lens
 - [Configure](#configuration) MongoDB Lens
-- [Set up](#client-setup) your MCP Client (e.g. [Claude Desktop](#client-setup-claude-desktop))
+- [Set up](#client-setup) your MCP Client (e.g. [Claude Desktop](#client-setup-claude-desktop), [Cursor](https://docs.cursor.com/context/model-context-protocol#configuring-mcp-servers), etc)
 - Explore your MongoDB databases with [natural language queries](#tutorial-4-example-queries)
 
 ## Features
@@ -119,7 +119,7 @@ MongoDB Lens includes several additional features:
 
 - **Configuration File**: Custom configuration via `~/.mongodb-lens.json`
 - **Connection Resilience**: Automatic reconnection with exponential backoff
-- **Component Disabling**: Selectively disable specific tools, resources, or prompts
+- **Component Disabling**: Selectively disable specific tools, prompts or resources
 - **Smart Caching**: Enhanced caching for schemas, collection lists, and server status
 - **JSONRPC Error Handling**: Comprehensive error handling with proper error codes
 - **Memory Management**: Automatic memory monitoring and cleanup for large operations
@@ -130,7 +130,7 @@ When MongoDB Lens creates a new database it adds a `metadata` collection contain
 
 - MongoDB only persists databases containing at least one collection
 - Records database creation details (timestamp, tool version, user)
-- Captures environment information for diagnostics
+- Captures environment information for your own diagnostics
 
 <details>
   <summary><strong>Example metadata document</strong></summary>
@@ -332,6 +332,12 @@ If no connection string is provided, the server will attempt to connect via loca
 
 MongoDB Lens supports extensive customization via JSON config file.
 
+> [!NOTE]<br>
+> The config file is optional. MongoDB Lens will run with default settings if no config file is provided.
+
+> [!TIP]<br>
+> MongoDB Lens supports both `.json` and `.jsonc` (JSON with comments) file formats.
+
 <details>
   <summary><strong>Example configuration file</strong></summary>
 
@@ -357,8 +363,8 @@ MongoDB Lens supports extensive customization via JSON config file.
   },
   "disabled": {
     "tools": [],                                   // List of tools to disable or true to disable all
-    "resources": [],                               // List of resources to disable or true to disable all
-    "prompts": []                                  // List of prompts to disable or true to disable all
+    "prompts": [],                                 // List of prompts to disable or true to disable all
+    "resources": []                                // List of resources to disable or true to disable all
   },
   "cacheTTL": {
     "stats": 15000,                                // Stats cache lifetime in milliseconds
@@ -440,29 +446,29 @@ docker run --rm -i --network=host -v /path/to/config.json:/root/.mongodb-lens.js
 
 ### Configuration: Environment Variable Overrides
 
-MongoDB Lens supports configuration via environment variable overrides.
+MongoDB Lens supports environment variable overrides for configuration settings.
 
-Config environment variables take precedence over [config file](#configuration-config-file) settings and are applied after the config file is loaded.
+Environment variables take precedence over [config file](#configuration-config-file) settings.
 
-Config environment variables follow this naming pattern:
+Config environment variables follow the naming pattern:
 
 ```txt
-CONFIG_[UPPERCASE SNAKE CASE SETTING PATH]
+CONFIG_[SETTING PATH, SNAKE CASED, UPPERCASED]
 ```
 
-Example override mappings:
+Example overrides:
 
 <small><small>
 
-| Config File Setting              | Environment Variable Override             | Example Value                      |
-| -------------------------------- | ----------------------------------------- | ---------------------------------- |
-| `mongoUri`                       | `CONFIG_MONGO_URI`                        | `mongodb://localhost:27017/testdb` |
-| `logLevel`                       | `CONFIG_LOG_LEVEL`                        | `verbose`                          |
-| `defaultDbName`                  | `CONFIG_DEFAULT_DB_NAME`                  | `analytics`                        |
-| `connectionOptions.maxPoolSize`  | `CONFIG_CONNECTION_OPTIONS_MAX_POOL_SIZE` | `30`                               |
-| `connection.reconnectionRetries` | `CONFIG_CONNECTION_RECONNECTION_RETRIES`  | `15`                               |
-| `defaults.queryLimit`            | `CONFIG_DEFAULTS_QUERY_LIMIT`             | `25`                               |
-| `tools.export.defaultFormat`     | `CONFIG_TOOLS_EXPORT_DEFAULT_FORMAT`      | `csv`                              |
+| Config Setting                   | Environment Variable Override             |
+| -------------------------------- | ----------------------------------------- |
+| `mongoUri`                       | `CONFIG_MONGO_URI`                        |
+| `logLevel`                       | `CONFIG_LOG_LEVEL`                        |
+| `defaultDbName`                  | `CONFIG_DEFAULT_DB_NAME`                  |
+| `connectionOptions.maxPoolSize`  | `CONFIG_CONNECTION_OPTIONS_MAX_POOL_SIZE` |
+| `connection.reconnectionRetries` | `CONFIG_CONNECTION_RECONNECTION_RETRIES`  |
+| `defaults.queryLimit`            | `CONFIG_DEFAULTS_QUERY_LIMIT`             |
+| `tools.export.defaultFormat`     | `CONFIG_TOOLS_EXPORT_DEFAULT_FORMAT`      |
 
 </small></small>
 
@@ -495,7 +501,7 @@ docker run --rm -i --network=host -e CONFIG_DEFAULTS_QUERY_LIMIT='25' furey/mong
 To use MongoDB Lens with Claude Desktop:
 
 1. Install [Claude Desktop](https://claude.ai/download)
-1. Open `claude_desktop_config.json` (create it if it doesn't exist):
+1. Open `claude_desktop_config.json` (create if it doesn't exist):
     - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
     - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 1. Add the MongoDB Lens server configuration as per [configuration options](#claude-desktop-configuration-options)
@@ -514,7 +520,7 @@ For each option:
 - Replace `mongodb://your-connection-string` with your MongoDB connection string or omit it to use the default `mongodb://localhost:27017`.
 - To use a custom config file, set [`CONFIG_PATH`](#configuration-config-file) environment variable.
 - To include environment variables:
-  - For NPX or Node add `"env": {}` with key-value pairs:<br>
+  - For NPX or Node add `"env": {}` with key-value pairs, for example:<br>
     ```json
     "command": "/path/to/npx",
     "args": [
@@ -528,7 +534,7 @@ For each option:
       "CONFIG_CONNECTION_OPTIONS_MAX_POOL_SIZE": "30"
     }
     ```
-  - For Docker add `-e` flags:<br>
+  - For Docker add `-e` flags, for example:<br>
     ```console
     docker run --rm -i --network=host \
       -e CONFIG_LOG_LEVEL='verbose' \
@@ -651,6 +657,7 @@ To protect your data while using MongoDB Lens, consider the following:
 - [Read-Only User Accounts](#data-protection-read-only-user-accounts)
 - [Working with Database Backups](#data-protection-working-with-database-backups)
 - [Confirmation for Destructive Operations](#data-protection-confirmation-for-destructive-operations)
+- [Disabling Destructive Operations](#data-protection-disabling-destructive-operations)
 
 ### Data Protection: Read-Only User Accounts
 
@@ -695,12 +702,12 @@ For an example of the confirmation process, see: [Working with Confirmation Prot
 
 Tools that require confirmation include:
 
-- `bulk-operations`: When including delete operations
-- `delete-document`: Delete one or multiple documents
-- `drop-collection`: Delete a collection and all its documents
-- `drop-database`: Permanently delete a database
-- `drop-index`: Remove an index (potential performance impact)
 - `drop-user`: Remove a database user
+- `drop-index`: Remove an index (potential performance impact)
+- `drop-database`: Permanently delete a database
+- `drop-collection`: Delete a collection and all its documents
+- `delete-document`: Delete one or multiple documents
+- `bulk-operations`: When including delete operations
 - `rename-collection`: When the target collection exists and will be dropped
 
 This protection mechanism aims to prevent accidental data loss from typos and unintended commands. It's a safety net ensuring you're aware of the consequences before proceeding with potentially harmful actions.
@@ -724,6 +731,83 @@ docker run --rm -i --network=host -e CONFIG_DISABLE_DESTRUCTIVE_OPERATION_TOKENS
 
 > [!WARNING]<br>
 > Disabling confirmation tokens removes an important safety mechanism. It's strongly recommended to only use this option in controlled environments where data loss is acceptable, such as development or testing. Disable at your own risk.
+
+### Data Protection: Disabling Destructive Operations
+
+- [Disabling Tools](#disabling-tools)
+- [High-Risk Tools](#high-risk-tools)
+- [Medium-Risk Tools](#medium-risk-tools)
+- [Read-Only Configuration](#read-only-configuration)
+
+#### Disabling Tools
+
+MongoDB Lens includes several tools that can modify or delete data. To disable specific tools, add them to the `disabled.tools` array in your [configuration file](#configuration-config-file):
+
+```json
+{
+  "disabled": {
+    "tools": [
+      "drop-user",
+      "drop-index",
+      "drop-database",
+      "drop-collection",
+      "delete-document",
+      "bulk-operations",
+      "rename-collection"
+    ]
+  }
+}
+```
+
+#### High-Risk Tools
+
+These tools can cause immediate data loss and should be considered for disabling in sensitive environments:
+
+- `drop-user`: Removes database users and their access permissions
+- `drop-index`: Removes indexes (can impact query performance)
+- `drop-database`: Permanently deletes entire databases
+- `drop-collection`: Permanently deletes collections and all their documents
+- `delete-document`: Removes documents matching specified criteria
+- `bulk-operations`: Can perform batch deletions when configured to do so
+- `rename-collection`: Can overwrite existing collections when using the drop target option
+
+#### Medium-Risk Tools
+
+These tools can modify data but typically don't cause immediate data loss:
+
+- `create-user`: Creates users with permissions that could enable further changes
+- `transaction`: Executes multiple operations in a transaction (potential for complex changes)
+- `modify-document`: Inserts or updates documents which could overwrite existing data
+
+#### Read-Only Configuration
+
+For a complete read-only configuration, disable all potentially destructive tools:
+
+```json
+{
+  "disabled": {
+    "tools": [
+      "drop-user",
+      "drop-index",
+      "create-user",
+      "transaction",
+      "create-index",
+      "drop-database",
+      "drop-collection",
+      "delete-document",
+      "modify-document",
+      "bulk-operations",
+      "create-database",
+      "gridfs-operation",
+      "create-collection",
+      "rename-collection",
+      "create-timeseries"
+    ]
+  }
+}
+```
+
+This configuration allows MongoDB Lens to query and analyze data while preventing any modifications, providing multiple layers of protection against accidental data loss.
 
 ## Tutorial
 

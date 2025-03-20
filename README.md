@@ -330,7 +330,7 @@ If no connection string is provided, the server will attempt to connect via loca
 
 ### Configuration: Config File
 
-MongoDB Lens supports extensive customization via config file.
+MongoDB Lens supports extensive customization via JSON config file.
 
 > [!NOTE]<br>
 > The config file is optional. MongoDB Lens will run with default settings if no config file is provided.
@@ -450,7 +450,7 @@ MongoDB Lens supports environment variable overrides for configuration settings.
 
 Environment variables take precedence over [config file](#configuration-config-file) settings.
 
-Config environment variables follow this naming pattern:
+Config environment variables follow the naming pattern:
 
 ```txt
 CONFIG_[SETTING PATH, SNAKE CASED, UPPERCASED]

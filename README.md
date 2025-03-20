@@ -297,8 +297,8 @@ MongoDB Lens is now installed and ready to accept MCP requests.
 ## Configuration
 
 - [MongoDB Connection String](#configuration-mongodb-connection-string)
-- [Verbose Logging](#configuration-verbose-logging)
 - [Config File](#configuration-config-file)
+- [Environment Variable Overrides](#configuration-environment-variable-overrides)
 
 ### Configuration: MongoDB Connection String
 
@@ -326,24 +326,6 @@ Example connection strings:
   `mongodb://hostname:27017/mydatabase?retryWrites=true&w=majority`
 
 If no connection string is provided, the server will attempt to connect via local connection.
-
-### Configuration: Verbose Logging
-
-With verbose logging enabled, the server will output additional information to the console.
-
-To enable verbose logging, set environment variable `LOG_LEVEL` to `verbose`.
-
-Example NPX usage:
-
-```console
-LOG_LEVEL=verbose npx -y mongodb-lens mongodb://your-connection-string
-```
-
-Example Docker Hub usage:
-
-```console
-docker run --rm -i --network=host -e LOG_LEVEL='verbose' furey/mongodb-lens mongodb://your-connection-string
-```
 
 ### Configuration: Config File
 
@@ -450,6 +432,52 @@ Example Docker Hub usage:
 docker run --rm -i --network=host -v /path/to/config.json:/root/.mongodb-lens.json furey/mongodb-lens
 ```
 
+### Configuration: Environment Variable Overrides
+
+MongoDB Lens supports configuration via environment variable overrides.
+
+Config environment variables take precedence over [config file](#configuration-config-file) settings and are applied after the config file is loaded.
+
+Config environment variables follow this naming pattern:
+
+```txt
+CONFIG_[UPPERCASE SNAKE CASE SETTING PATH]
+```
+
+Example override mappings:
+
+<small><small>
+
+| Config File Setting              | Environment Variable Override             | Example Value                      |
+| -------------------------------- | ----------------------------------------- | ---------------------------------- |
+| `mongoUri`                       | `CONFIG_MONGO_URI`                        | `mongodb://localhost:27017/testdb` |
+| `logLevel`                       | `CONFIG_LOG_LEVEL`                        | `verbose`                          |
+| `defaultDbName`                  | `CONFIG_DEFAULT_DB_NAME`                  | `analytics`                        |
+| `connectionOptions.maxPoolSize`  | `CONFIG_CONNECTION_OPTIONS_MAX_POOL_SIZE` | `30`                               |
+| `connection.reconnectionRetries` | `CONFIG_CONNECTION_RECONNECTION_RETRIES`  | `15`                               |
+| `defaults.queryLimit`            | `CONFIG_DEFAULTS_QUERY_LIMIT`             | `25`                               |
+| `tools.export.defaultFormat`     | `CONFIG_TOOLS_EXPORT_DEFAULT_FORMAT`      | `csv`                              |
+
+</small></small>
+
+For environment variable values:
+
+- For boolean settings, use string values `'true'` or `'false'`.
+- For numeric settings, use string representations.
+- For nested objects or arrays, use JSON strings.
+
+Example NPX usage:
+
+```console
+CONFIG_DEFAULTS_QUERY_LIMIT='25' npx -y mongodb-lens
+```
+
+Example Docker Hub usage:
+
+```console
+docker run --rm -i --network=host -e CONFIG_DEFAULTS_QUERY_LIMIT='25' furey/mongodb-lens
+```
+
 ## Client Setup
 
 - [Claude Desktop](#client-setup-claude-desktop)
@@ -478,8 +506,31 @@ To use MongoDB Lens with Claude Desktop:
 For each option:
 
 - Replace `mongodb://your-connection-string` with your MongoDB connection string or omit it to use the default `mongodb://localhost:27017`.
-- For verbose logging, set `LOG_LEVEL` to `verbose`, otherwise set to `info` (or omit entirely).
-- To use a custom config file, see [Configuration: Config File](#configuration-config-file) and adapt option accordingly.
+- To use a custom config file, set [`CONFIG_PATH`](#configuration-config-file) environment variable.
+- To include environment variables:
+  - For NPX or Node add `"env": {}` with key-value pairs:<br>
+    ```json
+    "command": "/path/to/npx",
+    "args": [
+      "-y",
+      "mongodb-lens",
+      "mongodb://your-connection-string"
+    ],
+    "env": {
+      "CONFIG_LOG_LEVEL": "verbose",
+      "CONFIG_DEFAULT_DB_NAME": "analytics",
+      "CONFIG_CONNECTION_OPTIONS_MAX_POOL_SIZE": "30"
+    }
+    ```
+  - For Docker add `-e` flags:<br>
+    ```console
+    docker run --rm -i --network=host \
+      -e CONFIG_LOG_LEVEL='verbose' \
+      -e CONFIG_DEFAULT_DB_NAME='analytics' \
+      -e CONFIG_CONNECTION_OPTIONS_MAX_POOL_SIZE='30' \
+      furey/mongodb-lens
+    ```
+
 
 ##### Option 1: NPX (Recommended)
 
@@ -492,10 +543,7 @@ For each option:
         "-y",
         "mongodb-lens",
         "mongodb://your-connection-string"
-      ],
-      "env": {
-        "LOG_LEVEL": "[verbose|info]"
-      }
+      ]
     }
   }
 }
@@ -514,8 +562,6 @@ For each option:
         "-i",
         "--network=host",
         "--pull=always",
-        "-e",
-        "LOG_LEVEL=[verbose|info]",
         "furey/mongodb-lens",
         "mongodb://your-connection-string"
       ]
@@ -534,10 +580,7 @@ For each option:
       "args": [
         "/path/to/mongodb-lens.js",
         "mongodb://your-connection-string"
-      ],
-      "env": {
-        "LOG_LEVEL": "[verbose|info]"
-      }
+      ]
     }
   }
 }
@@ -555,8 +598,6 @@ For each option:
         "--rm",
         "-i",
         "--network=host",
-        "-e",
-        "LOG_LEVEL=[verbose|info]",
         "mongodb-lens",
         "mongodb://your-connection-string"
       ]
@@ -581,9 +622,6 @@ Example NPX usage:
 
     # Using custom connection string
     npx -y @modelcontextprotocol/inspector npx -y mongodb-lens mongodb://your-connection-string
-
-    # Using verbose logging
-    npx -y @modelcontextprotocol/inspector -e LOG_LEVEL=verbose npx -y mongodb-lens
 
     # Using custom ports
     SERVER_PORT=1234 CLIENT_PORT=5678 npx -y @modelcontextprotocol/inspector npx -y mongodb-lens
@@ -626,7 +664,7 @@ db.createUser({
 
 Then, apply those credentials to your MongoDB connection string:
 
-```text
+```txt
 mongodb://readonly:eXaMpLePaSsWoRd@localhost:27017/mydatabase
 ```
 
@@ -668,14 +706,14 @@ This protection mechanism aims to prevent accidental data loss from typos and un
 
 You might want to bypass the token confirmation system.
 
-Set the environment variable `DISABLE_DESTRUCTIVE_OPERATION_TOKENS` to `true` to execute destructive operations immediately without confirmation:
+Set the environment variable `CONFIG_DISABLE_DESTRUCTIVE_OPERATION_TOKENS` to `true` to execute destructive operations immediately without confirmation:
 
 ```console
 # Using NPX
-DISABLE_DESTRUCTIVE_OPERATION_TOKENS=true npx -y mongodb-lens
+CONFIG_DISABLE_DESTRUCTIVE_OPERATION_TOKENS=true npx -y mongodb-lens
 
 # Using Docker
-docker run --rm -i --network=host -e DISABLE_DESTRUCTIVE_OPERATION_TOKENS='true' furey/mongodb-lens
+docker run --rm -i --network=host -e CONFIG_DISABLE_DESTRUCTIVE_OPERATION_TOKENS='true' furey/mongodb-lens
 ```
 
 > [!WARNING]<br>

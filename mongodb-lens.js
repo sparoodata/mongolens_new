@@ -2631,8 +2631,8 @@ This schema validator was generated based on ${schema.sampleSize} sample documen
     async ({ collection, map, reduce, options }) => {
       try {
         log(`Tool: Running Map-Reduce on collection '${collection}'…`)
-        const mapFunction = eval(`(${map})`);
-        const reduceFunction = eval(`(${reduce})`);
+        const mapFunction = eval(`(${map})`)
+        const reduceFunction = eval(`(${reduce})`)
         const parsedOptions = options ? JSON.parse(options) : {}
         const results = await runMapReduce(collection, mapFunction, reduceFunction, parsedOptions)
         log(`Tool: Map-Reduce operation complete.`)
@@ -5460,9 +5460,10 @@ const loadConfig = () => {
   let config = { ...defaultConfig }
 
   const configPath = process.env.CONFIG_PATH || join(process.env.HOME || __dirname, '.mongodb-lens.json')
+
   if (existsSync(configPath)) {
     try {
-      log(`Loading config file: ${configPath}`);
+      log(`Loading config file: ${configPath}`)
       const fileContent = readFileSync(configPath, 'utf8')
       const strippedContent = stripJsonComments(fileContent)
       const configFile = JSON.parse(strippedContent)
@@ -5472,37 +5473,11 @@ const loadConfig = () => {
     }
   }
 
+  config = applyEnvOverrides(config)
+
   if (process.argv.length > 2) config.mongoUri = process.argv[2]
 
-  if (process.env.DISABLE_DESTRUCTIVE_OPERATION_TOKENS === 'true') config.disableDestructiveOperationTokens = true
-
-  if (process.env.LOG_LEVEL) {
-    const validLogLevels = ['info', 'verbose']
-    if (validLogLevels.includes(process.env.LOG_LEVEL)) {
-      config.logLevel = process.env.LOG_LEVEL
-    } else {
-      console.error(`Invalid LOG_LEVEL: ${process.env.LOG_LEVEL}. Using default: ${config.logLevel}`)
-    }
-  }
-
   return config
-}
-
-const mergeConfigs = (target, source) => {
-  const result = { ...target }
-  for (const key in source) {
-    if (source[key] === null || source[key] === undefined) continue
-    if (typeof source[key] === 'object' && !Array.isArray(source[key])) {
-      if (typeof target[key] === 'object' && !Array.isArray(target[key])) {
-        result[key] = mergeConfigs(target[key], source[key])
-      } else {
-        result[key] = { ...source[key] }
-      }
-    } else {
-      result[key] = source[key]
-    }
-  }
-  return result
 }
 
 const stripJsonComments = (jsonString) => {
@@ -5571,6 +5546,121 @@ const stripJsonComments = (jsonString) => {
   return result
 }
 
+const mergeConfigs = (target, source) => {
+  const result = { ...target }
+  for (const key in source) {
+    if (source[key] === null || source[key] === undefined) continue
+    if (typeof source[key] === 'object' && !Array.isArray(source[key])) {
+      if (typeof target[key] === 'object' && !Array.isArray(target[key])) {
+        result[key] = mergeConfigs(target[key], source[key])
+      } else {
+        result[key] = { ...source[key] }
+      }
+    } else {
+      result[key] = source[key]
+    }
+  }
+  return result
+}
+
+const applyEnvOverrides = (config) => {
+  const result = { ...config }
+
+  const mapping = createEnvMapping(config)
+
+  Object.entries(mapping).forEach(([configPath, envKey]) => {
+    if (process.env[envKey] === undefined) return
+    const defaultValue = getValueAtPath(config, configPath)
+    const value = parseEnvValue(process.env[envKey], defaultValue, configPath)
+    setValueAtPath(result, configPath, value)
+  })
+
+  return result
+}
+
+const createEnvMapping = (obj, prefix = 'CONFIG', path = '') => {
+  let mapping = {}
+
+  Object.entries(obj).forEach(([key, value]) => {
+    const currentPath = path ? `${path}.${key}` : key
+    const envKey = `${prefix}_${key.replace(/([A-Z])/g, '_$1').toUpperCase()}`
+
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      const nestedMapping = createEnvMapping(value, `${prefix}_${key.toUpperCase()}`, currentPath)
+      mapping = { ...mapping, ...nestedMapping }
+    } else {
+      mapping[currentPath] = envKey
+    }
+  })
+
+  return mapping
+}
+
+const parseEnvValue = (value, defaultValue, path) => {
+  try {
+    if (typeof defaultValue === 'number') {
+      const parsed = Number(value)
+      if (isNaN(parsed)) throw new Error(`Invalid number for config [${path}]: ${value}`)
+      return parsed
+    }
+
+    if (typeof defaultValue === 'boolean') {
+      if (value.toLowerCase() !== 'true' && value.toLowerCase() !== 'false') {
+        throw new Error(`Invalid boolean for config [${path}]: ${value}`)
+      }
+      return value.toLowerCase() === 'true'
+    }
+
+    if (Array.isArray(defaultValue)) {
+      try {
+        const parsed = JSON.parse(value)
+        if (!Array.isArray(parsed)) throw new Error(`Config [${path}] is not an array`)
+        return parsed
+      } catch (e) {
+        return value.split(',').map(item => item.trim())
+      }
+    }
+
+    if (path === 'logLevel') {
+      const validLogLevels = ['info', 'verbose']
+      if (!validLogLevels.includes(value)) {
+        throw new Error(`Config [${path}] is invalid: ${value}`)
+      }
+    }
+
+    return value
+  } catch (error) {
+    console.error(`Error parsing environment variable for config [${path}]: ${error.message}. Using default: ${defaultValue}`)
+    return defaultValue
+  }
+}
+
+const getValueAtPath = (obj, path) => {
+  const parts = path.split('.')
+  let current = obj
+
+  for (const part of parts) {
+    if (current === undefined || current === null) return undefined
+    current = current[part]
+  }
+
+  return current
+}
+
+const setValueAtPath = (obj, path, value) => {
+  const parts = path.split('.')
+  let current = obj
+
+  for (let i = 0; i < parts.length - 1; i++) {
+    const part = parts[i]
+    if (current[part] === undefined) current[part] = {}
+    current = current[part]
+  }
+
+  current[parts[parts.length - 1]] = value
+  return obj
+}
+
 const getPackageVersion = () => {
   if (packageVersion) return packageVersion
   const __filename = fileURLToPath(import.meta.url)
@@ -5595,7 +5685,7 @@ const arraysEqual = (a, b) => {
 }
 
 const log = (message, forceLog = false) => {
-  if (forceLog || process.env.LOG_LEVEL === 'verbose' || config.logLevel === 'verbose') console.error(message)
+  if (forceLog || process.env.CONFIG_LOG_LEVEL === 'verbose' || config.logLevel === 'verbose') console.error(message)
 }
 
 const cleanup = async () => {

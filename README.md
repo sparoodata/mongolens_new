@@ -329,7 +329,7 @@ The server accepts a MongoDB connection string as its only argument.
 Example NPX usage:
 
 ```console
-npx -y mongodb-lens mongodb://your-connection-string
+npx -y mongodb-lens@latest mongodb://your-connection-string
 ```
 
 MongoDB connection strings have the following format:

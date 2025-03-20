@@ -119,7 +119,7 @@ MongoDB Lens includes several additional features:
 
 - **Configuration File**: Custom configuration via `~/.mongodb-lens.json`
 - **Connection Resilience**: Automatic reconnection with exponential backoff
-- **Component Disabling**: Selectively disable specific tools, resources, or prompts
+- **Component Disabling**: Selectively disable specific tools, prompts or resources
 - **Smart Caching**: Enhanced caching for schemas, collection lists, and server status
 - **JSONRPC Error Handling**: Comprehensive error handling with proper error codes
 - **Memory Management**: Automatic memory monitoring and cleanup for large operations
@@ -357,8 +357,8 @@ MongoDB Lens supports extensive customization via JSON config file.
   },
   "disabled": {
     "tools": [],                                   // List of tools to disable or true to disable all
-    "resources": [],                               // List of resources to disable or true to disable all
-    "prompts": []                                  // List of prompts to disable or true to disable all
+    "prompts": [],                                 // List of prompts to disable or true to disable all
+    "resources": []                                // List of resources to disable or true to disable all
   },
   "cacheTTL": {
     "stats": 15000,                                // Stats cache lifetime in milliseconds

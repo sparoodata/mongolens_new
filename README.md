@@ -510,7 +510,7 @@ To configure multiple connections, set the `mongoUri` setting to an object with 
 With this configuration:
 
 - The first URI in the list (e.g. `main`) becomes the default connection at startup
-- You can switch connections using natural language: `"Connect to backup database"` or `"Connect to atlas database"`
+- You can switch connections using natural language: `"Connect to backup"` or `"Connect to atlas"`
 - The original syntax still works: `"Connect to mongodb://localhost:27018"`
 - The new `list-connections` tool shows all available connection aliases
 

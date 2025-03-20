@@ -456,13 +456,13 @@ To customize the config file path, set the environment variable `CONFIG_PATH` to
 Example NPX usage:
 
 ```console
-CONFIG_PATH='/path/to/config.json' npx -y mongodb-lens
+CONFIG_PATH='/path/to/config.json' npx -y mongodb-lens@latest
 ```
 
 Example Docker Hub usage:
 
 ```console
-docker run --rm -i --network=host -v /path/to/config.json:/root/.mongodb-lens.json furey/mongodb-lens
+docker run --rm -i --network=host --pull=always -v /path/to/config.json:/root/.mongodb-lens.json furey/mongodb-lens
 ```
 
 ### Configuration: Environment Variable Overrides
@@ -765,10 +765,10 @@ Set the environment variable `CONFIG_DISABLE_DESTRUCTIVE_OPERATION_TOKENS` to `t
 
 ```console
 # Using NPX
-CONFIG_DISABLE_DESTRUCTIVE_OPERATION_TOKENS=true npx -y mongodb-lens
+CONFIG_DISABLE_DESTRUCTIVE_OPERATION_TOKENS=true npx -y mongodb-lens@latest
 
 # Using Docker
-docker run --rm -i --network=host -e CONFIG_DISABLE_DESTRUCTIVE_OPERATION_TOKENS='true' furey/mongodb-lens
+docker run --rm -i --network=host --pull=always -e CONFIG_DISABLE_DESTRUCTIVE_OPERATION_TOKENS='true' furey/mongodb-lens
 ```
 
 > [!WARNING]<br>

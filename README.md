@@ -576,10 +576,16 @@ For each option:
     }
     ```
   - For Docker add `-e` flags, for example:<br>
-    ```console
-    docker run --rm -i --network=host \
-      -e CONFIG_LOG_LEVEL='verbose' \
-      furey/mongodb-lens
+    ```json
+    "command": "docker",
+    "args": [
+      "run", "--rm", "-i",
+      "--network=host",
+      "--pull=always",
+      "-e", "CONFIG_LOG_LEVEL='verbose'",
+      "furey/mongodb-lens",
+      "mongodb://your-connection-string"
+    ]
     ```
 
 ##### Option 1: NPX (Recommended)
@@ -607,9 +613,7 @@ For each option:
     "mongodb-lens": {
       "command": "docker",
       "args": [
-        "run",
-        "--rm",
-        "-i",
+        "run", "--rm", "-i",
         "--network=host",
         "--pull=always",
         "furey/mongodb-lens",
@@ -644,9 +648,7 @@ For each option:
     "mongodb-lens": {
       "command": "docker",
       "args": [
-        "run",
-        "--rm",
-        "-i",
+        "run", "--rm", "-i",
         "--network=host",
         "mongodb-lens",
         "mongodb://your-connection-string"

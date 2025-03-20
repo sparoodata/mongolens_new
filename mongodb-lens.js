@@ -2,12 +2,14 @@
 
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import stripJsonComments from 'strip-json-comments'
 import { readFileSync, existsSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { Transform } from 'stream'
 import mongodb from 'mongodb'
 import { z } from 'zod'
+import _ from 'lodash'
 
 const { MongoClient, ObjectId, GridFSBucket } = mongodb
 const __filename = fileURLToPath(import.meta.url)
@@ -5480,88 +5482,8 @@ const loadConfig = () => {
   return config
 }
 
-const stripJsonComments = (jsonString) => {
-  let inString = false
-  let inMultiLineComment = false
-  let inSingleLineComment = false
-  let escaped = false
-  let result = ''
-
-  for (let i = 0; i < jsonString.length; i++) {
-    const char = jsonString[i]
-    const nextChar = jsonString[i + 1] || ''
-
-    // Handle string literals
-    if (!inMultiLineComment && !inSingleLineComment && char === '"' && !escaped) {
-      inString = !inString
-    }
-
-    // Handle escape sequences in strings
-    if (inString && char === '\\' && !escaped) {
-      escaped = true
-      result += char
-      continue
-    } else {
-      escaped = false
-    }
-
-    // Start of multiline comment
-    if (!inString && !inSingleLineComment && char === '/' && nextChar === '*') {
-      inMultiLineComment = true
-      i++
-      continue
-    }
-
-    // End of multiline comment
-    if (inMultiLineComment && char === '*' && nextChar === '/') {
-      inMultiLineComment = false
-      i++
-      continue
-    }
-
-    // Start of single line comment (// style)
-    if (!inString && !inMultiLineComment && char === '/' && nextChar === '/') {
-      inSingleLineComment = true
-      i++
-      continue
-    }
-
-    // Start of single line comment (# style)
-    if (!inString && !inMultiLineComment && !inSingleLineComment && char === '#') {
-      inSingleLineComment = true
-      continue
-    }
-
-    // End of single line comment
-    if (inSingleLineComment && (char === '\n' || char === '\r')) {
-      inSingleLineComment = false
-    }
-
-    // Only add characters if not in a comment
-    if (!inMultiLineComment && !inSingleLineComment) {
-      result += char
-    }
-  }
-
-  return result
-}
-
-const mergeConfigs = (target, source) => {
-  const result = { ...target }
-  for (const key in source) {
-    if (source[key] === null || source[key] === undefined) continue
-    if (typeof source[key] === 'object' && !Array.isArray(source[key])) {
-      if (typeof target[key] === 'object' && !Array.isArray(target[key])) {
-        result[key] = mergeConfigs(target[key], source[key])
-      } else {
-        result[key] = { ...source[key] }
-      }
-    } else {
-      result[key] = source[key]
-    }
-  }
-  return result
-}
+const mergeConfigs = (target, source) =>
+    _.merge({}, target, source)
 
 const applyEnvOverrides = (config) => {
   const result = { ...config }
@@ -5635,29 +5557,11 @@ const parseEnvValue = (value, defaultValue, path) => {
   }
 }
 
-const getValueAtPath = (obj, path) => {
-  const parts = path.split('.')
-  let current = obj
-
-  for (const part of parts) {
-    if (current === undefined || current === null) return undefined
-    current = current[part]
-  }
-
-  return current
-}
+const getValueAtPath = (obj, path) =>
+    _.get(obj, path)
 
 const setValueAtPath = (obj, path, value) => {
-  const parts = path.split('.')
-  let current = obj
-
-  for (let i = 0; i < parts.length - 1; i++) {
-    const part = parts[i]
-    if (current[part] === undefined) current[part] = {}
-    current = current[part]
-  }
-
-  current[parts[parts.length - 1]] = value
+  _.set(obj, path, value)
   return obj
 }
 
@@ -5679,9 +5583,7 @@ const createBooleanSchema = (description, defaultValue = 'true') =>
 
 const arraysEqual = (a, b) => {
   if (a.length !== b.length) return false
-  const sortedA = [...a].sort()
-  const sortedB = [...b].sort()
-  return sortedA.every((item, i) => item === sortedB[i])
+  return _.isEqual(_.sortBy(a), _.sortBy(b))
 }
 
 const log = (message, forceLog = false) => {

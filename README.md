@@ -23,7 +23,7 @@
 
 - [Install](#installation) MongoDB Lens
 - [Configure](#configuration) MongoDB Lens
-- [Set up](#client-setup) your MCP Client (e.g. [Claude Desktop](#client-setup-claude-desktop))
+- [Set up](#client-setup) your MCP Client (e.g. [Claude Desktop](#client-setup-claude-desktop), [Cursor](https://docs.cursor.com/context/model-context-protocol#configuring-mcp-servers), etc)
 - Explore your MongoDB databases with [natural language queries](#tutorial-4-example-queries)
 
 ## Features

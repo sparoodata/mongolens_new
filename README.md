@@ -64,6 +64,7 @@
 - `get-stats`: Retrieve database or collection statistics
 - `gridfs-operation`: Manage large files with GridFS buckets
 - `list-collections`: Explore collections in the current database
+- `list-connections`: View all available MongoDB connection aliases
 - `list-databases`: View all accessible databases
 - `map-reduce`: Run MapReduce operations for complex data processing
 - `modify-document`: Insert or update specific documents

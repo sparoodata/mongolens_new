@@ -479,8 +479,6 @@ CONFIG_[SETTING PATH, SNAKE CASED, UPPERCASED]
 
 Example overrides:
 
-<small><small>
-
 | Config Setting                   | Environment Variable Override             |
 | -------------------------------- | ----------------------------------------- |
 | `mongoUri`                       | `CONFIG_MONGO_URI`                        |
@@ -490,8 +488,6 @@ Example overrides:
 | `connection.reconnectionRetries` | `CONFIG_CONNECTION_RECONNECTION_RETRIES`  |
 | `defaults.queryLimit`            | `CONFIG_DEFAULTS_QUERY_LIMIT`             |
 | `tools.export.defaultFormat`     | `CONFIG_TOOLS_EXPORT_DEFAULT_FORMAT`      |
-
-</small></small>
 
 For environment variable values:
 

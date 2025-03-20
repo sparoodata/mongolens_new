@@ -298,7 +298,7 @@ MongoDB Lens is now installed and ready to accept MCP requests.
 ## Configuration
 
 - [MongoDB Connection String](#configuration-mongodb-connection-string)
-- [Config File](#configuration-config-file)
+- [Configuration via Config File](#configuration-config-file)
 - [Environment Variable Overrides](#configuration-environment-variable-overrides)
 
 ### Configuration: MongoDB Connection String

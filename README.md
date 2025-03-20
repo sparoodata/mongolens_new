@@ -502,13 +502,13 @@ For environment variable values:
 Example NPX usage:
 
 ```console
-CONFIG_DEFAULTS_QUERY_LIMIT='25' npx -y mongodb-lens
+CONFIG_DEFAULTS_QUERY_LIMIT='25' npx -y mongodb-lens@latest
 ```
 
 Example Docker Hub usage:
 
 ```console
-docker run --rm -i --network=host -e CONFIG_DEFAULTS_QUERY_LIMIT='25' furey/mongodb-lens
+docker run --rm -i --network=host --pull=always -e CONFIG_DEFAULTS_QUERY_LIMIT='25' furey/mongodb-lens
 ```
 
 ### Configuration: Multiple MongoDB Connections

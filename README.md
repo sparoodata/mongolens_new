@@ -738,7 +738,7 @@ MongoDB Lens implements a token-based confirmation system for potentially destru
 1. First tool invocation: Returns a 4-digit confirmation token that expires after 5 minutes
 1. Second tool invocation: Executes the operation if provided with the valid token
 
-For an example of the confirmation process, see: [Working with Confirmation Protection](#tutorial-5-working-with-confirmation-protection).
+For an example of the confirmation process, see: [Working with Confirmation Protection](#tutorial-5-working-with-confirmation-protection)
 
 Tools that require confirmation include:
 

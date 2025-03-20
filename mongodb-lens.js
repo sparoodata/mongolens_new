@@ -5685,7 +5685,7 @@ const arraysEqual = (a, b) => {
 }
 
 const log = (message, forceLog = false) => {
-  if (forceLog || process.env.CONFIG_LOG_LEVEL === 'verbose' || config.logLevel === 'verbose') console.error(message)
+  if (forceLog || process.env.CONFIG_LOG_LEVEL === 'verbose' || globalThis.config && config.logLevel === 'verbose') console.error(message)
 }
 
 const cleanup = async () => {

@@ -584,7 +584,7 @@ For consistent environment variable usage across Windows, macOS, and Linux, cons
    # Using NPM
    npm install -g cross-env
 
-   # Using Volta
+   # Using Volta (see: https://volta.sh)
    volta install cross-env
    ```
 1. Prefix any NPX or Node.js environment variables in this document's examples:<br>

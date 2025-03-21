@@ -509,7 +509,7 @@ The script handles paths intelligently:
 
 ### Configuration: Multiple MongoDB Connections
 
-MongoDB Lens supports defining multiple MongoDB URIs with aliases in your [config file](#configuration-config-file), allowing you to easily switch between different MongoDB instances using simple names.
+MongoDB Lens supports multiple MongoDB URIs with aliases in your [config file](#configuration-config-file), allowing you to easily switch between different MongoDB instances using simple names.
 
 To configure multiple connections, set the `mongoUri` setting to an object with alias-URI pairs:
 

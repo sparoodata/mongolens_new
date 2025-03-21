@@ -478,7 +478,7 @@ docker run --rm -i --network=host --pull=always -v /path/to/config.json:/root/.m
 You can generate a configuration file automatically using the `config:create` script:
 
 ```console
-# Create config file (won't overwrite existing)
+# Create config file (will not overwrite existing)
 npm run config:create
 
 # Create config file (force overwrite existing)

@@ -5704,7 +5704,7 @@ const loadConfig = () => {
   if (configPathEnv) {
     configPath = configPathEnv
   } else {
-    const homeDir = process.env.HOME || __dirname
+    const homeDir = process.env.HOME || process.env.USERPROFILE || __dirname
 
     const jsoncPath = join(homeDir, '.mongodb-lens.jsonc')
     const jsonPath = join(homeDir, '.mongodb-lens.json')

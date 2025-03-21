@@ -322,6 +322,7 @@ MongoDB Lens is now installed and ready to accept MCP requests.
 - [Config File Generation](#configuration-config-file-generation)
 - [Multiple MongoDB Connections](#configuration-multiple-mongodb-connections)
 - [Environment Variable Overrides](#configuration-environment-variable-overrides)
+- [Cross-Platform Environment Variables](#configuration-cross-platform-environment-variables)
 
 ### Configuration: MongoDB Connection String
 
@@ -506,6 +507,32 @@ The script handles paths intelligently:
 - If `CONFIG_PATH` has no file extension, it's treated as a directory and `.mongodb-lens.jsonc` is appended
 - If `CONFIG_PATH` ends with `.json` (not `.jsonc`), comments are automatically stripped from the output
 
+### Configuration: Multiple MongoDB Connections
+
+MongoDB Lens supports defining multiple MongoDB URIs with aliases in your [config file](#configuration-config-file), allowing you to easily switch between different MongoDB instances using simple names.
+
+To configure multiple connections, set the `mongoUri` setting to an object with alias-URI pairs:
+
+```json
+{
+  "mongoUri": {
+    "main": "mongodb://localhost:27017",
+    "backup": "mongodb://localhost:27018",
+    "atlas": "mongodb+srv://username:password@cluster.mongodb.net/mydb"
+  }
+}
+```
+
+With this configuration:
+
+- The first URI in the list (e.g. `main`) becomes the default connection at startup
+- You can switch connections using natural language: `"Connect to backup"` or `"Connect to atlas"`
+- The original syntax still works: `"Connect to mongodb://localhost:27018"`
+- The `list-connections` tool shows all available connection aliases
+
+> [!NOTE]<br>
+> When using the command-line argument to specify a connection, you can use either a full MongoDB URI or an alias defined in your configuration file.
+
 ### Configuration: Environment Variable Overrides
 
 MongoDB Lens supports environment variable overrides for configuration settings.
@@ -548,31 +575,32 @@ Example Docker Hub usage:
 docker run --rm -i --network=host --pull=always -e CONFIG_DEFAULTS_QUERY_LIMIT='25' furey/mongodb-lens
 ```
 
-### Configuration: Multiple MongoDB Connections
+### Configuration: Cross-Platform Environment Variables
 
-MongoDB Lens supports defining multiple MongoDB URIs with aliases in your [config file](#configuration-config-file), allowing you to easily switch between different MongoDB instances using simple names.
+For consistent environment variable usage across Windows, macOS, and Linux, consider using `cross-env`:
 
-To configure multiple connections, set the `mongoUri` setting to an object with alias-URI pairs:
+1. Install cross-env globally:<br>
+   ```console
+   # Using NPM
+   npm install -g cross-env
 
-```json
-{
-  "mongoUri": {
-    "main": "mongodb://localhost:27017",
-    "backup": "mongodb://localhost:27018",
-    "atlas": "mongodb+srv://username:password@cluster.mongodb.net/mydb"
-  }
-}
-```
+   # Using Volta
+   volta install cross-env
+   ```
+1. Prefix any NPX or Node.js environment variables in this document's examples:<br>
+   ```console
+   # Example NPX usage with cross-env
+   cross-env CONFIG_DEFAULTS_QUERY_LIMIT='25' npx -y mongodb-lens@latest
 
-With this configuration:
+   # Example Node.js usage with cross-env
+   cross-env CONFIG_DEFAULTS_QUERY_LIMIT='25' node mongodb-lens.js
+   ```
+1. For Docker usage, the `-e` flag works across platforms:<br>
+   ```console
+   docker run --rm -i --network=host --pull=always -e CONFIG_DEFAULTS_QUERY_LIMIT='25' furey/mongodb-lens
+   ```
 
-- The first URI in the list (e.g. `main`) becomes the default connection at startup
-- You can switch connections using natural language: `"Connect to backup"` or `"Connect to atlas"`
-- The original syntax still works: `"Connect to mongodb://localhost:27018"`
-- The `list-connections` tool shows all available connection aliases
-
-> [!NOTE]<br>
-> When using the command-line argument to specify a connection, you can use either a full MongoDB URI or an alias defined in your configuration file.
+This approach provides a consistent experience for all users regardless of platform without needing platform-specific syntax.
 
 ## Client Setup
 
@@ -604,7 +632,7 @@ For each option:
 - Replace `mongodb://your-connection-string` with your MongoDB connection string or omit it to use the default `mongodb://localhost:27017`.
 - To use a custom config file, set [`CONFIG_PATH`](#configuration-config-file) environment variable.
 - To include environment variables:
-  - For NPX or Node add `"env": {}` with key-value pairs, for example:<br>
+  - For NPX or Node.js add `"env": {}` with key-value pairs, for example:<br>
     ```json
     "command": "/path/to/npx",
     "args": [

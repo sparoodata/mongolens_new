@@ -361,6 +361,9 @@ MongoDB Lens supports extensive customization via JSON configuration file.
 > [!TIP]<br>
 > You only need to include the settings you want to customize in the config file. MongoDB Lens will use default settings for any omitted values.
 
+> [!TIP]<br>
+> MongoDB Lens supports both `.json` and `.jsonc` (JSON with comments) config file formats.
+
 <details>
   <summary><strong>Example configuration file</strong></summary>
 
@@ -455,9 +458,6 @@ By default, MongoDB Lens looks for the config file at:
 
 - `~/.mongodb-lens.jsonc` first, then falls back to
 - `~/.mongodb-lens.json` if the former doesn't exist
-
-> [!TIP]<br>
-> MongoDB Lens supports both `.json` and `.jsonc` (JSON with comments) config file formats.
 
 To customize the config file path, set the environment variable `CONFIG_PATH` to the desired file path.
 

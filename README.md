@@ -489,7 +489,7 @@ This script extracts the [example configuration file](#configuration-config-file
 
 #### Config File Generation: Custom Path
 
-You can specify a custom output location using the `CONFIG_PATH` environment variable:
+You can specify a custom configuration file output location using the `CONFIG_PATH` environment variable:
 
 ```console
 # Save to a specific file path

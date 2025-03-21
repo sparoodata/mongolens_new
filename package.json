@@ -1,6 +1,6 @@
 {
   "name": "mongodb-lens",
-  "version": "7.1.1",
+  "version": "7.2.0",
   "author": "James Furey (https://about.me/jamesfurey)",
   "description": "MongoDB Lens: Full Featured MCP Server for MongoDB Databases",
   "license": "MIT",
@@ -19,23 +19,25 @@
     "start": "node mongodb-lens.js",
     "start:gc": "node --expose-gc mongodb-lens.js",
     "start:debug": "node --inspect mongodb-lens.js",
-    "start:verbose": "LOG_LEVEL=verbose node mongodb-lens.js",
+    "start:verbose": "cross-env LOG_LEVEL=verbose node mongodb-lens.js",
     "start:inspector": "npx -y @modelcontextprotocol/inspector node mongodb-lens",
     "docker:hub:run": "docker run --rm -i --network=host --pull always furey/mongodb-lens",
     "docker:local:build": "docker build -t mongodb-lens .",
-    "docker:local:run": "docker run --rm -i --network=host mongodb-lens"
+    "docker:local:run": "docker run --rm -i --network=host mongodb-lens",
+    "config:create": "node config-create.js"
   },
   "keywords": [
     "ai",
-    "claude",
-    "database",
     "llm",
     "mcp",
-    "model-context-protocol",
-    "mongodb"
+    "claude",
+    "mongodb",
+    "database",
+    "model-context-protocol"
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.1.0",
+    "cross-env": "^7.0.3",
     "lodash": "^4.17.21",
     "mongodb": "^3.7.4",
     "strip-json-comments": "^5.0.1",

@@ -5698,9 +5698,25 @@ const validateDropIndexToken = (collectionName, indexName, token) => {
 const loadConfig = () => {
   let config = { ...defaultConfig }
 
-  const configPath = process.env.CONFIG_PATH || join(process.env.HOME || __dirname, '.mongodb-lens.json')
+  const configPathEnv = process.env.CONFIG_PATH
 
-  if (existsSync(configPath)) {
+  let configPath = null
+  if (configPathEnv) {
+    configPath = configPathEnv
+  } else {
+    const homeDir = process.env.HOME || process.env.USERPROFILE || __dirname
+
+    const jsoncPath = join(homeDir, '.mongodb-lens.jsonc')
+    const jsonPath = join(homeDir, '.mongodb-lens.json')
+
+    if (existsSync(jsoncPath)) {
+      configPath = jsoncPath
+    } else if (existsSync(jsonPath)) {
+      configPath = jsonPath
+    }
+  }
+
+  if (configPath && existsSync(configPath)) {
     try {
       log(`Loading config file: ${configPath}`)
       const fileContent = readFileSync(configPath, 'utf8')

@@ -319,6 +319,7 @@ MongoDB Lens is now installed and ready to accept MCP requests.
 
 - [MongoDB Connection String](#configuration-mongodb-connection-string)
 - [Config File](#configuration-config-file)
+- [Config File Generation](#configuration-config-file-generation)
 - [Multiple MongoDB Connections](#configuration-multiple-mongodb-connections)
 - [Environment Variable Overrides](#configuration-environment-variable-overrides)
 
@@ -357,7 +358,7 @@ MongoDB Lens supports extensive customization via JSON configuration file.
 > The config file is optional. MongoDB Lens will run with default settings if no config file is provided.
 
 > [!TIP]<br>
-> MongoDB Lens supports both `.json` and `.jsonc` (JSON with comments) file formats.
+> You only need to include the settings you want to customize in the config file. MongoDB Lens will use default settings for any omitted values.
 
 <details>
   <summary><strong>Example configuration file</strong></summary>
@@ -449,7 +450,13 @@ MongoDB Lens supports extensive customization via JSON configuration file.
 
 </details>
 
-By default, MongoDB Lens looks for the config file at: `~/.mongodb-lens.json`
+By default, MongoDB Lens looks for the config file at:
+
+- `~/.mongodb-lens.jsonc` first, then falls back to
+- `~/.mongodb-lens.json` if the former doesn't exist
+
+> [!TIP]<br>
+> MongoDB Lens supports both `.json` and `.jsonc` (JSON with comments) config file formats.
 
 To customize the config file path, set the environment variable `CONFIG_PATH` to the desired file path.
 
@@ -464,6 +471,40 @@ Example Docker Hub usage:
 ```console
 docker run --rm -i --network=host --pull=always -v /path/to/config.json:/root/.mongodb-lens.json furey/mongodb-lens
 ```
+
+### Configuration: Config File Generation
+
+You can generate a configuration file automatically using the `config:create` script:
+
+```console
+# Create config file (won't overwrite existing)
+npm run config:create
+
+# Create config file (force overwrite existing)
+npm run config:create -- --force
+```
+
+This script extracts the [example configuration file](#configuration-config-file) above and saves it to: `~/.mongodb-lens.jsonc`
+
+#### Config File Generation: Custom Path
+
+You can specify a custom output location using the `CONFIG_PATH` environment variable:
+
+```console
+# Save to a specific file path
+CONFIG_PATH=/path/to/config.jsonc npm run config:create
+
+# Save to a specific directory (will append .mongodb-lens.jsonc to the path)
+CONFIG_PATH=/path/to/directory npm run config:create
+
+# Save as JSON without comments
+CONFIG_PATH=/path/to/config.json npm run config:create
+```
+
+The script handles paths intelligently:
+
+- If `CONFIG_PATH` has no file extension, it's treated as a directory and `.mongodb-lens.jsonc` is appended
+- If `CONFIG_PATH` ends with `.json` (not `.jsonc`), comments are automatically stripped from the output
 
 ### Configuration: Environment Variable Overrides
 

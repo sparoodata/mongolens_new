@@ -595,12 +595,8 @@ For consistent environment variable usage across Windows, macOS, and Linux, cons
    # Example Node.js usage with cross-env
    cross-env CONFIG_DEFAULTS_QUERY_LIMIT='25' node mongodb-lens.js
    ```
-1. For Docker usage, the `-e` flag works across platforms:<br>
-   ```console
-   docker run --rm -i --network=host --pull=always -e CONFIG_DEFAULTS_QUERY_LIMIT='25' furey/mongodb-lens
-   ```
 
-This approach provides a consistent experience for all users regardless of platform without needing platform-specific syntax.
+This approach provides a consistent experience across platforms without needing platform-specific syntax.
 
 ## Client Setup
 

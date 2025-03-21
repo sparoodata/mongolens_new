@@ -1,6 +1,7 @@
 .DS_Store
 node_modules/
 repomix*
+DEMO.md
 CLAUDE.md
 ROADMAP.md
 .mongodb-lens*.json*

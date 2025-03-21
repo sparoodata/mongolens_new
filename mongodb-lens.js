@@ -202,7 +202,7 @@ const extractDbNameFromConnectionString = (uri) => {
 }
 
 const resolveMongoUri = (uriOrAlias) => {
-  if (uriOrAlias.includes('://') || uriOrAlias.includes('/') || uriOrAlias.includes('@')) {
+  if (uriOrAlias.includes('://') || uriOrAlias.includes('@')) {
     return uriOrAlias
   }
 
@@ -213,7 +213,7 @@ const resolveMongoUri = (uriOrAlias) => {
     return uri
   }
 
-  return uriOrAlias
+  throw new Error(`"${uriOrAlias}" is not a valid MongoDB URI or connection alias.`)
 }
 
 const obfuscateMongoUri = (uri) => {
@@ -1293,6 +1293,17 @@ const registerTools = (server) => {
       async ({ uri, validateConnection }) => {
         return withErrorHandling(async () => {
           try {
+            if (!uri.includes('://') && !uri.includes('@') && !mongoUriMap.has(uri.toLowerCase())) {
+              if (await isDatabaseName(uri)) {
+                return {
+                  content: [{
+                    type: 'text',
+                    text: `It seems you're trying to switch to database "${uri}" rather than connect to a new MongoDB instance. Please use the "use-database" tool instead.`
+                  }]
+                }
+              }
+            }
+
             const resolvedUri = resolveMongoUri(uri)
             await changeConnection(resolvedUri, validateConnection === 'true')
             return {
@@ -3157,6 +3168,29 @@ const withErrorHandling = async (operation, errorMessage, defaultValue = null) =
     }
 
     return errorResponse
+  }
+}
+
+const isDatabaseName = async (name) => {
+  try {
+    const dbs = await listDatabases()
+    if (dbs.some(db => db.name === name)) return true
+
+    if (name.length > 0 && name.length < 64 &&
+        !name.includes('/') && !name.includes(':')) {
+      const dbPatterns = [
+        /^sample_/,
+        /^test/,
+        /^db/,
+        /^admin$|^local$|^config$/
+      ]
+
+      if (dbPatterns.some(pattern => pattern.test(name))) return true
+    }
+
+    return false
+  } catch (error) {
+    return false
   }
 }
 

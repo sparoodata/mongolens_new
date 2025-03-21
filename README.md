@@ -596,8 +596,6 @@ For consistent environment variable usage across Windows, macOS, and Linux, cons
    cross-env CONFIG_DEFAULTS_QUERY_LIMIT='25' node mongodb-lens.js
    ```
 
-This approach provides a consistent experience across platforms without needing platform-specific syntax.
-
 ## Client Setup
 
 - [Claude Desktop](#client-setup-claude-desktop)

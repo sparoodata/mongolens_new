@@ -115,7 +115,7 @@
 
 #### Other Features: Overview
 
-MongoDB Lens includes several additional features:
+MongoDB Lens includes numerous other features:
 
 - **[Config File](#configuration-config-file)**: Custom configuration via `~/.mongodb-lens.[jsonc|json]`
 - **[Env Var Overrides](#configuration-environment-variable-overrides)**: Override config settings via `process.env.CONFIG_*`

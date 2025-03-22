@@ -1877,8 +1877,8 @@ const registerTools = (server) => {
         streaming: createBooleanSchema('Enable streaming for large result sets', 'false')
       },
       async ({ collection, filter, projection, limit, skip, sort, streaming }) => {
-        try {
-          log(`Tool: Finding documents in collection '${collection}'…`)
+        return withErrorHandling(async () => {
+          log(`Tool: Finding documents in collection '${collection}'...`)
           log(`Tool: Using filter: ${filter}`)
           if (projection) log(`Tool: Using projection: ${projection}`)
           if (sort) log(`Tool: Using sort: ${sort}`)
@@ -1896,21 +1896,7 @@ const registerTools = (server) => {
               text: formatDocuments(documents, limit)
             }]
           }
-        } catch (error) {
-          log(`Error finding documents: ${error.message}`, true)
-          return {
-            content: [{
-              type: 'text',
-              text: `Error finding documents: ${error.message}`
-            }],
-            isError: true,
-            error: {
-              code: JSONRPC_ERROR_CODES.MONGODB_QUERY_ERROR,
-              message: error.message,
-              data: { type: error.name }
-            }
-          }
-        }
+        }, `Error finding documents in collection '${collection}'`)
       }
     )
   }
@@ -2074,8 +2060,8 @@ const registerTools = (server) => {
         limit: z.number().int().min(1).default(1000).describe('Maximum number of results to return when streaming')
       },
       async ({ collection, pipeline, streaming, limit }) => {
-        try {
-          log(`Tool: Running aggregation on collection '${collection}'…`)
+        return withErrorHandling(async () => {
+          log(`Tool: Running aggregation on collection '${collection}'...`)
           log(`Tool: Using pipeline: ${pipeline}`)
           log(`Tool: Streaming: ${streaming}, Limit: ${limit}`)
 
@@ -2090,21 +2076,7 @@ const registerTools = (server) => {
               text: formatDocuments(results, 100)
             }]
           }
-        } catch (error) {
-          log(`Error running aggregation: ${error.message}`, true)
-          return {
-            content: [{
-              type: 'text',
-              text: `Error running aggregation: ${error.message}`
-            }],
-            isError: true,
-            error: {
-              code: JSONRPC_ERROR_CODES.MONGODB_QUERY_ERROR,
-              message: error.message,
-              data: { type: error.name }
-            }
-          }
-        }
+        }, `Error running aggregation on collection '${collection}'`)
       }
     )
   }
@@ -3144,17 +3116,36 @@ const withErrorHandling = async (operation, errorMessage, defaultValue = null) =
     log(formattedError, true)
 
     let errorCode = JSONRPC_ERROR_CODES.SERVER_ERROR_START
+    let errorType = error.name || 'Error'
 
     if (error.name === 'MongoError' || error.name === 'MongoServerError') {
-      if (error.code === 13) errorCode = JSONRPC_ERROR_CODES.RESOURCE_ACCESS_DENIED
-      else if (error.code === 59 || error.code === 61) errorCode = JSONRPC_ERROR_CODES.MONGODB_CONNECTION_ERROR
-      else if (error.code === 121) errorCode = JSONRPC_ERROR_CODES.MONGODB_SCHEMA_ERROR
-      else errorCode = JSONRPC_ERROR_CODES.MONGODB_QUERY_ERROR
-    } else if (error.message.includes('not found') || error.message.includes('does not exist')) {
+      switch(error.code) {
+        case 13:
+          errorCode = JSONRPC_ERROR_CODES.RESOURCE_ACCESS_DENIED; break
+        case 59: case 61:
+          errorCode = JSONRPC_ERROR_CODES.MONGODB_CONNECTION_ERROR; break
+        case 121:
+          errorCode = JSONRPC_ERROR_CODES.MONGODB_SCHEMA_ERROR; break
+        case 11000:
+          errorCode = JSONRPC_ERROR_CODES.MONGODB_DUPLICATE_KEY; break
+        case 112: case 16500:
+          errorCode = JSONRPC_ERROR_CODES.MONGODB_WRITE_ERROR; break
+        case 50: case 57:
+          errorCode = JSONRPC_ERROR_CODES.MONGODB_TIMEOUT_ERROR; break
+        default:
+          errorCode = JSONRPC_ERROR_CODES.MONGODB_QUERY_ERROR
+      }
+    } else if (error.message.match(/not found|does not exist|cannot find/i)) {
       errorCode = JSONRPC_ERROR_CODES.RESOURCE_NOT_FOUND
+    } else if (error.message.match(/already exists|duplicate/i)) {
+      errorCode = JSONRPC_ERROR_CODES.RESOURCE_ALREADY_EXISTS
+    } else if (error.message.match(/permission|access denied|unauthorized/i)) {
+      errorCode = JSONRPC_ERROR_CODES.RESOURCE_ACCESS_DENIED
+    } else if (error.message.match(/timeout|timed out/i)) {
+      errorCode = JSONRPC_ERROR_CODES.MONGODB_TIMEOUT_ERROR
     }
 
-    const errorResponse = {
+    return {
       content: [{
         type: 'text',
         text: formattedError
@@ -3163,11 +3154,12 @@ const withErrorHandling = async (operation, errorMessage, defaultValue = null) =
       error: {
         code: errorCode,
         message: error.message,
-        data: { type: error.name }
+        data: {
+          type: errorType,
+          details: error.code ? `MongoDB error code: ${error.code}` : undefined
+        }
       }
     }
-
-    return errorResponse
   }
 }
 
@@ -6007,18 +5999,26 @@ const confirmationTokens = {
 }
 
 const JSONRPC_ERROR_CODES = {
+  // Standard JSON-RPC error codes (keep for compatibility)
   PARSE_ERROR: -32700,
   INVALID_REQUEST: -32600,
   METHOD_NOT_FOUND: -32601,
   INVALID_PARAMS: -32602,
   INTERNAL_ERROR: -32603,
   SERVER_ERROR_START: -32000,
-  SERVER_ERROR_END: -32099,
+
+  // MongoDB-specific error codes (expanded)
   MONGODB_CONNECTION_ERROR: -32050,
   MONGODB_QUERY_ERROR: -32051,
   MONGODB_SCHEMA_ERROR: -32052,
+  MONGODB_WRITE_ERROR: -32053,
+  MONGODB_DUPLICATE_KEY: -32054,
+  MONGODB_TIMEOUT_ERROR: -32055,
+
+  // Resource-related error codes
   RESOURCE_NOT_FOUND: -32040,
-  RESOURCE_ACCESS_DENIED: -32041
+  RESOURCE_ACCESS_DENIED: -32041,
+  RESOURCE_ALREADY_EXISTS: -32042
 }
 
 const instructions = `

@@ -112,7 +112,6 @@
 
 - [Overview](#other-features-overview)
 - [New Database Metadata](#other-features-new-database-metadata)
-- [MongoDB Version Compatibility](#other-features-mongodb-version-compatibility)
 
 #### Other Features: Overview
 

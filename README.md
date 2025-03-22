@@ -112,18 +112,24 @@
 
 - [Overview](#other-features-overview)
 - [New Database Metadata](#other-features-new-database-metadata)
-- [MongoDB Version Compatibility](#other-features-mongodb-version-compatibility)
 
 #### Other Features: Overview
 
-MongoDB Lens includes several additional features:
+MongoDB Lens includes numerous other features:
 
-- **Configuration File**: Custom configuration via `~/.mongodb-lens.json`
-- **Connection Resilience**: Automatic reconnection with exponential backoff
-- **Component Disabling**: Selectively disable specific tools, prompts or resources
-- **JSONRPC Error Handling**: Comprehensive error handling with proper error codes
-- **Smart Caching**: Optimized caching for schemas, indexes, fields, collections and more
-- **Memory Management**: Automatic memory monitoring and cleanup for large operations
+- **[Config File](#configuration-config-file)**: Custom configuration via `~/.mongodb-lens.[jsonc|json]`
+- **[Env Var Overrides](#configuration-environment-variable-overrides)**: Override config settings via `process.env.CONFIG_*`
+- **[Confirmation System](#data-protection-confirmation-for-destructive-operations)**: Two-step verification for destructive operations
+- **[Multiple Connections](#configuration-multiple-mongodb-connections)**: Define and switch between named URI aliases
+- **[Component Disabling](#disabling-tools)**: Selectively disable tools, prompts or resources
+- **Connection Resilience**: Auto-reconnection with exponential backoff
+- **Query Safeguards**: Configurable limits and performance protections
+- **Error Handling**: Comprehensive JSONRPC error codes and messages
+- **Schema Inference**: Efficient schema analysis with intelligent sampling
+- **Credential Protection**: Connection string password obfuscation in logs
+- **Memory Management**: Auto-monitoring and cleanup for large operations
+- **Smart Caching**: Optimized caching for schema, indexes, fields and collections
+- **Backwards Compatible**: Support both modern and legacy MongoDB versions
 
 #### Other Features: New Database Metadata
 
@@ -171,10 +177,6 @@ Once you've added your own collections to your new database, you can safely remo
 
 - _"Drop the new database's metadata collection"_<br>
  <sup>➥ Uses `drop-collection` tool (with confirmation)</sup>
-
-#### Other Features: MongoDB Version Compatibility
-
-MongoDB Lens implements a backward compatibility layer to work reliably with both older MongoDB deployments and latest versions, providing consistent behavior without requiring version-specific configuration.
 
 ## Installation
 

@@ -35,78 +35,78 @@
 
 ### Tools
 
-- `aggregate-data`: Execute aggregation pipelines
-- `analyze-query-patterns`: Analyze live queries and suggest optimizations
-- `analyze-schema`: Automatically infer collection schemas
-- `bulk-operations`: Perform multiple operations efficiently ([requires confirmation](#data-protection-confirmation-for-destructive-operations) for destructive operations)
-- `collation-query`: Find documents with language-specific collation rules
-- `compare-schemas`: Compare schemas between two collections
-- `connect-mongodb`: Connect to a different MongoDB URI
-- `connect-original`: Connect back to the original MongoDB URI used at startup
-- `count-documents`: Count documents matching specified criteria
-- `create-collection`: Create new collections with custom options
-- `create-database`: Create a new database with option to switch to it
-- `create-index`: Create new indexes for performance optimization
-- `create-timeseries`: Create time series collections for temporal data
-- `create-user`: Create new database users with specific roles
-- `current-database`: Show the current database context
-- `delete-document`: Delete documents matching specified criteria ([requires confirmation](#data-protection-confirmation-for-destructive-operations))
-- `distinct-values`: Extract unique values for any field
-- `drop-collection`: Remove collections from the database ([requires confirmation](#data-protection-confirmation-for-destructive-operations))
-- `drop-database`: Drop a database ([requires confirmation](#data-protection-confirmation-for-destructive-operations))
-- `drop-index`: Remove indexes from collections ([requires confirmation](#data-protection-confirmation-for-destructive-operations))
-- `drop-user`: Remove database users ([requires confirmation](#data-protection-confirmation-for-destructive-operations))
-- `explain-query`: Analyze query execution plans
-- `export-data`: Export query results in JSON or CSV format
-- `find-documents`: Run queries with filters, projections, and sorting
-- `generate-schema-validator`: Generate JSON Schema validators
-- `geo-query`: Perform geospatial queries with various operators
-- `get-stats`: Retrieve database or collection statistics
-- `gridfs-operation`: Manage large files with GridFS buckets
-- `list-collections`: Explore collections in the current database
-- `list-connections`: View all available MongoDB connection aliases
-- `list-databases`: View all accessible databases
-- `map-reduce`: Run MapReduce operations for complex data processing
-- `modify-document`: Insert or update specific documents
-- `rename-collection`: Rename existing collections ([requires confirmation](#data-protection-confirmation-for-destructive-operations) when dropping targets)
-- `shard-status`: View sharding configuration for databases and collections
-- `text-search`: Perform full-text search across text-indexed fields
-- `transaction`: Execute multiple operations in a single ACID transaction
-- `use-database`: Switch to a specific database context
-- `validate-collection`: Check for data inconsistencies
-- `watch-changes`: Monitor real-time changes to collections
+- [`aggregate-data`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27aggregate-data%27%2C%2F): Execute aggregation pipelines
+- [`analyze-query-patterns`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27analyze-query-patterns%27%2C%2F): Analyze live queries and suggest optimizations
+- [`analyze-schema`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27analyze-schema%27%2C%2F): Automatically infer collection schemas
+- [`bulk-operations`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27bulk-operations%27%2C%2F): Perform multiple operations efficiently ([requires confirmation](#data-protection-confirmation-for-destructive-operations) for destructive operations)
+- [`collation-query`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27collation-query%27%2C%2F): Find documents with language-specific collation rules
+- [`compare-schemas`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27compare-schemas%27%2C%2F): Compare schemas between two collections
+- [`connect-mongodb`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27connect-mongodb%27%2C%2F): Connect to a different MongoDB URI
+- [`connect-original`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27connect-original%27%2C%2F): Connect back to the original MongoDB URI used at startup
+- [`count-documents`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27count-documents%27%2C%2F): Count documents matching specified criteria
+- [`create-collection`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27create-collection%27%2C%2F): Create new collections with custom options
+- [`create-database`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27create-database%27%2C%2F): Create a new database with option to switch to it
+- [`create-index`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27create-index%27%2C%2F): Create new indexes for performance optimization
+- [`create-timeseries`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27create-timeseries%27%2C%2F): Create time series collections for temporal data
+- [`create-user`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27create-user%27%2C%2F): Create new database users with specific roles
+- [`current-database`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27current-database%27%2C%2F): Show the current database context
+- [`delete-document`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27delete-document%27%2C%2F): Delete documents matching specified criteria ([requires confirmation](#data-protection-confirmation-for-destructive-operations))
+- [`distinct-values`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27distinct-values%27%2C%2F): Extract unique values for any field
+- [`drop-collection`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27drop-collection%27%2C%2F): Remove collections from the database ([requires confirmation](#data-protection-confirmation-for-destructive-operations))
+- [`drop-database`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27drop-database%27%2C%2F): Drop a database ([requires confirmation](#data-protection-confirmation-for-destructive-operations))
+- [`drop-index`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27drop-index%27%2C%2F): Remove indexes from collections ([requires confirmation](#data-protection-confirmation-for-destructive-operations))
+- [`drop-user`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27drop-user%27%2C%2F): Remove database users ([requires confirmation](#data-protection-confirmation-for-destructive-operations))
+- [`explain-query`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27explain-query%27%2C%2F): Analyze query execution plans
+- [`export-data`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27export-data%27%2C%2F): Export query results in JSON or CSV format
+- [`find-documents`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27find-documents%27%2C%2F): Run queries with filters, projections, and sorting
+- [`generate-schema-validator`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27generate-schema-validator%27%2C%2F): Generate JSON Schema validators
+- [`geo-query`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27geo-query%27%2C%2F): Perform geospatial queries with various operators
+- [`get-stats`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27get-stats%27%2C%2F): Retrieve database or collection statistics
+- [`gridfs-operation`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27gridfs-operation%27%2C%2F): Manage large files with GridFS buckets
+- [`list-collections`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27list-collections%27%2C%2F): Explore collections in the current database
+- [`list-connections`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27list-connections%27%2C%2F): View all available MongoDB connection aliases
+- [`list-databases`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27list-databases%27%2C%2F): View all accessible databases
+- [`map-reduce`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27map-reduce%27%2C%2F): Run MapReduce operations for complex data processing
+- [`modify-document`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27modify-document%27%2C%2F): Insert or update specific documents
+- [`rename-collection`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27rename-collection%27%2C%2F): Rename existing collections ([requires confirmation](#data-protection-confirmation-for-destructive-operations) when dropping targets)
+- [`shard-status`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27shard-status%27%2C%2F): View sharding configuration for databases and collections
+- [`text-search`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27text-search%27%2C%2F): Perform full-text search across text-indexed fields
+- [`transaction`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27transaction%27%2C%2F): Execute multiple operations in a single ACID transaction
+- [`use-database`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27use-database%27%2C%2F): Switch to a specific database context
+- [`validate-collection`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27validate-collection%27%2C%2F): Check for data inconsistencies
+- [`watch-changes`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27watch-changes%27%2C%2F): Monitor real-time changes to collections
 
 ### Resources
 
-- `collection-indexes`: Index information for a collection
-- `collection-schema`: Schema information for a collection
-- `collection-stats`: Performance statistics for a collection
-- `collection-validation`: Validation rules for a collection
-- `collections`: List of collections in the current database
-- `database-triggers`: Database change streams and event triggers configuration
-- `database-users`: Database users and roles in the current database
-- `databases`: List of all accessible databases
-- `performance-metrics`: Real-time performance metrics and profiling data
-- `replica-status`: Replica set status and configuration
-- `server-status`: Server status information
-- `stored-functions`: Stored JavaScript functions in the current database
+- [`collection-indexes`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.resource%5C%28%5Cs*%27collection-indexes%27%2C%2F): Index information for a collection
+- [`collection-schema`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.resource%5C%28%5Cs*%27collection-schema%27%2C%2F): Schema information for a collection
+- [`collection-stats`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.resource%5C%28%5Cs*%27collection-stats%27%2C%2F): Performance statistics for a collection
+- [`collection-validation`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.resource%5C%28%5Cs*%27collection-validation%27%2C%2F): Validation rules for a collection
+- [`collections`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.resource%5C%28%5Cs*%27collections%27%2C%2F): List of collections in the current database
+- [`database-triggers`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.resource%5C%28%5Cs*%27database-triggers%27%2C%2F): Database change streams and event triggers configuration
+- [`database-users`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.resource%5C%28%5Cs*%27database-users%27%2C%2F): Database users and roles in the current database
+- [`databases`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.resource%5C%28%5Cs*%27databases%27%2C%2F): List of all accessible databases
+- [`performance-metrics`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.resource%5C%28%5Cs*%27performance-metrics%27%2C%2F): Real-time performance metrics and profiling data
+- [`replica-status`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.resource%5C%28%5Cs*%27replica-status%27%2C%2F): Replica set status and configuration
+- [`server-status`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.resource%5C%28%5Cs*%27server-status%27%2C%2F): Server status information
+- [`stored-functions`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.resource%5C%28%5Cs*%27stored-functions%27%2C%2F): Stored JavaScript functions in the current database
 
 ### Prompts
 
-- `aggregation-builder`: Step-by-step creation of aggregation pipelines
-- `backup-strategy`: Customized backup and recovery recommendations
-- `data-modeling`: Expert advice on MongoDB schema design for specific use cases
-- `database-health-check`: Comprehensive database health assessment and recommendations
-- `index-recommendation`: Get personalized index suggestions based on query patterns
-- `migration-guide`: Step-by-step MongoDB version migration plans
-- `mongo-shell`: Generate MongoDB shell commands with explanations
-- `multi-tenant-design`: Design MongoDB multi-tenant database architecture
-- `query-builder`: Interactive guidance for constructing MongoDB queries
-- `query-optimizer`: Optimization recommendations for slow queries
-- `schema-analysis`: Detailed collection schema analysis with recommendations
-- `schema-versioning`: Manage schema evolution in MongoDB applications
-- `security-audit`: Database security analysis and improvement recommendations
-- `sql-to-mongodb`: Convert SQL queries to MongoDB aggregation pipelines
+- [`aggregation-builder`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.prompt%5C%28%5Cs*%27aggregation-builder%27%2C%2F): Step-by-step creation of aggregation pipelines
+- [`backup-strategy`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.prompt%5C%28%5Cs*%27backup-strategy%27%2C%2F): Customized backup and recovery recommendations
+- [`data-modeling`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.prompt%5C%28%5Cs*%27data-modeling%27%2C%2F): Expert advice on MongoDB schema design for specific use cases
+- [`database-health-check`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.prompt%5C%28%5Cs*%27database-health-check%27%2C%2F): Comprehensive database health assessment and recommendations
+- [`index-recommendation`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.prompt%5C%28%5Cs*%27index-recommendation%27%2C%2F): Get personalized index suggestions based on query patterns
+- [`migration-guide`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.prompt%5C%28%5Cs*%27migration-guide%27%2C%2F): Step-by-step MongoDB version migration plans
+- [`mongo-shell`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.prompt%5C%28%5Cs*%27mongo-shell%27%2C%2F): Generate MongoDB shell commands with explanations
+- [`multi-tenant-design`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.prompt%5C%28%5Cs*%27multi-tenant-design%27%2C%2F): Design MongoDB multi-tenant database architecture
+- [`query-builder`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.prompt%5C%28%5Cs*%27query-builder%27%2C%2F): Interactive guidance for constructing MongoDB queries
+- [`query-optimizer`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.prompt%5C%28%5Cs*%27query-optimizer%27%2C%2F): Optimization recommendations for slow queries
+- [`schema-analysis`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.prompt%5C%28%5Cs*%27schema-analysis%27%2C%2F): Detailed collection schema analysis with recommendations
+- [`schema-versioning`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.prompt%5C%28%5Cs*%27schema-versioning%27%2C%2F): Manage schema evolution in MongoDB applications
+- [`security-audit`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.prompt%5C%28%5Cs*%27security-audit%27%2C%2F): Database security analysis and improvement recommendations
+- [`sql-to-mongodb`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.prompt%5C%28%5Cs*%27sql-to-mongodb%27%2C%2F): Convert SQL queries to MongoDB aggregation pipelines
 
 ### Other Features
 

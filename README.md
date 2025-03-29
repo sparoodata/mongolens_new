@@ -887,7 +887,8 @@ These tools can modify data but typically don't cause immediate data loss:
 
 - `create-user`: Creates users with permissions that could enable further changes
 - `transaction`: Executes multiple operations in a transaction (potential for complex changes)
-- `modify-document`: Inserts or updates documents which could overwrite existing data
+- `insert-document`: Inserts documents which could overwrite existing data
+- `update-document`: Updates documents which could overwrite existing data
 
 #### Read-Only Configuration
 
@@ -1036,10 +1037,10 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
   <sup>➥ Uses `list-collections` tool</sup>
 - _"Create a new collection named user_logs"_<br>
   <sup>➥ Uses `create-collection` tool</sup>
-- _"Drop the user_logs collection"_<br>
-  <sup>➥ Uses `drop-collection` tool (with confirmation)</sup>
 - _"Rename the user_logs collection to system_logs"_<br>
   <sup>➥ Uses `rename-collection` tool</sup>
+- _"Drop the system_logs collection"_<br>
+  <sup>➥ Uses `drop-collection` tool (with confirmation)</sup>
 - _"Check the data consistency in the movies collection"_<br>
   <sup>➥ Uses `validate-collection` tool</sup>
 

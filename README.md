@@ -64,15 +64,16 @@
 - [`geo-query`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27geo-query%27%2C%2F): Perform geospatial queries with various operators
 - [`get-stats`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27get-stats%27%2C%2F): Retrieve database or collection statistics
 - [`gridfs-operation`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27gridfs-operation%27%2C%2F): Manage large files with GridFS buckets
+- [`insert-document`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27insert-document%27%2C%2F): Insert documents into collections
 - [`list-collections`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27list-collections%27%2C%2F): Explore collections in the current database
 - [`list-connections`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27list-connections%27%2C%2F): View all available MongoDB connection aliases
 - [`list-databases`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27list-databases%27%2C%2F): View all accessible databases
 - [`map-reduce`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27map-reduce%27%2C%2F): Run MapReduce operations for complex data processing
-- [`modify-document`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27modify-document%27%2C%2F): Insert or update specific documents
 - [`rename-collection`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27rename-collection%27%2C%2F): Rename existing collections ([requires confirmation](#data-protection-confirmation-for-destructive-operations) when dropping targets)
 - [`shard-status`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27shard-status%27%2C%2F): View sharding configuration for databases and collections
 - [`text-search`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27text-search%27%2C%2F): Perform full-text search across text-indexed fields
 - [`transaction`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27transaction%27%2C%2F): Execute multiple operations in a single ACID transaction
+- [`update-document`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27update-document%27%2C%2F): Update documents matching specified criteria
 - [`use-database`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27use-database%27%2C%2F): Switch to a specific database context
 - [`validate-collection`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27validate-collection%27%2C%2F): Check for data inconsistencies
 - [`watch-changes`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27watch-changes%27%2C%2F): Monitor real-time changes to collections
@@ -903,8 +904,9 @@ For a complete read-only configuration, disable all potentially destructive tool
       "create-index",
       "drop-database",
       "drop-collection",
+      "insert-document",
+      "update-document",
       "delete-document",
-      "modify-document",
       "bulk-operations",
       "create-database",
       "gridfs-operation",
@@ -1077,9 +1079,9 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 #### Example Queries: Data Modification
 
 - _"Insert a new movie document"_<br>
-  <sup>➥ Uses `modify-document` tool (insert operation)</sup>
+  <sup>➥ Uses `insert-document` tool</sup>
 - _"Update all movies from 1994 to add a 'classic' flag"_<br>
-  <sup>➥ Uses `modify-document` tool (update operation)</sup>
+  <sup>➥ Uses `update-document` tool</sup>
 - _"Delete all movies with zero ratings"_<br>
   <sup>➥ Uses `delete-document` tool (with confirmation)</sup>
 - _"Run these bulk operations on the movies collection"_<br>

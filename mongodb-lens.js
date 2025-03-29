@@ -1978,56 +1978,82 @@ const registerTools = (server) => {
     )
   }
 
-  if (!isDisabled('tools', 'modify-document')) {
+  if (!isDisabled('tools', 'insert-document')) {
     server.tool(
-      'modify-document',
-      'Insert or update specific documents',
+      'insert-document',
+      'Insert a document into a collection',
       {
         collection: z.string().min(1).describe('Collection name'),
-        operation: z.enum(['insert', 'update']).describe('Operation type'),
-        document: z.string().optional().describe('Document as JSON string (for insert)'),
-        filter: z.string().optional().describe('Filter as JSON string (for update)'),
-        update: z.string().optional().describe('Update operations as JSON string (for update)'),
+        document: z.string().describe('Document as JSON string'),
         options: z.string().optional().describe('Options as JSON string')
       },
-      async ({ collection, operation, document, filter, update, options }) => {
+      async ({ collection, document, options }) => {
         try {
-          log(`Tool: Modifying documents in collection '${collection}' with operation '${operation}'…`)
+          log(`Tool: Inserting document into collection '${collection}'…`)
 
-          let result
+          if (!document) throw new Error('Document is required for insert operation')
+          const parsedDocument = JSON.parse(document)
           const parsedOptions = options ? JSON.parse(options) : {}
 
-          if (operation === 'insert') {
-            if (!document) throw new Error('Document is required for insert operation')
-            const parsedDocument = JSON.parse(document)
-            result = await insertDocument(collection, parsedDocument, parsedOptions)
-            log(`Tool: Document inserted successfully.`)
-            return {
-              content: [{
-                type: 'text',
-                text: formatModifyResult(operation, result)
-              }]
-            }
-          } else if (operation === 'update') {
-            if (!filter) throw new Error('Filter is required for update operation')
-            if (!update) throw new Error('Update is required for update operation')
-            const parsedFilter = JSON.parse(filter)
-            const parsedUpdate = JSON.parse(update)
-            result = await updateDocument(collection, parsedFilter, parsedUpdate, parsedOptions)
-            log(`Tool: Document(s) updated successfully.`)
-            return {
-              content: [{
-                type: 'text',
-                text: formatModifyResult(operation, result)
-              }]
-            }
-          }
-        } catch (error) {
-          console.error(`Error in ${operation} operation:`, error)
+          const result = await insertDocument(collection, parsedDocument, parsedOptions)
+          log(`Tool: Document inserted successfully.`)
+
           return {
             content: [{
               type: 'text',
-              text: `Error in ${operation} operation: ${error.message}`
+              text: formatInsertResult(result)
+            }]
+          }
+        } catch (error) {
+          console.error(`Error inserting document:`, error)
+          return {
+            content: [{
+              type: 'text',
+              text: `Error inserting document: ${error.message}`
+            }],
+            isError: true
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'update-document')) {
+    server.tool(
+      'update-document',
+      'Update specific documents in a collection',
+      {
+        collection: z.string().min(1).describe('Collection name'),
+        filter: z.string().describe('Filter as JSON string'),
+        update: z.string().describe('Update operations as JSON string'),
+        options: z.string().optional().describe('Options as JSON string')
+      },
+      async ({ collection, filter, update, options }) => {
+        try {
+          log(`Tool: Updating documents in collection '${collection}'…`)
+
+          if (!filter) throw new Error('Filter is required for update operation')
+          if (!update) throw new Error('Update is required for update operation')
+
+          const parsedFilter = JSON.parse(filter)
+          const parsedUpdate = JSON.parse(update)
+          const parsedOptions = options ? JSON.parse(options) : {}
+
+          const result = await updateDocument(collection, parsedFilter, parsedUpdate, parsedOptions)
+          log(`Tool: Document(s) updated successfully.`)
+
+          return {
+            content: [{
+              type: 'text',
+              text: formatUpdateResult(result)
+            }]
+          }
+        } catch (error) {
+          console.error(`Error updating document:`, error)
+          return {
+            content: [{
+              type: 'text',
+              text: `Error updating document: ${error.message}`
             }],
             isError: true
           }
@@ -4714,34 +4740,27 @@ const formatValidationResults = (results) => {
   return result
 }
 
-const formatModifyResult = (operation, result) => {
-  if (!result) return `${operation} operation result not available`
+const formatInsertResult = (result) => {
+  if (!result) return 'Insert operation result not available'
 
-  let output = ''
+  let output = 'Document inserted successfully\n'
+  output += `- ID: ${result.insertedId}\n`
+  output += `- Acknowledged: ${result.acknowledged}\n`
 
-  switch (operation) {
-    case 'insert':
-      output = `Document inserted successfully\n`
-      output += `- ID: ${result.insertedId}\n`
-      output += `- Acknowledged: ${result.acknowledged}\n`
-      break
-    case 'update':
-      output = `Document update operation complete\n`
-      output += `- Matched: ${result.matchedCount}\n`
-      output += `- Modified: ${result.modifiedCount}\n`
-      output += `- Acknowledged: ${result.acknowledged}\n`
-      if (result.upsertedId) {
-        output += `- Upserted ID: ${result.upsertedId}\n`
-      }
-      break
-    case 'delete':
-      output = `Document delete operation complete\n`
-      output += `- Deleted: ${result.deletedCount}\n`
-      output += `- Acknowledged: ${result.acknowledged}\n`
-      break
-    default:
-      output = `Operation ${operation} completed\n`
-      output += JSON.stringify(result, null, 2)
+  return output
+}
+
+// Format function for update results
+const formatUpdateResult = (result) => {
+  if (!result) return 'Update operation result not available'
+
+  let output = 'Document update operation complete\n'
+  output += `- Matched: ${result.matchedCount}\n`
+  output += `- Modified: ${result.modifiedCount}\n`
+  output += `- Acknowledged: ${result.acknowledged}\n`
+
+  if (result.upsertedId) {
+    output += `- Upserted ID: ${result.upsertedId}\n`
   }
 
   return output
@@ -6068,34 +6087,34 @@ MongoDB-Lens: NL→MongoDB via MCP
 CAPS:
 - DB: list/create/switch/drop
 - COLL: create/rename/drop/validate
-- DOC: find/count/insert/update/delete
+- DOC: find/count/insert-doc/update-doc/delete
 - SCH: infer/validate/compare/analyze
 - IDX: create/analyze/optimize
 - AGG: pipeline/mapreduce/distinct
 - PERF: explain/analyze/monitor
 - ADV: text/geo/timeseries/bulk/txn/gridfs/sharding/export
-- CONN: connect-mongodb{uri|alias}/add-connection-alias/list-connections/connect-original
+- CONN: connect-mongodb{uri|alias}/add-alias/list/connect-original
 
 PTRNS:
 - DB_NAV: databases→use-database→collections
-- QRY: find-documents/count-documents/distinct-values
-- MOD: modify-document/delete-document/bulk-operations
+- QRY: find-docs/count-docs/distinct-values
+- MOD: insert-doc/update-doc/delete-doc/bulk-ops
 - SCH: collection-schema/analyze-schema/compare-schemas
-- OPT: explain-query/analyze-query-patterns/create-index
+- OPT: explain-query/analyze-patterns/create-index
 - AGG: aggregate-data/map-reduce
 - MON: server-status/performance-metrics/watch-changes
-- CONN: add-connection-alias→connect-mongodb→database-operations→connect-original
+- CONN: add-alias→connect-mongodb→db-ops→connect-original
 
 FLOWS:
-1. NAV: list-databases→use-database→list-collections
-2. QRY: find-documents{filter,project,sort}
-3. MOD: modify-document{insert|update}
-4. SCH: analyze-schema→generate-schema-validator
+1. NAV: list-dbs→use-db→list-collections
+2. QRY: find-docs{filter,project,sort}
+3. MOD: insert-doc/update-doc
+4. SCH: analyze-schema→generate-validator
 5. PERF: explain-query→analyze-patterns→create-index
 6. AGG: aggregate-data{multi-stage}
-7. BULK: bulk-operations{batch}
+7. BULK: bulk-ops{batch}
 8. TXN: transaction{atomic}
-9. CONN: add-connection-alias→connect-mongodb{uri|alias}→operations→connect-original
+9. CONN: add-alias→connect-mongodb{uri|alias}→ops→connect-original
 
 SAFE: destructive ops require confirmation tokens
 

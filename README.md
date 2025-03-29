@@ -1087,6 +1087,9 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 - _"Run these bulk operations on the movies collection"_<br>
   <sup>➥ Uses `bulk-operations` tool</sup>
 
+> [!TIP]<br>
+> For specialized MongoDB operations (like array operations, bitwise operations, or other complex updates), use MongoDB's native operators via the `update-document` tool's `update` and `options` parameters.
+
 #### Example Queries: Performance & Index Management
 
 - _"Create an index on the title field in the movies collection"_<br>

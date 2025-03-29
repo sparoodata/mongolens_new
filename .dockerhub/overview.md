@@ -29,7 +29,7 @@ docker run --rm -i --network=host furey/mongodb-lens
 docker run --rm -i --network=host furey/mongodb-lens mongodb://username:password@hostname:27017/database
 
 # With verbose logging
-docker run --rm -i --network=host -e VERBOSE_LOGGING=true furey/mongodb-lens
+docker run --rm -i --network=host -e CONFIG_LOG_LEVEL='verbose' furey/mongodb-lens
 ```
 
 ## Links

@@ -887,7 +887,6 @@ These tools can modify data but typically don't cause immediate data loss:
 
 - `create-user`: Creates users with permissions that could enable further changes
 - `transaction`: Executes multiple operations in a transaction (potential for complex changes)
-- `insert-document`: Inserts documents which could overwrite existing data
 - `update-document`: Updates documents which could overwrite existing data
 
 #### Read-Only Configuration

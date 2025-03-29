@@ -1988,17 +1988,17 @@ const registerTools = (server) => {
         options: z.string().optional().describe('Options as JSON string (including "ordered" for multiple documents)')
       },
       async ({ collection, document, options }) => {
-        try {
+        return withErrorHandling(async () => {
           log(`Tool: Inserting document(s) into collection '${collection}'…`)
 
           if (!document) throw new Error('Document is required for insert operation')
           const parsedDocument = JSON.parse(document)
           const parsedOptions = options ? JSON.parse(options) : {}
 
-          if (Array.isArray(parsedDocument)) {
-            const result = await collection.insertMany(parsedDocument, parsedOptions)
-            log(`Tool: Successfully inserted ${result.insertedCount} documents.`)
+          const result = await insertDocument(collection, parsedDocument, parsedOptions)
 
+          if (Array.isArray(parsedDocument)) {
+            log(`Tool: Successfully inserted ${result.insertedCount} documents.`)
             return {
               content: [{
                 type: 'text',
@@ -2010,9 +2010,7 @@ const registerTools = (server) => {
               }]
             }
           } else {
-            const result = await collection.insertOne(parsedDocument, parsedOptions)
             log(`Tool: Document inserted successfully.`)
-
             return {
               content: [{
                 type: 'text',
@@ -2020,16 +2018,7 @@ const registerTools = (server) => {
               }]
             }
           }
-        } catch (error) {
-          log(`Error inserting document(s): ${error.message}`, true)
-          return {
-            content: [{
-              type: 'text',
-              text: `Error inserting document(s): ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, `Error inserting document(s) into collection '${collection}'`)
       }
     )
   }
@@ -3636,9 +3625,48 @@ const countDocuments = async (collectionName, filter = {}) => {
 }
 
 const insertDocument = async (collectionName, document, options = {}) => {
-  log(`DB Operation: Inserting document into collection '${collectionName}'…`)
+  log(`DB Operation: Inserting document(s) into collection '${collectionName}'…`)
   try {
     const collection = currentDb.collection(collectionName)
+
+    if (Array.isArray(document)) {
+      const result = await collection.insertMany(document, options)
+
+      if (result && result.ops && Array.isArray(result.ops)) {
+        return {
+          acknowledged: true,
+          insertedCount: result.insertedCount || result.ops.length,
+          insertedIds: result.insertedIds || result.ops.reduce((ids, doc, i) => {
+            ids[i] = doc._id || 'unknown'
+            return ids
+          }, {})
+        }
+      }
+
+      if (result === document.length || result === true) return {
+        acknowledged: true,
+        insertedCount: document.length,
+        insertedIds: document.reduce((ids, doc, i) => {
+          ids[i] = doc._id || 'unknown'
+          return ids
+        }, {})
+      }
+
+      if (result && typeof result.insertedCount === 'number') return result
+
+      if (result && result.result && result.result.ok === 1) return {
+        acknowledged: true,
+        insertedCount: result.result.n || document.length,
+        insertedIds: result.insertedIds || {}
+      }
+
+      return {
+        acknowledged: true,
+        insertedCount: document.length,
+        insertedIds: {}
+      }
+    }
+
     const result = await collection.insertOne(document, options)
 
     if (result === 1 || result === true) return { acknowledged: true, insertedId: document._id || 'unknown' }

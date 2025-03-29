@@ -64,7 +64,7 @@
 - [`geo-query`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27geo-query%27%2C%2F): Perform geospatial queries with various operators
 - [`get-stats`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27get-stats%27%2C%2F): Retrieve database or collection statistics
 - [`gridfs-operation`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27gridfs-operation%27%2C%2F): Manage large files with GridFS buckets
-- [`insert-document`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27insert-document%27%2C%2F): Insert documents into collections
+- [`insert-document`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27insert-document%27%2C%2F): Insert one or more documents into collections
 - [`list-collections`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27list-collections%27%2C%2F): Explore collections in the current database
 - [`list-connections`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27list-connections%27%2C%2F): View all available MongoDB connection aliases
 - [`list-databases`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27list-databases%27%2C%2F): View all accessible databases

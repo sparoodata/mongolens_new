@@ -1981,35 +1981,51 @@ const registerTools = (server) => {
   if (!isDisabled('tools', 'insert-document')) {
     server.tool(
       'insert-document',
-      'Insert a document into a collection',
+      'Insert one or multiple documents into a collection',
       {
         collection: z.string().min(1).describe('Collection name'),
-        document: z.string().describe('Document as JSON string'),
-        options: z.string().optional().describe('Options as JSON string')
+        document: z.string().describe('Document as JSON string or array of documents'),
+        options: z.string().optional().describe('Options as JSON string (including "ordered" for multiple documents)')
       },
       async ({ collection, document, options }) => {
         try {
-          log(`Tool: Inserting document into collection '${collection}'…`)
+          log(`Tool: Inserting document(s) into collection '${collection}'…`)
 
           if (!document) throw new Error('Document is required for insert operation')
           const parsedDocument = JSON.parse(document)
           const parsedOptions = options ? JSON.parse(options) : {}
 
-          const result = await insertDocument(collection, parsedDocument, parsedOptions)
-          log(`Tool: Document inserted successfully.`)
+          if (Array.isArray(parsedDocument)) {
+            const result = await collection.insertMany(parsedDocument, parsedOptions)
+            log(`Tool: Successfully inserted ${result.insertedCount} documents.`)
 
-          return {
-            content: [{
-              type: 'text',
-              text: formatInsertResult(result)
-            }]
+            return {
+              content: [{
+                type: 'text',
+                text: `Successfully inserted ${result.insertedCount} documents.\n\nInserted IDs: ${
+                  Object.values(result.insertedIds || {})
+                    .map(id => id.toString())
+                    .join(', ')
+                }`
+              }]
+            }
+          } else {
+            const result = await collection.insertOne(parsedDocument, parsedOptions)
+            log(`Tool: Document inserted successfully.`)
+
+            return {
+              content: [{
+                type: 'text',
+                text: formatInsertResult(result)
+              }]
+            }
           }
         } catch (error) {
-          console.error(`Error inserting document:`, error)
+          log(`Error inserting document(s): ${error.message}`, true)
           return {
             content: [{
               type: 'text',
-              text: `Error inserting document: ${error.message}`
+              text: `Error inserting document(s): ${error.message}`
             }],
             isError: true
           }

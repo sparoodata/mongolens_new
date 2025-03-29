@@ -35,6 +35,7 @@
 
 ### Tools
 
+- [`add-connection-alias`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27add-connection-alias%27%2C%2F): Add a new MongoDB connection alias
 - [`aggregate-data`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27aggregate-data%27%2C%2F): Execute aggregation pipelines
 - [`analyze-query-patterns`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27analyze-query-patterns%27%2C%2F): Analyze live queries and suggest optimizations
 - [`analyze-schema`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27analyze-schema%27%2C%2F): Automatically infer collection schemas
@@ -176,7 +177,7 @@ This `metadata` collection stores a single document containing contextual inform
 Once you've added your own collections to your new database, you can safely remove the `metadata` collection via the `drop-collection` tool:
 
 - _"Drop the new database's metadata collection"_<br>
- <sup>➥ Uses `drop-collection` tool (with confirmation)</sup>
+  <sup>➥ Uses `drop-collection` tool (with confirmation)</sup>
 
 ## Installation
 
@@ -534,6 +535,9 @@ With this configuration:
 
 > [!NOTE]<br>
 > When using the command-line argument to specify a connection, you can use either a full MongoDB URI or an alias defined in your configuration file.
+
+> [!TIP]<br>
+> To add connection aliases at runtime, use the `add-connection-alias` tool.
 
 ### Configuration: Environment Variable Overrides
 
@@ -1012,122 +1016,124 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 #### Example Queries: Basic Database Operations
 
 - _"List all available databases"_<br>
- <sup>➥ Uses `list-databases` tool</sup>
+  <sup>➥ Uses `list-databases` tool</sup>
 - _"What database am I currently using?"_<br>
- <sup>➥ Uses `current-database` tool</sup>
+  <sup>➥ Uses `current-database` tool</sup>
 - _"Switch to the sample_mflix database"_<br>
- <sup>➥ Uses `use-database` tool</sup>
+  <sup>➥ Uses `use-database` tool</sup>
 - _"Create a new database called test_db"_<br>
- <sup>➥ Uses `create-database` tool</sup>
+  <sup>➥ Uses `create-database` tool</sup>
 - _"Create another database called analytics_db and switch to it"_<br>
- <sup>➥ Uses `create-database` tool with switch=true</sup>
+  <sup>➥ Uses `create-database` tool with switch=true</sup>
 - _"Drop the test_db database"_<br>
- <sup>➥ Uses `drop-database` tool (with confirmation)</sup>
+  <sup>➥ Uses `drop-database` tool (with confirmation)</sup>
 
 #### Example Queries: Collection Management
 
 - _"What collections are in the current database?"_<br>
- <sup>➥ Uses `list-collections` tool</sup>
+  <sup>➥ Uses `list-collections` tool</sup>
 - _"Create a new collection named user_logs"_<br>
- <sup>➥ Uses `create-collection` tool</sup>
+  <sup>➥ Uses `create-collection` tool</sup>
 - _"Drop the user_logs collection"_<br>
- <sup>➥ Uses `drop-collection` tool (with confirmation)</sup>
+  <sup>➥ Uses `drop-collection` tool (with confirmation)</sup>
 - _"Rename the user_logs collection to system_logs"_<br>
- <sup>➥ Uses `rename-collection` tool</sup>
+  <sup>➥ Uses `rename-collection` tool</sup>
 - _"Check the data consistency in the movies collection"_<br>
- <sup>➥ Uses `validate-collection` tool</sup>
+  <sup>➥ Uses `validate-collection` tool</sup>
 
 #### Example Queries: User Management
 
 - _"Create a read-only user for analytics"_<br>
- <sup>➥ Uses `create-user` tool</sup>
+  <sup>➥ Uses `create-user` tool</sup>
 - _"Drop the inactive_user account"_<br>
- <sup>➥ Uses `drop-user` tool (with confirmation)</sup>
+  <sup>➥ Uses `drop-user` tool (with confirmation)</sup>
 
 #### Example Queries: Querying Data
 
 - _"Count all documents in the movies collection"_<br>
- <sup>➥ Uses `count-documents` tool</sup>
+  <sup>➥ Uses `count-documents` tool</sup>
 - _"Find the top 5 movies with the highest IMDB rating"_<br>
- <sup>➥ Uses `find-documents` tool</sup>
+  <sup>➥ Uses `find-documents` tool</sup>
 - _"Show me aggregate data for movies grouped by decade"_<br>
- <sup>➥ Uses `aggregate-data` tool</sup>
+  <sup>➥ Uses `aggregate-data` tool</sup>
 - _"List all unique countries where movies were produced"_<br>
- <sup>➥ Uses `distinct-values` tool</sup>
+  <sup>➥ Uses `distinct-values` tool</sup>
 - _"Search for movies containing 'godfather' in their title"_<br>
- <sup>➥ Uses `text-search` tool</sup>
+  <sup>➥ Uses `text-search` tool</sup>
 - _"Find German users with last name 'müller' using proper collation"_<br>
- <sup>➥ Uses `collation-query` tool</sup>
+  <sup>➥ Uses `collation-query` tool</sup>
 
 #### Example Queries: Schema Analysis
 
 - _"What's the schema structure of the movies collection?"_<br>
- <sup>➥ Uses `analyze-schema` tool</sup>
+  <sup>➥ Uses `analyze-schema` tool</sup>
 - _"Compare the schema between users and comments collections"_<br>
- <sup>➥ Uses `compare-schemas` tool</sup>
+  <sup>➥ Uses `compare-schemas` tool</sup>
 - _"Generate a JSON schema validator for the movies collection"_<br>
- <sup>➥ Uses `generate-schema-validator` tool</sup>
+  <sup>➥ Uses `generate-schema-validator` tool</sup>
 - _"Analyze common query patterns for the movies collection"_<br>
- <sup>➥ Uses `analyze-query-patterns` tool</sup>
+  <sup>➥ Uses `analyze-query-patterns` tool</sup>
 
 #### Example Queries: Data Modification
 
 - _"Insert a new movie document"_<br>
- <sup>➥ Uses `modify-document` tool (insert operation)</sup>
+  <sup>➥ Uses `modify-document` tool (insert operation)</sup>
 - _"Update all movies from 1994 to add a 'classic' flag"_<br>
- <sup>➥ Uses `modify-document` tool (update operation)</sup>
+  <sup>➥ Uses `modify-document` tool (update operation)</sup>
 - _"Delete all movies with zero ratings"_<br>
- <sup>➥ Uses `delete-document` tool (with confirmation)</sup>
+  <sup>➥ Uses `delete-document` tool (with confirmation)</sup>
 - _"Run these bulk operations on the movies collection"_<br>
- <sup>➥ Uses `bulk-operations` tool</sup>
+  <sup>➥ Uses `bulk-operations` tool</sup>
 
 #### Example Queries: Performance & Index Management
 
 - _"Create an index on the title field in the movies collection"_<br>
- <sup>➥ Uses `create-index` tool</sup>
+  <sup>➥ Uses `create-index` tool</sup>
 - _"Drop the unused ratings_idx index"_<br>
- <sup>➥ Uses `drop-index` tool (with confirmation)</sup>
+  <sup>➥ Uses `drop-index` tool (with confirmation)</sup>
 - _"Explain the execution plan for finding movies from 1995"_<br>
- <sup>➥ Uses `explain-query` tool</sup>
+  <sup>➥ Uses `explain-query` tool</sup>
 - _"Get statistics for the current database"_<br>
- <sup>➥ Uses `get-stats` tool (database target)</sup>
+  <sup>➥ Uses `get-stats` tool (database target)</sup>
 - _"Show collection stats for the movies collection"_<br>
- <sup>➥ Uses `get-stats` tool (collection target)</sup>
+  <sup>➥ Uses `get-stats` tool (collection target)</sup>
 
 #### Example Queries: Geospatial & Special Operations
 
 - _"Switch to sample_geospatial database, then find all shipwrecks within 10km of coordinates [-80.12, 26.46]"_<br>
- <sup>➥ Uses `geo-query` tool</sup>
+  <sup>➥ Uses `geo-query` tool</sup>
 - _"Switch to sample_mflix database, then run this Map-Reduce to calculate movie counts by year with map `'function () { emit(this.year, 1) }'` and reduce `'function (key, values) { return Array.sum(values) }'`"_<br>
- <sup>➥ Uses `map-reduce` tool</sup>
+  <sup>➥ Uses `map-reduce` tool</sup>
 - _"Switch to sample_analytics database, then execute a transaction to move funds between accounts"_<br>
- <sup>➥ Uses `transaction` tool</sup>
+  <sup>➥ Uses `transaction` tool</sup>
 - _"Create a time series collection for sensor readings"_<br>
- <sup>➥ Uses `create-timeseries` tool</sup>
+  <sup>➥ Uses `create-timeseries` tool</sup>
 - _"Watch for changes in the users collection for 30 seconds"_<br>
- <sup>➥ Uses `watch-changes` tool</sup>
+  <sup>➥ Uses `watch-changes` tool</sup>
 - _"List all files in the images GridFS bucket"_<br>
- <sup>➥ Uses `gridfs-operation` tool (list operation)</sup>
+  <sup>➥ Uses `gridfs-operation` tool (list operation)</sup>
 
 #### Example Queries: Export, Administrative & Other Features
 
 - _"Switch to sample_mflix database, then export the top 20 movies based on 'tomatoes.critic.rating' as a CSV with title, year and rating fields, output as raw csv text in a single code block"_<br>
- <sup>➥ Uses `export-data` tool</sup>
+  <sup>➥ Uses `export-data` tool</sup>
 - _"Switch to sample_analytics database, then check its sharding status"_<br>
- <sup>➥ Uses `shard-status` tool</sup>
+  <sup>➥ Uses `shard-status` tool</sup>
 - _"Switch to sample_weatherdata database, and generate an interactive report on its current state"_<br>
   <sup>➥ Uses numerous tools</sup>
 
 #### Example Queries: Connection Management
 
 - _"Connect to a different MongoDB server at mongodb://localhost:27018"_<br>
- <sup>➥ Uses `connect-mongodb` tool</sup>
+  <sup>➥ Uses `connect-mongodb` tool</sup>
 - _"Connect to MongoDB Atlas instance at mongodb+srv://username:password@cluster.mongodb.net/mydb"_<br>
- <sup>➥ Uses `connect-mongodb` tool</sup>
+  <sup>➥ Uses `connect-mongodb` tool</sup>
 - _"Connect back to the original MongoDB server"_<br>
- <sup>➥ Uses `connect-original` tool</sup>
+  <sup>➥ Uses `connect-original` tool</sup>
 - _"Connect to a MongoDB replica set without validating the connection"_<br>
- <sup>➥ Uses `connect-mongodb` tool with validateConnection=false</sup>
+  <sup>➥ Uses `connect-mongodb` tool with validateConnection=false</sup>
+- _"Add a new connection alias named prod for mongodb://username:password@prod-server:27017/mydb"_<br>
+<sup>➥ Uses `add-connection-alias` tool</sup>
 
 ### Tutorial: 5. Working With Confirmation Protection
 

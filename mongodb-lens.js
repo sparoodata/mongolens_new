@@ -1349,6 +1349,47 @@ const registerTools = (server) => {
     )
   }
 
+  if (!isDisabled('tools', 'add-connection-alias')) {
+    server.tool(
+      'add-connection-alias',
+      'Add a new MongoDB connection alias',
+      {
+        alias: z.string().min(1).describe('Alias name for the connection'),
+        uri: z.string().min(1).describe('MongoDB connection URI')
+      },
+      async ({ alias, uri }) => {
+        return withErrorHandling(async () => {
+          log(`Tool: Adding connection alias '${alias}'...`)
+
+          if (!uri.includes('://') && !uri.includes('@')) {
+            throw new Error(`Invalid MongoDB URI: ${uri}. URI must include protocol (mongodb://) or authentication (@)`)
+          }
+
+          const normalizedAlias = alias.toLowerCase()
+
+          if (mongoUriMap.has(normalizedAlias)) {
+            return {
+              content: [{
+                type: 'text',
+                text: `Connection alias '${alias}' already exists. Use 'connect-mongodb' with the URI directly or choose a different alias.`
+              }]
+            }
+          }
+
+          mongoUriMap.set(normalizedAlias, uri)
+          log(`Tool: Added connection alias '${alias}' for URI: ${obfuscateMongoUri(uri)}`)
+
+          return {
+            content: [{
+              type: 'text',
+              text: `Successfully added connection alias '${alias}' for MongoDB URI: ${obfuscateMongoUri(uri)}\n\nYou can now connect using: "Connect to ${alias}"`
+            }]
+          }
+        }, `Error adding connection alias '${alias}'`)
+      }
+    )
+  }
+
   if (!isDisabled('tools', 'list-connections')) {
     server.tool(
       'list-connections',
@@ -6033,7 +6074,7 @@ CAPS:
 - AGG: pipeline/mapreduce/distinct
 - PERF: explain/analyze/monitor
 - ADV: text/geo/timeseries/bulk/txn/gridfs/sharding/export
-- CONN: connect-mongodb{uri|alias}/list-connections/connect-original
+- CONN: connect-mongodb{uri|alias}/add-connection-alias/list-connections/connect-original
 
 PTRNS:
 - DB_NAV: databases→use-database→collections
@@ -6043,7 +6084,7 @@ PTRNS:
 - OPT: explain-query/analyze-query-patterns/create-index
 - AGG: aggregate-data/map-reduce
 - MON: server-status/performance-metrics/watch-changes
-- CONN: connect-mongodb→database-operations→connect-original
+- CONN: add-connection-alias→connect-mongodb→database-operations→connect-original
 
 FLOWS:
 1. NAV: list-databases→use-database→list-collections
@@ -6054,7 +6095,7 @@ FLOWS:
 6. AGG: aggregate-data{multi-stage}
 7. BULK: bulk-operations{batch}
 8. TXN: transaction{atomic}
-9. CONN: connect-mongodb{uri|alias}→operations→connect-original
+9. CONN: add-connection-alias→connect-mongodb{uri|alias}→operations→connect-original
 
 SAFE: destructive ops require confirmation tokens
 

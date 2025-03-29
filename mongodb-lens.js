@@ -3615,7 +3615,13 @@ const countDocuments = async (collectionName, filter = {}) => {
   try {
     await throwIfCollectionNotExists(collectionName)
     const collection = currentDb.collection(collectionName)
-    const count = await collection.countDocuments(filter)
+    let count
+    try {
+      count = await collection.countDocuments(filter)
+    } catch (countError) {
+      log(`DB Operation: countDocuments not available, falling back to count: ${countError.message}`)
+      count = await collection.count(filter)
+    }
     log(`DB Operation: Count result: ${count} documents.`)
     return count
   } catch (error) {

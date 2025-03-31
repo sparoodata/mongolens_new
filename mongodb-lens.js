@@ -6044,38 +6044,38 @@ const parseBsonTypes = (jsonString) => {
     if (typeof value !== 'string') return value
 
     // Handle ObjectId
-    if (value.match(/^ObjectId\([\"']([0-9a-fA-F]{24})[\"']\)$/)) {
-      const oid = value.match(/^ObjectId\([\"']([0-9a-fA-F]{24})[\"']\)$/)[1]
+    if (value.match(/^ObjectId\([\"\']([0-9a-fA-F]{24})[\"\']?\)$/)) {
+      const oid = value.match(/^ObjectId\([\"\']([0-9a-fA-F]{24})[\"\']?\)$/)[1]
       return new ObjectId(oid)
     }
 
     // Handle ISODate
-    if (value.match(/^ISODate\([\"'](.*?)[\"']\)$/)) {
-      const dateStr = value.match(/^ISODate\([\"'](.*?)[\"']\)$/)[1]
+    if (value.match(/^ISODate\([\"\'](.*?)[\"\']?\)$/)) {
+      const dateStr = value.match(/^ISODate\([\"\'](.*?)[\"\']?\)$/)[1]
       return new Date(dateStr)
     }
 
     // Handle NumberDecimal
-    if (value.match(/^NumberDecimal\([\"'](.*?)[\"']\)$/)) {
-      const numStr = value.match(/^NumberDecimal\([\"'](.*?)[\"']\)$/)[1]
+    if (value.match(/^NumberDecimal\([\"\'](.*?)[\"\']?\)$/)) {
+      const numStr = value.match(/^NumberDecimal\([\"\'](.*?)[\"\']?\)$/)[1]
       return mongodb.Decimal128.fromString(numStr)
     }
 
     // Handle NumberLong
-    if (value.match(/^NumberLong\([\"'](.*?)[\"']\)$/)) {
-      const numStr = value.match(/^NumberLong\([\"'](.*?)[\"']\)$/)[1]
+    if (value.match(/^NumberLong\([\"\'](.*?)[\"\']?\)$/)) {
+      const numStr = value.match(/^NumberLong\([\"\'](.*?)[\"\']?\)$/)[1]
       return mongodb.Long.fromString(numStr)
     }
 
     // Handle NumberInt
-    if (value.match(/^NumberInt\([\"'](.*?)[\"']\)$/)) {
-      const numStr = value.match(/^NumberInt\([\"'](.*?)[\"']\)$/)[1]
+    if (value.match(/^NumberInt\([\"\'](.*?)[\"\']?\)$/)) {
+      const numStr = value.match(/^NumberInt\([\"\'](.*?)[\"\']?\)$/)[1]
       return mongodb.Int32(parseInt(numStr, 10))
     }
 
     // Handle Binary data
-    if (value.match(/^BinData\((\d+), [\"'](.*?)[\"']\)$/)) {
-      const matches = value.match(/^BinData\((\d+), [\"'](.*?)[\"']\)$/)
+    if (value.match(/^BinData\((\d+), [\"\'](.*?)[\"\']?\)$/)) {
+      const matches = value.match(/^BinData\((\d+), [\"\'](.*?)[\"\']?\)$/)
       const subType = parseInt(matches[1], 10)
       const base64 = matches[2]
       return new mongodb.Binary(Buffer.from(base64, 'base64'), subType)
@@ -6090,8 +6090,8 @@ const parseBsonTypes = (jsonString) => {
     }
 
     // Handle RegExp
-    if (value.match(/^RegExp\([\"'](.*?)[\"'], [\"'](.*?)[\"']\)$/)) {
-      const matches = value.match(/^RegExp\([\"'](.*?)[\"'], [\"'](.*?)[\"']\)$/)
+    if (value.match(/^RegExp\([\"\'](.+?)[\"\'], [\"\'](.+?)[\"\']?\)$/)) {
+      const matches = value.match(/^RegExp\([\"\'](.+?)[\"\'], [\"\'](.+?)[\"\']?\)$/)
       const pattern = matches[1]
       const flags = matches[2]
       return new RegExp(pattern, flags)

@@ -415,6 +415,7 @@ MongoDB Lens supports extensive customization via JSON configuration file.
   },
   "cacheTTL": {
     "stats": 15000,                                // Stats cache lifetime in milliseconds
+    "fields": 30000,                               // Fields cache lifetime in milliseconds
     "schemas": 60000,                              // Schema cache lifetime in milliseconds
     "indexes": 120000,                             // Index cache lifetime in milliseconds
     "collections": 30000,                          // Collections list cache lifetime in milliseconds
@@ -576,10 +577,10 @@ Example overrides:
 | `mongoUri`                       | `CONFIG_MONGO_URI`                        |
 | `logLevel`                       | `CONFIG_LOG_LEVEL`                        |
 | `defaultDbName`                  | `CONFIG_DEFAULT_DB_NAME`                  |
-| `connectionOptions.maxPoolSize`  | `CONFIG_CONNECTION_OPTIONS_MAX_POOL_SIZE` |
-| `connection.reconnectionRetries` | `CONFIG_CONNECTION_RECONNECTION_RETRIES`  |
 | `defaults.queryLimit`            | `CONFIG_DEFAULTS_QUERY_LIMIT`             |
 | `tools.export.defaultFormat`     | `CONFIG_TOOLS_EXPORT_DEFAULT_FORMAT`      |
+| `connectionOptions.maxPoolSize`  | `CONFIG_CONNECTION_OPTIONS_MAX_POOL_SIZE` |
+| `connection.reconnectionRetries` | `CONFIG_CONNECTION_RECONNECTION_RETRIES`  |
 
 For environment variable values:
 

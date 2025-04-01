@@ -6478,6 +6478,7 @@ const defaultConfig = {
   },
   cacheTTL: {
     stats: 15 * 1000,
+    fields: 30 * 1000,
     schemas: 60 * 1000,
     indexes: 120 * 1000,
     collections: 30 * 1000,

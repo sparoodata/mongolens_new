@@ -1951,16 +1951,15 @@ const registerTools = (server) => {
         projection: z.string().optional().describe('Fields to include/exclude (JSON string)'),
         limit: z.number().int().min(1).default(10).describe('Maximum number of documents to return'),
         skip: z.number().int().min(0).default(0).describe('Number of documents to skip'),
-        sort: z.string().optional().describe('Sort specification (JSON string)'),
-        streaming: createBooleanSchema('Enable streaming for large result sets', 'false')
+        sort: z.string().optional().describe('Sort specification (JSON string)')
       },
-      async ({ collection, filter, projection, limit, skip, sort, streaming }) => {
+      async ({ collection, filter, projection, limit, skip, sort }) => {
         return withErrorHandling(async () => {
           log(`Tool: Finding documents in collection '${collection}'…`)
           log(`Tool: Using filter: ${filter}`)
           if (projection) log(`Tool: Using projection: ${projection}`)
           if (sort) log(`Tool: Using sort: ${sort}`)
-          log(`Tool: Using limit: ${limit}, skip: ${skip}, streaming: ${streaming}`)
+          log(`Tool: Using limit: ${limit}, skip: ${skip}`)
           const parsedFilter = filter ? parseJsonString(filter) : {}
           const parsedProjection = projection ? parseJsonString(projection) : null
           const parsedSort = sort ? parseJsonString(sort) : null
@@ -2177,14 +2176,13 @@ const registerTools = (server) => {
       {
         collection: z.string().min(1).describe('Collection name'),
         pipeline: z.string().describe('Aggregation pipeline as JSON string array'),
-        streaming: createBooleanSchema('Enable streaming results for large datasets', 'false'),
-        limit: z.number().int().min(1).default(1000).describe('Maximum number of results to return when streaming')
+        limit: z.number().int().min(1).default(1000).describe('Maximum number of results to return')
       },
-      async ({ collection, pipeline, streaming, limit }) => {
+      async ({ collection, pipeline, limit }) => {
         return withErrorHandling(async () => {
           log(`Tool: Running aggregation on collection '${collection}'…`)
           log(`Tool: Using pipeline: ${pipeline}`)
-          log(`Tool: Streaming: ${streaming}, Limit: ${limit}`)
+          log(`Tool: Limit: ${limit}`)
           const parsedPipeline = parseJsonString(pipeline)
           const processedPipeline = processAggregationPipeline(parsedPipeline)
           const results = await aggregateData(collection, processedPipeline)

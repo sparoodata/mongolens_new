@@ -1019,28 +1019,28 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 
 #### Example Queries: Basic Database Operations
 
-- _"List all available databases"_<br>
+- _"List all databases"_<br>
   <sup>➥ Uses `list-databases` tool</sup>
-- _"What database am I currently using?"_<br>
+- _"What db am I currently using?"_<br>
   <sup>➥ Uses `current-database` tool</sup>
 - _"Switch to the sample_mflix database"_<br>
   <sup>➥ Uses `use-database` tool</sup>
-- _"Create a new database called test_db"_<br>
+- _"Create a new db called test_db"_<br>
   <sup>➥ Uses `create-database` tool</sup>
-- _"Create another database called analytics_db and switch to it"_<br>
+- _"Create another db called analytics_db and switch to it"_<br>
   <sup>➥ Uses `create-database` tool with switch=true</sup>
-- _"Drop the test_db database"_<br>
+- _"Drop test_db"_<br>
   <sup>➥ Uses `drop-database` tool (with confirmation)</sup>
 
 #### Example Queries: Collection Management
 
 - _"What collections are in the current database?"_<br>
   <sup>➥ Uses `list-collections` tool</sup>
-- _"Create a new collection named user_logs"_<br>
+- _"Create user_logs collection"_<br>
   <sup>➥ Uses `create-collection` tool</sup>
-- _"Rename the user_logs collection to system_logs"_<br>
+- _"Rename user_logs to system_logs"_<br>
   <sup>➥ Uses `rename-collection` tool</sup>
-- _"Drop the system_logs collection"_<br>
+- _"Drop system_logs"_<br>
   <sup>➥ Uses `drop-collection` tool (with confirmation)</sup>
 - _"Check the data consistency in the movies collection"_<br>
   <sup>➥ Uses `validate-collection` tool</sup>
@@ -1054,7 +1054,7 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 
 #### Example Queries: Querying Data
 
-- _"Count all documents in the movies collection"_<br>
+- _"Count all docs in the movies collection"_<br>
   <sup>➥ Uses `count-documents` tool</sup>
 - _"Find the top 5 movies with the highest IMDB rating"_<br>
   <sup>➥ Uses `find-documents` tool</sup>
@@ -1062,31 +1062,31 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
   <sup>➥ Uses `aggregate-data` tool</sup>
 - _"List all unique countries where movies were produced"_<br>
   <sup>➥ Uses `distinct-values` tool</sup>
-- _"Search for movies containing 'godfather' in their title"_<br>
+- _"Search for movies containing godfather in their title"_<br>
   <sup>➥ Uses `text-search` tool</sup>
-- _"Find German users with last name 'müller' using proper collation"_<br>
+- _"Find German users with last name müller using proper collation"_<br>
   <sup>➥ Uses `collation-query` tool</sup>
 
 #### Example Queries: Schema Analysis
 
 - _"What's the schema structure of the movies collection?"_<br>
   <sup>➥ Uses `analyze-schema` tool</sup>
-- _"Compare the schema between users and comments collections"_<br>
+- _"Compare users and comments schemas"_<br>
   <sup>➥ Uses `compare-schemas` tool</sup>
-- _"Generate a JSON schema validator for the movies collection"_<br>
+- _"Generate a schema validator for the movies collection"_<br>
   <sup>➥ Uses `generate-schema-validator` tool</sup>
 - _"Analyze common query patterns for the movies collection"_<br>
   <sup>➥ Uses `analyze-query-patterns` tool</sup>
 
 #### Example Queries: Data Modification
 
-- _"Insert a new movie document"_<br>
+- _"Insert new movie document: \<your field data\>"_<br>
   <sup>➥ Uses `insert-document` tool</sup>
 - _"Update all movies from 1994 to add a 'classic' flag"_<br>
   <sup>➥ Uses `update-document` tool</sup>
 - _"Delete all movies with zero ratings"_<br>
   <sup>➥ Uses `delete-document` tool (with confirmation)</sup>
-- _"Run these bulk operations on the movies collection"_<br>
+- _"Run these bulk operations on the movies collection: \<your JSON data\>"_<br>
   <sup>➥ Uses `bulk-operations` tool</sup>
 
 > [!TIP]<br>
@@ -1096,54 +1096,54 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 
 - _"Create an index on the title field in the movies collection"_<br>
   <sup>➥ Uses `create-index` tool</sup>
-- _"Drop the unused ratings_idx index"_<br>
+- _"Drop the ratings_idx index"_<br>
   <sup>➥ Uses `drop-index` tool (with confirmation)</sup>
 - _"Explain the execution plan for finding movies from 1995"_<br>
   <sup>➥ Uses `explain-query` tool</sup>
-- _"Get statistics for the current database"_<br>
-  <sup>➥ Uses `get-stats` tool (database target)</sup>
+- _"Get statistics for the current db"_<br>
+  <sup>➥ Uses `get-stats` tool with target=database</sup>
 - _"Show collection stats for the movies collection"_<br>
-  <sup>➥ Uses `get-stats` tool (collection target)</sup>
+  <sup>➥ Uses `get-stats` tool with target=collection</sup>
 
 #### Example Queries: Geospatial & Special Operations
 
-- _"Switch to sample_geospatial database, then find all shipwrecks within 10km of coordinates [-80.12, 26.46]"_<br>
+- _"Switch to sample_geospatial db, then find all shipwrecks within 10km of coordinates [-80.12, 26.46]"_<br>
   <sup>➥ Uses `geo-query` tool</sup>
-- _"Switch to sample_mflix database, then run this Map-Reduce to calculate movie counts by year with map `'function () { emit(this.year, 1) }'` and reduce `'function (key, values) { return Array.sum(values) }'`"_<br>
+- _"Switch to sample_mflix db, then run this map reduce to calculate movie counts by year: map=`'function () { emit(this.year, 1) }'` reduce=`'function (key, values) { return Array.sum(values) }'`"_<br>
   <sup>➥ Uses `map-reduce` tool</sup>
-- _"Switch to sample_analytics database, then execute a transaction to move funds between accounts"_<br>
+- _"Switch to sample_analytics db, then execute a transaction to move funds between accounts: \<account ids\>"_<br>
   <sup>➥ Uses `transaction` tool</sup>
 - _"Create a time series collection for sensor readings"_<br>
   <sup>➥ Uses `create-timeseries` tool</sup>
 - _"Watch for changes in the users collection for 30 seconds"_<br>
   <sup>➥ Uses `watch-changes` tool</sup>
 - _"List all files in the images GridFS bucket"_<br>
-  <sup>➥ Uses `gridfs-operation` tool (list operation)</sup>
+  <sup>➥ Uses `gridfs-operation` tool with operation=list</sup>
 
 #### Example Queries: Export, Administrative & Other Features
 
-- _"Switch to sample_mflix database, then export the top 20 movies based on 'tomatoes.critic.rating' as a CSV with title, year and rating fields, output as raw csv text in a single code block"_<br>
+- _"Switch to sample_mflix db, then export the top 20 movies based on 'tomatoes.critic.rating' as a CSV with title, year and rating fields (output in a single code block)"_<br>
   <sup>➥ Uses `export-data` tool</sup>
-- _"Switch to sample_analytics database, then check its sharding status"_<br>
+- _"Switch to sample_analytics db, then check its sharding status"_<br>
   <sup>➥ Uses `shard-status` tool</sup>
 - _"Clear the collections cache"_<br>
   <sup>➥ Uses `clear-cache` tool with target=collections</sup>
-- _"Clear all caches to ensure I'm seeing fresh data"_<br>
+- _"Clear all caches"_<br>
   <sup>➥ Uses `clear-cache` tool</sup>
-- _"Switch to sample_weatherdata database, and generate an interactive report on its current state"_<br>
+- _"Switch to sample_weatherdata db then generate an interactive report on its current state"_<br>
   <sup>➥ Uses numerous tools</sup>
 
 #### Example Queries: Connection Management
 
-- _"Connect to a different MongoDB server at mongodb://localhost:27018"_<br>
+- _"Connect to mongodb://localhost:27018"_<br>
   <sup>➥ Uses `connect-mongodb` tool</sup>
-- _"Connect to MongoDB Atlas instance at mongodb+srv://username:password@cluster.mongodb.net/mydb"_<br>
+- _"Connect to mongodb+srv://username:password@cluster.mongodb.net/mydb"_<br>
   <sup>➥ Uses `connect-mongodb` tool</sup>
-- _"Connect back to the original MongoDB server"_<br>
+- _"Connect back to the original mongodb instance"_<br>
   <sup>➥ Uses `connect-original` tool</sup>
-- _"Connect to a MongoDB replica set without validating the connection"_<br>
+- _"Connect to replica set without validating the connection: \<replica set details\>"_<br>
   <sup>➥ Uses `connect-mongodb` tool with validateConnection=false</sup>
-- _"Add a new connection alias named prod for mongodb://username:password@prod-server:27017/mydb"_<br>
+- _"Add connection alias 'prod' for mongodb://username:password@prod-server:27017/mydb"_<br>
 <sup>➥ Uses `add-connection-alias` tool</sup>
 
 ### Tutorial: 5. Working With Confirmation Protection

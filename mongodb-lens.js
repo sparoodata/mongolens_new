@@ -247,9 +247,7 @@ const extractDbNameFromConnectionString = (uri) => {
 }
 
 const resolveMongoUri = (uriOrAlias) => {
-  if (uriOrAlias.includes('://') || uriOrAlias.includes('@')) {
-    return uriOrAlias
-  }
+  if (uriOrAlias.includes('://') || uriOrAlias.includes('@')) return uriOrAlias
 
   const uri = mongoUriMap.get(uriOrAlias.toLowerCase())
   if (uri) {
@@ -287,7 +285,6 @@ const obfuscateMongoUri = (uri) => {
 
 const changeConnection = async (uri, validate = true) => {
   isChangingConnection = true
-
   try {
     if (mongoClient) await mongoClient.close()
     clearMemoryCache()
@@ -713,10 +710,8 @@ const registerPrompts = (server) => {
       },
       async ({ collection, condition }) => {
         log(`Prompt: Initializing [query-builder] for collection '${collection}' with condition: "${condition}".`)
-
         const fields = await getCollectionFields(collection)
         const fieldInfo = fields.length > 0 ? `\nAvailable fields: ${fields.join(', ')}` : ''
-
         return {
           description: `MongoDB Query Builder for ${collection}`,
           messages: [
@@ -1275,9 +1270,7 @@ const registerPrompts = (server) => {
       },
       async ({ collection, currentSchema, plannedChanges, migrationConstraints }) => {
         log(`Prompt: Initializing [schema-versioning] for collection '${collection}'…`)
-
         const schema = await inferSchema(collection)
-
         return {
           description: 'MongoDB Schema Versioning Strategy',
           messages: [
@@ -1534,14 +1527,14 @@ const registerTools = (server) => {
                 text: `Database '${name}' created successfully and connected.`
               }]
             }
-          } else {
-            log(`Tool: Database '${name}' created successfully. Current database is still '${currentDbName}'.`)
-            return {
-              content: [{
-                type: 'text',
-                text: `Database '${name}' created successfully. Current database is still '${currentDbName}'.`
-              }]
-            }
+          }
+
+          log(`Tool: Database '${name}' created successfully. Current database is still '${currentDbName}'.`)
+          return {
+            content: [{
+              type: 'text',
+              text: `Database '${name}' created successfully. Current database is still '${currentDbName}'.`
+            }]
           }
         }, `Error creating database '${name}'${shouldSwitch === 'true' ? ' and switching to it' : ''}`)
       }
@@ -1617,9 +1610,8 @@ const registerTools = (server) => {
 
           const dbs = await listDatabases()
           const dbExists = dbs.some(db => db.name === name)
-          if (!dbExists) {
-            throw new Error(`Database '${name}' does not exist`)
-          }
+          if (!dbExists) throw new Error(`Database '${name}' does not exist`)
+
           const newToken = storeDropDatabaseToken(name)
           return {
             content: [{
@@ -1755,7 +1747,6 @@ const registerTools = (server) => {
         try {
           log(`Tool: Creating collection '${name}'…`)
           log(`Tool: Using options: ${options}`)
-
           const parsedOptions = options ? JSON.parse(options) : {}
           const result = await createCollection(name, parsedOptions)
           log(`Tool: Collection created successfully.`)
@@ -1892,7 +1883,6 @@ const registerTools = (server) => {
         try {
           log(`Tool: Validating collection '${collection}'…`)
           log(`Tool: Full validation: ${full}`)
-
           const results = await validateCollection(collection, full)
           log(`Tool: Validation complete.`)
           return {
@@ -1928,7 +1918,6 @@ const registerTools = (server) => {
         try {
           log(`Tool: Getting distinct values for field '${field}' in collection '${collection}'…`)
           log(`Tool: Using filter: ${filter}`)
-
           const parsedFilter = filter ? parseJsonString(filter) : {}
           const values = await getDistinctValues(collection, field, parsedFilter)
           log(`Tool: Found ${values.length} distinct values.`)
@@ -1972,11 +1961,9 @@ const registerTools = (server) => {
           if (projection) log(`Tool: Using projection: ${projection}`)
           if (sort) log(`Tool: Using sort: ${sort}`)
           log(`Tool: Using limit: ${limit}, skip: ${skip}, streaming: ${streaming}`)
-
           const parsedFilter = filter ? parseJsonString(filter) : {}
           const parsedProjection = projection ? parseJsonString(projection) : null
           const parsedSort = sort ? parseJsonString(sort) : null
-
           const documents = await findDocuments(collection, parsedFilter, parsedProjection, limit, skip, parsedSort)
           log(`Tool: Found ${documents.length} documents in collection '${collection}'.`)
           return {
@@ -2002,7 +1989,6 @@ const registerTools = (server) => {
         try {
           log(`Tool: Counting documents in collection '${collection}'…`)
           log(`Tool: Using filter: ${filter}`)
-
           const parsedFilter = filter ? parseJsonString(filter) : {}
           const count = await countDocuments(collection, parsedFilter)
           log(`Tool: Count result: ${count} documents.`)
@@ -2038,11 +2024,10 @@ const registerTools = (server) => {
       async ({ collection, document, options }) => {
         return withErrorHandling(async () => {
           log(`Tool: Inserting document(s) into collection '${collection}'…`)
-
           if (!document) throw new Error('Document is required for insert operation')
+
           const parsedDocument = parseJsonString(document)
           const parsedOptions = options ? parseJsonString(options) : {}
-
           const result = await insertDocument(collection, parsedDocument, parsedOptions)
 
           const cacheKey = `${currentDbName}.${collection}`
@@ -2062,14 +2047,14 @@ const registerTools = (server) => {
                 }`
               }]
             }
-          } else {
-            log(`Tool: Document inserted successfully.`)
-            return {
-              content: [{
-                type: 'text',
-                text: formatInsertResult(result)
-              }]
-            }
+          }
+
+          log(`Tool: Document inserted successfully.`)
+          return {
+            content: [{
+              type: 'text',
+              text: formatInsertResult(result)
+            }]
           }
         }, `Error inserting document(s) into collection '${collection}'`)
       }
@@ -2096,7 +2081,6 @@ const registerTools = (server) => {
           const parsedFilter = parseJsonString(filter)
           const parsedUpdate = parseJsonString(update)
           const parsedOptions = options ? parseJsonString(options) : {}
-
           const result = await updateDocument(collection, parsedFilter, parsedUpdate, parsedOptions)
 
           const cacheKey = `${currentDbName}.${collection}`
@@ -2105,7 +2089,6 @@ const registerTools = (server) => {
           memoryCache.stats.delete(cacheKey)
 
           log(`Tool: Document(s) updated successfully.`)
-
           return {
             content: [{
               type: 'text',
@@ -2174,6 +2157,7 @@ const registerTools = (server) => {
 
           await throwIfCollectionNotExists(collection)
           const count = await countDocuments(collection, parsedFilter)
+
           const newToken = storeDeleteDocumentToken(collection, parsedFilter)
           return {
             content: [{
@@ -2201,10 +2185,8 @@ const registerTools = (server) => {
           log(`Tool: Running aggregation on collection '${collection}'…`)
           log(`Tool: Using pipeline: ${pipeline}`)
           log(`Tool: Streaming: ${streaming}, Limit: ${limit}`)
-
           const parsedPipeline = parseJsonString(pipeline)
           const processedPipeline = processAggregationPipeline(parsedPipeline)
-
           const results = await aggregateData(collection, processedPipeline)
           log(`Tool: Aggregation returned ${results.length} results.`)
           return {
@@ -2232,10 +2214,8 @@ const registerTools = (server) => {
           log(`Tool: Creating index on collection '${collection}'…`)
           log(`Tool: Index keys: ${keys}`)
           if (options) log(`Tool: Index options: ${options}`)
-
           const parsedKeys = parseJsonString(keys)
           const parsedOptions = options ? parseJsonString(options) : {}
-
           const result = await createIndex(collection, parsedKeys, parsedOptions)
           log(`Tool: Index created successfully: ${result}`)
           return {
@@ -2335,7 +2315,6 @@ const registerTools = (server) => {
             stats = await getCollectionStats(name)
             log(`Tool: Retrieved collection statistics.`)
           }
-
           return {
             content: [{
               type: 'text',
@@ -2400,11 +2379,8 @@ const registerTools = (server) => {
       async ({ collection, strictness }) => {
         return withErrorHandling(async () => {
           log(`Tool: Generating schema validator for '${collection}' with ${strictness} strictness`)
-
           const schema = await inferSchema(collection, 200)
-
           const validator = generateJsonSchemaValidator(schema, strictness)
-
           const result = `# MongoDB JSON Schema Validator for '${collection}'
 
   ## Schema Validator
@@ -2424,23 +2400,25 @@ const registerTools = (server) => {
   })
   \`\`\`
 
-  ### Using modify-document Tool in MongoDB Lens
+  ### Using update-document Tool in MongoDB Lens
   \`\`\`
-  modify-document {
+  update-document {
     "collection": "system.command",
-    "operation": "insert",
-    "document": {
-      "collMod": "${collection}",
-      "validator": ${JSON.stringify(validator)},
-      "validationLevel": "${strictness === 'relaxed' ? 'moderate' : strictness}",
-      "validationAction": "${strictness === 'strict' ? 'error' : 'warn'}"
-    }
+    "filter": { "collMod": "${collection}" },
+    "update": {
+      "$set": {
+        "collMod": "${collection}",
+        "validator": ${JSON.stringify(validator)},
+        "validationLevel": "${strictness === 'relaxed' ? 'moderate' : strictness}",
+        "validationAction": "${strictness === 'strict' ? 'error' : 'warn'}"
+      }
+    },
+    "options": { "upsert": true }
   }
   \`\`\`
 
   This schema validator was generated based on ${schema.sampleSize} sample documents with ${Object.keys(schema.fields).length} fields.
   `
-
           return {
             content: [{
               type: 'text',
@@ -2464,12 +2442,9 @@ const registerTools = (server) => {
       async ({ sourceCollection, targetCollection, sampleSize }) => {
         return withErrorHandling(async () => {
           log(`Tool: Comparing schemas between '${sourceCollection}' and '${targetCollection}'…`)
-
           const sourceSchema = await inferSchema(sourceCollection, sampleSize)
           const targetSchema = await inferSchema(targetCollection, sampleSize)
-
           const comparison = compareSchemas(sourceSchema, targetSchema)
-
           return {
             content: [{
               type: 'text',
@@ -3170,7 +3145,9 @@ const registerTools = (server) => {
                 text: 'All enabled caches have been cleared. Next data requests will fetch fresh data from MongoDB.'
               }]
             }
-          } else if (Object.keys(memoryCache).includes(target)) {
+          }
+
+          if (Object.keys(memoryCache).includes(target)) {
             if (isCacheEnabled(target)) {
               memoryCache[target].clear()
               return {
@@ -3179,22 +3156,22 @@ const registerTools = (server) => {
                   text: `The ${target} cache has been cleared. Next ${target} requests will fetch fresh data from MongoDB.`
                 }]
               }
-            } else {
-              return {
-                content: [{
-                  type: 'text',
-                  text: `The ${target} cache is currently disabled. No action taken.`
-                }]
-              }
             }
-          } else {
+
             return {
               content: [{
                 type: 'text',
-                text: `Invalid cache target: ${target}. Valid targets are: all, ${config.enabledCaches.join(', ')}`
-              }],
-              isError: true
+                text: `The ${target} cache is currently disabled. No action taken.`
+              }]
             }
+          }
+
+          return {
+            content: [{
+              type: 'text',
+              text: `Invalid cache target: ${target}. Valid targets are: all, ${config.enabledCaches.join(', ')}`
+            }],
+            isError: true
           }
         } catch (error) {
           log(`Error clearing cache: ${error.message}`, true)
@@ -3245,14 +3222,11 @@ const registerTools = (server) => {
             const listShards = await adminDb.command({ listShards: 1 })
             const dbStats = await adminDb.command({ dbStats: 1, scale: 1 })
             const dbShardStatus = await getShardingDbStatus(currentDbName)
-
             result = formatShardDbStatus(listShards, dbStats, dbShardStatus, currentDbName)
           } else {
             if (!collection) throw new Error('Collection name is required when target is collection')
-
             const collStats = await currentDb.command({ collStats: collection })
             const collShardStatus = await getShardingCollectionStatus(currentDbName, collection)
-
             result = formatShardCollectionStatus(collStats, collShardStatus, collection)
           }
 
@@ -3285,17 +3259,13 @@ const registerTools = (server) => {
           log(`Tool: Using filter: ${filter}`)
           if (sort) log(`Tool: Using sort: ${sort}`)
           log(`Tool: Max documents: ${limit}`)
-
           const parsedFilter = filter ? JSON.parse(filter) : {}
           const parsedSort = sort ? JSON.parse(sort) : null
           let fieldsArray = fields ? fields.split(',').map(f => f.trim()) : null
-
           const documents = await findDocuments(collection, parsedFilter, null, limit, 0, parsedSort)
           log(`Tool: Found ${documents.length} documents to export.`)
-
           const exportData = await formatExport(documents, format, fieldsArray)
           log(`Tool: Data exported successfully in ${format} format.`)
-
           return {
             content: [{
               type: 'text',
@@ -3588,14 +3558,11 @@ const listCollections = async () => {
   log(`DB Operation: Listing collections in database '${currentDbName}'…`)
   try {
     if (!currentDb) throw new Error('No database selected')
-
     const cachedCollections = getCachedValue('collections', currentDbName)
     if (cachedCollections) return cachedCollections
-
     const collections = await currentDb.listCollections().toArray()
     setCachedValue('collections', currentDbName, collections)
     log(`DB Operation: Found ${collections.length} collections.`)
-
     return collections
   } catch (error) {
     log(`DB Operation: Failed to list collections: ${error.message}`)
@@ -3622,11 +3589,9 @@ const createCollection = async (name, options = {}) => {
   try {
     const result = await currentDb.createCollection(name, options)
     invalidateRelatedCaches(currentDbName)
-
     if (result === true) return { success: true, name }
     if (result && result.ok === 1) return { success: true, name }
     if (result && result.collectionName === name) return { success: true, name }
-
     const errorMsg = "Collection creation did not return a valid collection"
     log(`DB Operation: Collection creation failed: ${errorMsg}`)
     throw new Error(errorMsg)
@@ -3641,11 +3606,9 @@ const dropCollection = async (name) => {
   try {
     const result = await currentDb.collection(name).drop()
     invalidateRelatedCaches(currentDbName, name)
-
     if (result === true) return { success: true, name }
     if (result && result.ok === 1) return { success: true, name }
     if (result && result.dropped === name) return { success: true, name }
-
     const errorMsg = "Collection drop operation did not return success"
     log(`DB Operation: Collection drop failed: ${errorMsg}`)
     throw new Error(errorMsg)
@@ -3661,11 +3624,9 @@ const renameCollection = async (oldName, newName, dropTarget = false) => {
     const result = await currentDb.collection(oldName).rename(newName, { dropTarget })
     invalidateRelatedCaches(currentDbName, oldName)
     invalidateRelatedCaches(currentDbName, newName)
-
     if (result === true) return { success: true, oldName, newName }
     if (result && result.ok === 1) return { success: true, oldName, newName }
     if (result && result.collectionName === newName) return { success: true, oldName, newName }
-
     const errorMsg = "Collection rename did not return a valid result"
     log(`DB Operation: Collection rename failed: ${errorMsg}`)
     throw new Error(errorMsg)
@@ -3757,12 +3718,10 @@ const findDocuments = async (collectionName, filter = {}, projection = null, lim
     await throwIfCollectionNotExists(collectionName)
     const collection = currentDb.collection(collectionName)
     let query = collection.find(filter)
-
     if (projection) query = query.project(projection)
     if (skip) query = query.skip(skip)
     if (limit) query = query.limit(limit)
     if (sort) query = query.sort(sort)
-
     const results = await query.toArray()
     log(`DB Operation: Found ${results.length} documents.`)
     return results
@@ -3919,11 +3878,8 @@ const deleteDocument = async (collectionName, filter, options = {}) => {
     }
 
     if (result === 1 || result === true) return { acknowledged: true, deletedCount: 1 }
-
     if (result && typeof result.deletedCount === 'number') return result
-
     if (result && result.result && result.result.ok === 1) return { acknowledged: true, deletedCount: result.result.n || 0 }
-
     if (result && result.acknowledged !== false) return {acknowledged: true, deletedCount: result.n || 0 }
 
     const errorMsg = "Delete operation failed or was not acknowledged by MongoDB"
@@ -4008,7 +3964,7 @@ const inferSchema = async (collectionName, sampleSize = config.defaults.schemaSa
 
     documents.forEach(doc => {
       fieldPaths.forEach(path => {
-        const value = getNestedValue(doc, path)
+        const value = getValueAtPath(doc, path)
         if (value !== undefined) {
           if (!schema[path].sample) {
             schema[path].sample = value
@@ -4081,16 +4037,13 @@ const createIndex = async (collectionName, keys, options = {}) => {
   log(`DB Operation: Creating index on collection '${collectionName}'…`)
   log(`DB Operation: Index keys: ${JSON.stringify(keys)}`)
   if (Object.keys(options).length > 0) log(`DB Operation: Index options: ${JSON.stringify(options)}`)
-
   try {
     const collection = currentDb.collection(collectionName)
     const result = await collection.createIndex(keys, options)
     invalidateRelatedCaches(currentDbName, collectionName)
-
     if (typeof result === 'string') return result
     if (result && result.name) return result.name
     if (result && result.ok === 1) return result.name || 'index'
-
     const errorMsg = "Index creation did not return a valid index name"
     log(`DB Operation: Index creation failed: ${errorMsg}`)
     throw new Error(errorMsg)
@@ -4106,14 +4059,11 @@ const dropIndex = async (collectionName, indexName) => {
     await throwIfCollectionNotExists(collectionName)
     const collection = currentDb.collection(collectionName)
     invalidateRelatedCaches(currentDbName, collectionName)
-
     const result = await collection.dropIndex(indexName)
-
     if (result === true) return true
     if (result && result.ok === 1) return true
     if (result && typeof result === 'object') return true
     if (result === undefined || result === null) return true
-
     log(`DB Operation: Index dropped with unexpected result: ${JSON.stringify(result)}`)
     return true
   } catch (error) {
@@ -4238,12 +4188,9 @@ const getCollectionFields = async (collectionName) => {
   const cacheKey = `${currentDbName}.${collectionName}`
   const cachedFields = getCachedValue('fields', cacheKey)
   if (cachedFields) return cachedFields
-
   const schema = await inferSchema(collectionName, 10)
   const fieldsArray = Object.keys(schema.fields)
-
   setCachedValue('fields', cacheKey, fieldsArray)
-
   return fieldsArray
 }
 
@@ -4924,36 +4871,26 @@ const formatValidationResults = (results) => {
     result += `- Invalid Documents: ${results.nInvalidDocuments}\n`
   }
 
-  if (results.advice) {
-    result += `- Advice: ${results.advice}\n`
-  }
+  if (results.advice) result += `- Advice: ${results.advice}\n`
 
   return result
 }
 
 const formatInsertResult = (result) => {
   if (!result) return 'Insert operation result not available'
-
   let output = 'Document inserted successfully\n'
   output += `- ID: ${result.insertedId}\n`
   output += `- Acknowledged: ${result.acknowledged}\n`
-
   return output
 }
 
-// Format function for update results
 const formatUpdateResult = (result) => {
   if (!result) return 'Update operation result not available'
-
   let output = 'Document update operation complete\n'
   output += `- Matched: ${result.matchedCount}\n`
   output += `- Modified: ${result.modifiedCount}\n`
   output += `- Acknowledged: ${result.acknowledged}\n`
-
-  if (result.upsertedId) {
-    output += `- Upserted ID: ${result.upsertedId}\n`
-  }
-
+  if (result.upsertedId) output += `- Upserted ID: ${result.upsertedId}\n`
   return output
 }
 
@@ -5005,29 +4942,22 @@ const formatSize = (sizeInBytes) => {
 
 const formatUptime = (seconds) => {
   if (seconds === undefined) return 'Unknown'
-
   const days = Math.floor(seconds / 86400)
   const hours = Math.floor((seconds % 86400) / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
   const remainingSeconds = Math.floor(seconds % 60)
-
   const parts = []
   if (days > 0) parts.push(`${days}d`)
   if (hours > 0) parts.push(`${hours}h`)
   if (minutes > 0) parts.push(`${minutes}m`)
   if (remainingSeconds > 0 || parts.length === 0) parts.push(`${remainingSeconds}s`)
-
   return parts.join(' ')
 }
 
 const formatValue = (value) => {
   if (value === null) return 'null'
   if (value === undefined) return 'undefined'
-
-  if (typeof value === 'object') {
-    return JSON.stringify(value)
-  }
-
+  if (typeof value === 'object') return JSON.stringify(value)
   return String(value)
 }
 
@@ -5104,9 +5034,7 @@ const formatTransactionResults = (results) => {
 }
 
 const formatGridFSList = (files) => {
-  if (files.length === 0) {
-    return 'No files found in GridFS'
-  }
+  if (files.length === 0) return 'No files found in GridFS'
 
   let result = `GridFS Files (${files.length}):\n\n`
 
@@ -5130,31 +5058,24 @@ const getFileId = async (bucket, filename) => {
 
 const formatGridFSInfo = (file) => {
   let result = 'GridFS File Information:\n\n'
-
   result += `Filename: ${file.filename}\n`
   result += `Size: ${formatSize(file.length)}\n`
   result += `Chunk Size: ${formatSize(file.chunkSize)}\n`
   result += `Upload Date: ${file.uploadDate.toISOString()}\n`
   result += `ID: ${file._id}\n`
   result += `MD5: ${file.md5}\n`
-
   if (file.contentType) result += `Content Type: ${file.contentType}\n`
   if (file.aliases && file.aliases.length > 0) result += `Aliases: ${file.aliases.join(', ')}\n`
   if (file.metadata) result += `Metadata: ${JSON.stringify(file.metadata, null, 2)}\n`
-
   return result
 }
 
 const formatCollationResults = (results, locale, strength, caseLevel) => {
-  if (results.length === 0) {
-    return 'No documents found matching the query with the specified collation'
-  }
-
+  if (results.length === 0) return 'No documents found matching the query with the specified collation'
   let output = `Found ${results.length} documents using collation:\n`
   output += `- Locale: ${locale}\n`
   output += `- Strength: ${strength} (${getStrengthDescription(strength)})\n`
   output += `- Case Level: ${caseLevel}\n\n`
-
   output += results.map(doc => JSON.stringify(serializeDocument(doc), null, 2)).join('\n\n')
   return output
 }
@@ -5276,9 +5197,7 @@ const formatPerformanceMetrics = (metrics) => {
 }
 
 const formatTriggerConfiguration = (triggers) => {
-  if (triggers.error) {
-    return `Trigger information not available: ${triggers.error}`
-  }
+  if (triggers.error) return `Trigger information not available: ${triggers.error}`
 
   let result = 'MongoDB Event Trigger Configuration:\n\n'
 
@@ -5468,7 +5387,7 @@ const formatExport = async (documents, format = config.tools.export.defaultForma
 
       for (const doc of limitedDocs) {
         const row = fields.map(field => {
-          const value = getNestedValue(doc, field)
+          const value = getValueAtPath(doc, field)
           return formatCsvValue(value)
         })
         csv += row.join(',') + '\n'
@@ -5540,7 +5459,6 @@ const compareSchemas = (sourceSchema, targetSchema) => {
     if (targetFields.includes(field)) {
       const sourceTypes = sourceSchema.fields[field].types
       const targetTypes = targetSchema.fields[field].types
-
       const typesMatch = arraysEqual(sourceTypes, targetTypes)
 
       result.commonFields.push({
@@ -5763,7 +5681,6 @@ const createStreamingResultStream = () => {
 
 const processAggregationPipeline = (pipeline) => {
   if (!pipeline || !Array.isArray(pipeline)) return pipeline
-
   return pipeline.map(stage => {
     for (const operator in stage) {
       const value = stage[operator]
@@ -5795,20 +5712,6 @@ const monitorBinarySize = (size) => {
     log(`Warning: Large binary data detected (${mb.toFixed(2)} MB)`, true)
   }
   return mb < 50
-}
-
-const getNestedValue = (obj, path) => {
-  const parts = path.split('.')
-  let current = obj
-
-  for (const part of parts) {
-    if (current === null || current === undefined) {
-      return undefined
-    }
-    current = current[part]
-  }
-
-  return current
 }
 
 const generateDropToken = () => {
@@ -6121,7 +6024,6 @@ const parseEnvValue = (value, defaultValue, path) => {
 
 const parseJsonString = (jsonString) => {
   if (!jsonString || typeof jsonString !== 'string') return jsonString
-
   try {
     return JSON.parse(jsonString)
   } catch (error) {

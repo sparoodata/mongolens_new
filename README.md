@@ -306,7 +306,7 @@ docker run --rm -i --network=host --pull=always furey/mongodb-lens
 
 ### Installation Verification
 
-To verify the installation, paste and run the following jsonrpc message into the server's stdio:
+To verify the installation, paste and run the following JSONRPC message into the server's stdio:
 
 ```json
 {"method":"resources/read","params":{"uri":"mongodb://databases"},"jsonrpc":"2.0","id":1}

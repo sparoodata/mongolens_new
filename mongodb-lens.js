@@ -1303,18 +1303,20 @@ const registerTools = (server) => {
       async ({ uri, validateConnection }) => {
         return withErrorHandling(async () => {
           try {
-            if (!uri.includes('://') && !uri.includes('@') && !mongoUriMap.has(uri.toLowerCase())) {
-              if (await isDatabaseName(uri)) {
+            const processedUri = ensureValidMongoUri(uri)
+
+            if (!processedUri.includes('://') && !processedUri.includes('@') && !mongoUriMap.has(processedUri.toLowerCase())) {
+              if (await isDatabaseName(processedUri)) {
                 return {
                   content: [{
                     type: 'text',
-                    text: `It seems you're trying to switch to database "${uri}" rather than connect to a new MongoDB instance. Please use the "use-database" tool instead.`
+                    text: `It seems you're trying to switch to database "${processedUri}" rather than connect to a new MongoDB instance. Please use the "use-database" tool instead.`
                   }]
                 }
               }
             }
 
-            const resolvedUri = resolveMongoUri(uri)
+            const resolvedUri = resolveMongoUri(processedUri)
             await changeConnection(resolvedUri, validateConnection === 'true')
             return {
               content: [{
@@ -1369,8 +1371,9 @@ const registerTools = (server) => {
       },
       async ({ alias, uri }) => {
         return withErrorHandling(async () => {
-          log(`Tool: Adding connection alias '${alias}'...`)
+          log(`Tool: Adding connection alias '${alias}'…`)
 
+          uri = ensureValidMongoUri(uri)
           if (!uri.includes('://') && !uri.includes('@')) {
             throw new Error(`Invalid MongoDB URI: ${uri}. URI must include protocol (mongodb://) or authentication (@)`)
           }
@@ -1929,7 +1932,7 @@ const registerTools = (server) => {
       },
       async ({ collection, filter, projection, limit, skip, sort, streaming }) => {
         return withErrorHandling(async () => {
-          log(`Tool: Finding documents in collection '${collection}'...`)
+          log(`Tool: Finding documents in collection '${collection}'…`)
           log(`Tool: Using filter: ${filter}`)
           if (projection) log(`Tool: Using projection: ${projection}`)
           if (sort) log(`Tool: Using sort: ${sort}`)
@@ -2143,7 +2146,7 @@ const registerTools = (server) => {
       },
       async ({ collection, pipeline, streaming, limit }) => {
         return withErrorHandling(async () => {
-          log(`Tool: Running aggregation on collection '${collection}'...`)
+          log(`Tool: Running aggregation on collection '${collection}'…`)
           log(`Tool: Using pipeline: ${pipeline}`)
           log(`Tool: Streaming: ${streaming}, Limit: ${limit}`)
 
@@ -3243,6 +3246,28 @@ const withErrorHandling = async (operation, errorMessage, defaultValue = null) =
       }
     }
   }
+}
+
+const ensureValidMongoUri = (uri) => {
+  if (uri.includes('://') || uri.includes('@') || mongoUriMap.has(uri.toLowerCase())) return uri
+
+  const validHostRegex = new RegExp([
+    // Domain name pattern (with optional port)
+    '^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)+' +
+    '[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9](?::\\d+)?$',
+    // localhost pattern (with optional port)
+    '|^localhost(?::\\d+)?$',
+    // IPv4 address pattern (with optional port)
+    '|^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}(?::\\d+)?$'
+  ].join(''))
+
+  if (validHostRegex.test(uri)) {
+    const modifiedUri = `mongodb://${uri}`
+    log(`Automatically added protocol to URI: ${obfuscateMongoUri(modifiedUri)}`)
+    return modifiedUri
+  }
+
+  return uri
 }
 
 const isDatabaseName = async (name) => {

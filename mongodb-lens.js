@@ -2010,6 +2010,11 @@ const registerTools = (server) => {
 
           const result = await insertDocument(collection, parsedDocument, parsedOptions)
 
+          const cacheKey = `${currentDbName}.${collection}`
+          memoryCache.schemas.delete(cacheKey)
+          memoryCache.fields.delete(cacheKey)
+          memoryCache.stats.delete(cacheKey)
+
           if (Array.isArray(parsedDocument)) {
             log(`Tool: Successfully inserted ${result.insertedCount} documents.`)
             return {
@@ -2058,6 +2063,12 @@ const registerTools = (server) => {
           const parsedOptions = options ? parseBsonTypes(options) : {}
 
           const result = await updateDocument(collection, parsedFilter, parsedUpdate, parsedOptions)
+
+          const cacheKey = `${currentDbName}.${collection}`
+          memoryCache.schemas.delete(cacheKey)
+          memoryCache.fields.delete(cacheKey)
+          memoryCache.stats.delete(cacheKey)
+
           log(`Tool: Document(s) updated successfully.`)
 
           return {
@@ -2098,6 +2109,12 @@ const registerTools = (server) => {
           if (config.disableDestructiveOperationTokens) {
             const options = { many: many === 'true' }
             const result = await deleteDocument(collection, parsedFilter, options)
+
+            const cacheKey = `${currentDbName}.${collection}`
+            memoryCache.schemas.delete(cacheKey)
+            memoryCache.fields.delete(cacheKey)
+            memoryCache.stats.delete(cacheKey)
+
             return {
               content: [{
                 type: 'text',
@@ -2554,6 +2571,12 @@ const registerTools = (server) => {
 
           if (deleteOps.length === 0 || config.disableDestructiveOperationTokens) {
             const result = await bulkOperations(collection, parsedOperations, ordered === 'true')
+
+            const cacheKey = `${currentDbName}.${collection}`
+            memoryCache.schemas.delete(cacheKey)
+            memoryCache.fields.delete(cacheKey)
+            memoryCache.stats.delete(cacheKey)
+
             return {
               content: [{
                 type: 'text',
@@ -2621,6 +2644,9 @@ const registerTools = (server) => {
           if (expireAfterSeconds) options.expireAfterSeconds = expireAfterSeconds
 
           const result = await createCollection(name, options)
+
+          memoryCache.collections.delete(currentDbName)
+
           return {
             content: [{
               type: 'text',
@@ -2885,9 +2911,15 @@ const registerTools = (server) => {
             }
 
             await session.commitTransaction()
+
+            clearMemoryCache()
+
             log('Tool: Transaction committed successfully')
           } catch (error) {
             await session.abortTransaction()
+
+            clearMemoryCache()
+
             log(`Tool: Transaction aborted due to error: ${error.message}`)
             throw error
           } finally {
@@ -3061,6 +3093,7 @@ const registerTools = (server) => {
           } else if (operation === 'delete') {
             if (!filename) throw new Error('Filename is required for delete operation')
             await gridFsBucket.delete(await getFileId(bucket, filename))
+            memoryCache.collections.delete(currentDbName)
             result = `File '${filename}' deleted successfully from bucket '${bucket}'`
           }
 
@@ -3075,6 +3108,56 @@ const registerTools = (server) => {
             content: [{
               type: 'text',
               text: `Error performing GridFS operation: ${error.message}`
+            }],
+            isError: true
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'clear-cache')) {
+    server.tool(
+      'clear-cache',
+      'Clear memory caches to ensure fresh data',
+      {
+        target: z.enum(['all', 'collections', 'schemas', 'indexes', 'stats', 'fields', 'serverStatus']).default('all').describe('Cache type to clear (default: all)')
+      },
+      async ({ target }) => {
+        try {
+          log(`Tool: Clearing cache: ${target}`)
+
+          if (target === 'all') {
+            clearMemoryCache()
+            return {
+              content: [{
+                type: 'text',
+                text: `All caches have been cleared. Next data requests will fetch fresh data from MongoDB.`
+              }]
+            }
+          } else if (Object.keys(memoryCache).includes(target)) {
+            memoryCache[target].clear()
+            return {
+              content: [{
+                type: 'text',
+                text: `The ${target} cache has been cleared. Next ${target} requests will fetch fresh data from MongoDB.`
+              }]
+            }
+          } else {
+            return {
+              content: [{
+                type: 'text',
+                text: `Invalid cache target: ${target}. Valid targets are: all, ${Object.keys(memoryCache).join(', ')}`
+              }],
+              isError: true
+            }
+          }
+        } catch (error) {
+          log(`Error clearing cache: ${error.message}`, true)
+          return {
+            content: [{
+              type: 'text',
+              text: `Error clearing cache: ${error.message}`
             }],
             isError: true
           }
@@ -3376,6 +3459,8 @@ const switchDatabase = async (dbName) => {
     currentDbName = dbName
     currentDb = mongoClient.db(dbName)
 
+    clearMemoryCache()
+
     await setProfilerSlowMs()
 
     log(`DB Operation: Successfully switched to database '${dbName}'.`)
@@ -3393,11 +3478,15 @@ const dropDatabase = async (dbName) => {
     const wasConnected = currentDbName === dbName
     const db = mongoClient.db(dbName)
     await db.dropDatabase()
+
+    clearMemoryCache()
+
     if (wasConnected) {
       currentDbName = 'admin'
       currentDb = mongoClient.db('admin')
       log(`DB Operation: Switched to 'admin' database after dropping '${dbName}'`)
     }
+
     log(`DB Operation: Database '${dbName}' dropped successfully.`)
 
     const message = `Database '${dbName}' has been permanently deleted.${
@@ -3498,6 +3587,8 @@ const createCollection = async (name, options = {}) => {
   try {
     const result = await currentDb.createCollection(name, options)
 
+    memoryCache.collections.delete(currentDbName)
+
     if (result === true) return { success: true, name }
     if (result && result.ok === 1) return { success: true, name }
     if (result && result.collectionName === name) return { success: true, name }
@@ -3516,6 +3607,14 @@ const dropCollection = async (name) => {
   try {
     const result = await currentDb.collection(name).drop()
 
+    memoryCache.collections.delete(currentDbName)
+
+    const cacheKey = `${currentDbName}.${name}`
+    memoryCache.schemas.delete(cacheKey)
+    memoryCache.fields.delete(cacheKey)
+    memoryCache.indexes.delete(cacheKey)
+    memoryCache.stats.delete(cacheKey)
+
     if (result === true) return { success: true, name }
     if (result && result.ok === 1) return { success: true, name }
     if (result && result.dropped === name) return { success: true, name }
@@ -3533,6 +3632,19 @@ const renameCollection = async (oldName, newName, dropTarget = false) => {
   log(`DB Operation: Renaming collection from '${oldName}' to '${newName}'…`)
   try {
     const result = await currentDb.collection(oldName).rename(newName, { dropTarget })
+
+    memoryCache.collections.delete(currentDbName)
+
+    const oldCacheKey = `${currentDbName}.${oldName}`
+    const newCacheKey = `${currentDbName}.${newName}`
+    memoryCache.schemas.delete(oldCacheKey)
+    memoryCache.fields.delete(oldCacheKey)
+    memoryCache.indexes.delete(oldCacheKey)
+    memoryCache.stats.delete(oldCacheKey)
+    memoryCache.schemas.delete(newCacheKey)
+    memoryCache.fields.delete(newCacheKey)
+    memoryCache.indexes.delete(newCacheKey)
+    memoryCache.stats.delete(newCacheKey)
 
     if (result === true) return { success: true, oldName, newName }
     if (result && result.ok === 1) return { success: true, oldName, newName }
@@ -3969,6 +4081,10 @@ const createIndex = async (collectionName, keys, options = {}) => {
     const collection = currentDb.collection(collectionName)
     const result = await collection.createIndex(keys, options)
 
+    const cacheKey = `${currentDbName}.${collectionName}`
+    memoryCache.indexes.delete(cacheKey)
+    memoryCache.stats.delete(cacheKey)
+
     if (typeof result === 'string') return result
     if (result && result.name) return result.name
     if (result && result.ok === 1) return result.name || 'index'
@@ -3987,6 +4103,11 @@ const dropIndex = async (collectionName, indexName) => {
   try {
     await throwIfCollectionNotExists(collectionName)
     const collection = currentDb.collection(collectionName)
+
+    const cacheKey = `${currentDbName}.${collectionName}`
+    memoryCache.indexes.delete(cacheKey)
+    memoryCache.stats.delete(cacheKey)
+
     const result = await collection.dropIndex(indexName)
 
     if (result === true) return true
@@ -4390,6 +4511,7 @@ const runMapReduce = async (collectionName, map, reduce, options = {}) => {
       const outCollection = currentDb.collection(
         typeof options.out === 'string' ? options.out : options.out.replace
       )
+      memoryCache.collections.delete(currentDbName)
       return outCollection.find().toArray()
     } else {
       log(`DB Operation: Map-Reduce operation complete (unknown format).`)
@@ -6295,6 +6417,7 @@ CAPS:
 - IDX: create/analyze/optimize
 - AGG: pipeline/mapreduce/distinct
 - PERF: explain/analyze/monitor
+- UTIL: clear-cache/export/validate
 - ADV: text/geo/timeseries/bulk/txn/gridfs/sharding/export
 - CONN: connect-mongodb{uri|alias}/add-alias/list/connect-original
 
@@ -6306,6 +6429,7 @@ PTRNS:
 - OPT: explain-query/analyze-patterns/create-index
 - AGG: aggregate-data/map-reduce
 - MON: server-status/performance-metrics/watch-changes
+- CACHE: clear-cache{all|specific}
 - CONN: add-alias→connect-mongodb→db-ops→connect-original
 
 FLOWS:
@@ -6318,6 +6442,7 @@ FLOWS:
 7. BULK: bulk-ops{batch}
 8. TXN: transaction{atomic}
 9. CONN: add-alias→connect-mongodb{uri|alias}→ops→connect-original
+10. FRESH: clear-cache→list-collections/find-docs
 
 SAFE: destructive ops require confirmation tokens
 

@@ -80,6 +80,57 @@ const start = async (mongoUri) => {
   return true
 }
 
+const isCacheEnabled = (cacheType) =>
+  config.enabledCaches.includes(cacheType)
+
+const getCachedValue = (cacheType, key) => {
+  if (!isCacheEnabled(cacheType)) return null
+
+  const cache = memoryCache[cacheType]
+  const cachedData = cache.get(key)
+
+  if (cachedData && (Date.now() - cachedData.timestamp) < config.cacheTTL[cacheType]) {
+    log(`Using cached ${cacheType} for '${key}'`)
+    return cachedData.data
+  }
+
+  return null
+}
+
+const setCachedValue = (cacheType, key, data) => {
+  if (!isCacheEnabled(cacheType)) return
+
+  memoryCache[cacheType].set(key, {
+    data,
+    timestamp: Date.now()
+  })
+}
+
+const invalidateRelatedCaches = (dbName, collectionName) => {
+  if (collectionName) {
+    const collKey = `${dbName}.${collectionName}`
+    memoryCache.schemas.delete(collKey)
+    memoryCache.fields.delete(collKey)
+    memoryCache.indexes.delete(collKey)
+    memoryCache.stats.delete(collKey)
+
+    for (const key of memoryCache.schemas.keys()) {
+      if (key.startsWith(collKey + '.')) memoryCache.schemas.delete(key)
+    }
+  }
+
+  memoryCache.collections.delete(dbName)
+}
+
+const clearMemoryCache = () => {
+  for (const cacheType of config.enabledCaches) {
+    if (memoryCache[cacheType]) {
+      log(`Clearing ${cacheType} cache`)
+      memoryCache[cacheType].clear()
+    }
+  }
+}
+
 const connect = async (uri = 'mongodb://localhost:27017', validate = true) => {
   try {
     log(`Connecting to MongoDB at: ${obfuscateMongoUri(uri)}`)
@@ -109,12 +160,7 @@ const connect = async (uri = 'mongodb://localhost:27017', validate = true) => {
         const adminDb = mongoClient.db('admin')
         const serverInfo = await adminDb.command({ buildInfo: 1 })
         log(`Connected to MongoDB server version: ${serverInfo.version}`)
-
-        const cacheKey = 'server_info'
-        memoryCache.serverStatus.set(cacheKey, {
-          data: serverInfo,
-          timestamp: Date.now()
-        })
+        setCachedValue('serverStatus', 'server_info', serverInfo)
       } catch (infoError) {
         log(`Warning: Unable to get server info: ${infoError.message}`)
       }
@@ -165,9 +211,7 @@ const startWatchdog = () => {
 
       if (heapUsedMB > config.memory.criticalThresholdMB) {
         log('Critical memory pressure. Clearing caches…', true)
-        config.enabledCaches.forEach(cache => {
-          if (memoryCache[cache]) memoryCache[cache].clear()
-        })
+        clearMemoryCache()
         if (config.memory.enableGC && global.gc) {
           global.gc()
         } else if (config.memory.enableGC) {
@@ -3132,22 +3176,31 @@ const registerTools = (server) => {
             return {
               content: [{
                 type: 'text',
-                text: `All caches have been cleared. Next data requests will fetch fresh data from MongoDB.`
+                text: 'All enabled caches have been cleared. Next data requests will fetch fresh data from MongoDB.'
               }]
             }
           } else if (Object.keys(memoryCache).includes(target)) {
-            memoryCache[target].clear()
-            return {
-              content: [{
-                type: 'text',
-                text: `The ${target} cache has been cleared. Next ${target} requests will fetch fresh data from MongoDB.`
-              }]
+            if (isCacheEnabled(target)) {
+              memoryCache[target].clear()
+              return {
+                content: [{
+                  type: 'text',
+                  text: `The ${target} cache has been cleared. Next ${target} requests will fetch fresh data from MongoDB.`
+                }]
+              }
+            } else {
+              return {
+                content: [{
+                  type: 'text',
+                  text: `The ${target} cache is currently disabled. No action taken.`
+                }]
+              }
             }
           } else {
             return {
               content: [{
                 type: 'text',
-                text: `Invalid cache target: ${target}. Valid targets are: all, ${Object.keys(memoryCache).join(', ')}`
+                text: `Invalid cache target: ${target}. Valid targets are: all, ${config.enabledCaches.join(', ')}`
               }],
               isError: true
             }
@@ -3456,10 +3509,11 @@ const switchDatabase = async (dbName) => {
     const dbs = await listDatabases()
     const dbExists = dbs.some(db => db.name === dbName)
     if (!dbExists) throw new Error(`Database '${dbName}' does not exist`)
+
+    const oldDbName = currentDbName
     currentDbName = dbName
     currentDb = mongoClient.db(dbName)
-
-    clearMemoryCache()
+    invalidateRelatedCaches(oldDbName)
 
     await setProfilerSlowMs()
 
@@ -3478,8 +3532,7 @@ const dropDatabase = async (dbName) => {
     const wasConnected = currentDbName === dbName
     const db = mongoClient.db(dbName)
     await db.dropDatabase()
-
-    clearMemoryCache()
+    invalidateRelatedCaches(dbName)
 
     if (wasConnected) {
       currentDbName = 'admin'
@@ -3545,21 +3598,12 @@ const listCollections = async () => {
   try {
     if (!currentDb) throw new Error('No database selected')
 
-    const cacheKey = currentDbName
-    const cachedData = memoryCache.collections.get(cacheKey)
-
-    if (cachedData && (Date.now() - cachedData.timestamp) < config.cacheTTL.collections) {
-      log(`DB Operation: Using cached collections list for '${currentDbName}'`)
-      return cachedData.data
-    }
+    const cachedCollections = getCachedValue('collections', currentDbName)
+    if (cachedCollections) return cachedCollections
 
     const collections = await currentDb.listCollections().toArray()
+    setCachedValue('collections', currentDbName, collections)
     log(`DB Operation: Found ${collections.length} collections.`)
-
-    memoryCache.collections.set(cacheKey, {
-      data: collections,
-      timestamp: Date.now()
-    })
 
     return collections
   } catch (error) {
@@ -3586,8 +3630,7 @@ const createCollection = async (name, options = {}) => {
   log(`DB Operation: Creating collection '${name}'…`)
   try {
     const result = await currentDb.createCollection(name, options)
-
-    memoryCache.collections.delete(currentDbName)
+    invalidateRelatedCaches(currentDbName)
 
     if (result === true) return { success: true, name }
     if (result && result.ok === 1) return { success: true, name }
@@ -3606,14 +3649,7 @@ const dropCollection = async (name) => {
   log(`DB Operation: Dropping collection '${name}'…`)
   try {
     const result = await currentDb.collection(name).drop()
-
-    memoryCache.collections.delete(currentDbName)
-
-    const cacheKey = `${currentDbName}.${name}`
-    memoryCache.schemas.delete(cacheKey)
-    memoryCache.fields.delete(cacheKey)
-    memoryCache.indexes.delete(cacheKey)
-    memoryCache.stats.delete(cacheKey)
+    invalidateRelatedCaches(currentDbName, name)
 
     if (result === true) return { success: true, name }
     if (result && result.ok === 1) return { success: true, name }
@@ -3632,19 +3668,8 @@ const renameCollection = async (oldName, newName, dropTarget = false) => {
   log(`DB Operation: Renaming collection from '${oldName}' to '${newName}'…`)
   try {
     const result = await currentDb.collection(oldName).rename(newName, { dropTarget })
-
-    memoryCache.collections.delete(currentDbName)
-
-    const oldCacheKey = `${currentDbName}.${oldName}`
-    const newCacheKey = `${currentDbName}.${newName}`
-    memoryCache.schemas.delete(oldCacheKey)
-    memoryCache.fields.delete(oldCacheKey)
-    memoryCache.indexes.delete(oldCacheKey)
-    memoryCache.stats.delete(oldCacheKey)
-    memoryCache.schemas.delete(newCacheKey)
-    memoryCache.fields.delete(newCacheKey)
-    memoryCache.indexes.delete(newCacheKey)
-    memoryCache.stats.delete(newCacheKey)
+    invalidateRelatedCaches(currentDbName, oldName)
+    invalidateRelatedCaches(currentDbName, newName)
 
     if (result === true) return { success: true, oldName, newName }
     if (result && result.ok === 1) return { success: true, oldName, newName }
@@ -3663,6 +3688,10 @@ const getCollectionStats = async (collectionName) => {
   log(`DB Operation: Getting statistics for collection '${collectionName}'…`)
   try {
     await throwIfCollectionNotExists(collectionName)
+
+    const cacheKey = `${currentDbName}.${collectionName}`
+    const cachedStats = getCachedValue('stats', cacheKey)
+    if (cachedStats) return cachedStats
 
     const adminDb = mongoClient.db('admin')
     let serverInfo
@@ -3687,6 +3716,8 @@ const getCollectionStats = async (collectionName) => {
       normalizedStats.wiredTigerVersion = stats.wiredTiger.creationString || 'unknown'
     }
 
+    setCachedValue('stats', cacheKey, normalizedStats)
+
     log(`DB Operation: Retrieved statistics for collection '${collectionName}'.`)
     return normalizedStats
   } catch (error) {
@@ -3701,12 +3732,8 @@ const getCollectionIndexes = async (collectionName) => {
     await throwIfCollectionNotExists(collectionName)
 
     const cacheKey = `${currentDbName}.${collectionName}`
-    const cachedData = memoryCache.indexes.get(cacheKey)
-
-    if (cachedData && (Date.now() - cachedData.timestamp) < config.cacheTTL.stats) {
-      log(`DB Operation: Using cached indexes for '${collectionName}'`)
-      return cachedData.data
-    }
+    const cachedIndexes = getCachedValue('indexes', cacheKey)
+    if (cachedIndexes) return cachedIndexes
 
     const indexes = await currentDb.collection(collectionName).indexes()
     log(`DB Operation: Retrieved ${indexes.length} indexes for collection '${collectionName}'.`)
@@ -3724,10 +3751,7 @@ const getCollectionIndexes = async (collectionName) => {
       log(`DB Operation: Index usage stats not available: ${statsError.message}`)
     }
 
-    memoryCache.indexes.set(cacheKey, {
-      data: indexes,
-      timestamp: Date.now()
-    })
+    setCachedValue('indexes', cacheKey, indexes)
 
     return indexes
   } catch (error) {
@@ -3954,12 +3978,8 @@ const inferSchema = async (collectionName, sampleSize = config.defaults.schemaSa
     await throwIfCollectionNotExists(collectionName)
 
     const cacheKey = `${currentDbName}.${collectionName}.${sampleSize}`
-    const cachedSchema = memoryCache.schemas.get(cacheKey)
-
-    if (cachedSchema && (Date.now() - cachedSchema.timestamp) < config.cacheTTL.schemas) {
-      log(`DB Operation: Using cached schema for '${collectionName}'`)
-      return cachedSchema.data
-    }
+    const cachedSchema = getCachedValue('schemas', cacheKey)
+    if (cachedSchema) return cachedSchema
 
     const collection = currentDb.collection(collectionName)
 
@@ -4020,18 +4040,12 @@ const inferSchema = async (collectionName, sampleSize = config.defaults.schemaSa
       timestamp: new Date().toISOString()
     }
 
-    memoryCache.schemas.set(cacheKey, {
-      data: result,
-      timestamp: Date.now()
-    })
+    setCachedValue('schemas', cacheKey, result)
 
     const fieldsArray = Object.keys(schema)
     log(`DB Operation: Schema inference complete, identified ${fieldsArray.length} fields.`)
 
-    memoryCache.fields.set(`${currentDbName}.${collectionName}`, {
-      data: fieldsArray,
-      timestamp: Date.now()
-    })
+    setCachedValue('fields', `${currentDbName}.${collectionName}`, fieldsArray)
 
     return result
   } catch (error) {
@@ -4080,10 +4094,7 @@ const createIndex = async (collectionName, keys, options = {}) => {
   try {
     const collection = currentDb.collection(collectionName)
     const result = await collection.createIndex(keys, options)
-
-    const cacheKey = `${currentDbName}.${collectionName}`
-    memoryCache.indexes.delete(cacheKey)
-    memoryCache.stats.delete(cacheKey)
+    invalidateRelatedCaches(currentDbName, collectionName)
 
     if (typeof result === 'string') return result
     if (result && result.name) return result.name
@@ -4103,10 +4114,7 @@ const dropIndex = async (collectionName, indexName) => {
   try {
     await throwIfCollectionNotExists(collectionName)
     const collection = currentDb.collection(collectionName)
-
-    const cacheKey = `${currentDbName}.${collectionName}`
-    memoryCache.indexes.delete(cacheKey)
-    memoryCache.stats.delete(cacheKey)
+    invalidateRelatedCaches(currentDbName, collectionName)
 
     const result = await collection.dropIndex(indexName)
 
@@ -4162,13 +4170,8 @@ const getSuggestedProjection = (filter, fields) => {
 const getServerStatus = async () => {
   log('DB Operation: Getting server status…')
   try {
-    const cacheKey = 'server_status'
-    const cachedData = memoryCache.serverStatus.get(cacheKey)
-
-    if (cachedData && (Date.now() - cachedData.timestamp) < config.cacheTTL.serverStatus) {
-      log('DB Operation: Using cached server status')
-      return cachedData.data
-    }
+    const cachedStatus = getCachedValue('serverStatus', 'server_status')
+    if (cachedStatus) return cachedStatus
 
     const adminDb = mongoClient.db('admin')
     const status = await adminDb.command({ serverStatus: 1 })
@@ -4188,10 +4191,7 @@ const getServerStatus = async () => {
       normalizedStatus.wiredTiger = normalizedStatus.wiredTiger3
     }
 
-    memoryCache.serverStatus.set(cacheKey, {
-      data: normalizedStatus,
-      timestamp: Date.now()
-    })
+    setCachedValue('serverStatus', 'server_status', normalizedStatus)
 
     log('DB Operation: Retrieved and normalized server status.')
     return normalizedStatus
@@ -4245,20 +4245,13 @@ const getCollectionValidation = async (collectionName) => {
 
 const getCollectionFields = async (collectionName) => {
   const cacheKey = `${currentDbName}.${collectionName}`
-  const cachedData = memoryCache.fields.get(cacheKey)
-
-  if (cachedData && (Date.now() - cachedData.timestamp) < config.cacheTTL.fields) {
-    log(`DB Operation: Using cached fields for '${collectionName}'`)
-    return cachedData.data
-  }
+  const cachedFields = getCachedValue('fields', cacheKey)
+  if (cachedFields) return cachedFields
 
   const schema = await inferSchema(collectionName, 10)
   const fieldsArray = Object.keys(schema.fields)
 
-  memoryCache.fields.set(cacheKey, {
-    data: fieldsArray,
-    timestamp: Date.now()
-  })
+  setCachedValue('fields', cacheKey, fieldsArray)
 
   return fieldsArray
 }
@@ -6369,9 +6362,6 @@ const memoryCache = {
   collections: new Map(),
   serverStatus: new Map(),
 }
-
-const clearMemoryCache = () =>
-  Object.values(memoryCache).forEach(cache => cache.clear())
 
 const confirmationTokens = {
   dropUser: new Map(),

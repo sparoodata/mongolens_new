@@ -12,6 +12,7 @@ import { z } from 'zod'
 import _ from 'lodash'
 
 const { MongoClient, ObjectId, GridFSBucket } = mongodb
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
@@ -70,6 +71,57 @@ const start = async (mongoUri) => {
   return true
 }
 
+const isCacheEnabled = (cacheType) =>
+  config.enabledCaches.includes(cacheType)
+
+const getCachedValue = (cacheType, key) => {
+  if (!isCacheEnabled(cacheType)) return null
+
+  const cache = memoryCache[cacheType]
+  const cachedData = cache.get(key)
+
+  if (cachedData && (Date.now() - cachedData.timestamp) < config.cacheTTL[cacheType]) {
+    log(`Using cached ${cacheType} for '${key}'`)
+    return cachedData.data
+  }
+
+  return null
+}
+
+const setCachedValue = (cacheType, key, data) => {
+  if (!isCacheEnabled(cacheType)) return
+
+  memoryCache[cacheType].set(key, {
+    data,
+    timestamp: Date.now()
+  })
+}
+
+const invalidateRelatedCaches = (dbName, collectionName) => {
+  if (collectionName) {
+    const collKey = `${dbName}.${collectionName}`
+    memoryCache.schemas.delete(collKey)
+    memoryCache.fields.delete(collKey)
+    memoryCache.indexes.delete(collKey)
+    memoryCache.stats.delete(collKey)
+
+    for (const key of memoryCache.schemas.keys()) {
+      if (key.startsWith(collKey + '.')) memoryCache.schemas.delete(key)
+    }
+  }
+
+  memoryCache.collections.delete(dbName)
+}
+
+const clearMemoryCache = () => {
+  for (const cacheType of config.enabledCaches) {
+    if (memoryCache[cacheType]) {
+      log(`Clearing ${cacheType} cache`)
+      memoryCache[cacheType].clear()
+    }
+  }
+}
+
 const connect = async (uri = 'mongodb://localhost:27017', validate = true) => {
   try {
     log(`Connecting to MongoDB at: ${obfuscateMongoUri(uri)}`)
@@ -99,12 +151,7 @@ const connect = async (uri = 'mongodb://localhost:27017', validate = true) => {
         const adminDb = mongoClient.db('admin')
         const serverInfo = await adminDb.command({ buildInfo: 1 })
         log(`Connected to MongoDB server version: ${serverInfo.version}`)
-
-        const cacheKey = 'server_info'
-        memoryCache.serverStatus.set(cacheKey, {
-          data: serverInfo,
-          timestamp: Date.now()
-        })
+        setCachedValue('serverStatus', 'server_info', serverInfo)
       } catch (infoError) {
         log(`Warning: Unable to get server info: ${infoError.message}`)
       }
@@ -155,9 +202,7 @@ const startWatchdog = () => {
 
       if (heapUsedMB > config.memory.criticalThresholdMB) {
         log('Critical memory pressure. Clearing caches…', true)
-        config.enabledCaches.forEach(cache => {
-          if (memoryCache[cache]) memoryCache[cache].clear()
-        })
+        clearMemoryCache()
         if (config.memory.enableGC && global.gc) {
           global.gc()
         } else if (config.memory.enableGC) {
@@ -1293,18 +1338,20 @@ const registerTools = (server) => {
       async ({ uri, validateConnection }) => {
         return withErrorHandling(async () => {
           try {
-            if (!uri.includes('://') && !uri.includes('@') && !mongoUriMap.has(uri.toLowerCase())) {
-              if (await isDatabaseName(uri)) {
+            const processedUri = ensureValidMongoUri(uri)
+
+            if (!processedUri.includes('://') && !processedUri.includes('@') && !mongoUriMap.has(processedUri.toLowerCase())) {
+              if (await isDatabaseName(processedUri)) {
                 return {
                   content: [{
                     type: 'text',
-                    text: `It seems you're trying to switch to database "${uri}" rather than connect to a new MongoDB instance. Please use the "use-database" tool instead.`
+                    text: `It seems you're trying to switch to database "${processedUri}" rather than connect to a new MongoDB instance. Please use the "use-database" tool instead.`
                   }]
                 }
               }
             }
 
-            const resolvedUri = resolveMongoUri(uri)
+            const resolvedUri = resolveMongoUri(processedUri)
             await changeConnection(resolvedUri, validateConnection === 'true')
             return {
               content: [{
@@ -1359,8 +1406,9 @@ const registerTools = (server) => {
       },
       async ({ alias, uri }) => {
         return withErrorHandling(async () => {
-          log(`Tool: Adding connection alias '${alias}'...`)
+          log(`Tool: Adding connection alias '${alias}'…`)
 
+          uri = ensureValidMongoUri(uri)
           if (!uri.includes('://') && !uri.includes('@')) {
             throw new Error(`Invalid MongoDB URI: ${uri}. URI must include protocol (mongodb://) or authentication (@)`)
           }
@@ -1881,7 +1929,7 @@ const registerTools = (server) => {
           log(`Tool: Getting distinct values for field '${field}' in collection '${collection}'…`)
           log(`Tool: Using filter: ${filter}`)
 
-          const parsedFilter = filter ? JSON.parse(filter) : {}
+          const parsedFilter = filter ? parseJsonString(filter) : {}
           const values = await getDistinctValues(collection, field, parsedFilter)
           log(`Tool: Found ${values.length} distinct values.`)
           return {
@@ -1919,15 +1967,15 @@ const registerTools = (server) => {
       },
       async ({ collection, filter, projection, limit, skip, sort, streaming }) => {
         return withErrorHandling(async () => {
-          log(`Tool: Finding documents in collection '${collection}'...`)
+          log(`Tool: Finding documents in collection '${collection}'…`)
           log(`Tool: Using filter: ${filter}`)
           if (projection) log(`Tool: Using projection: ${projection}`)
           if (sort) log(`Tool: Using sort: ${sort}`)
           log(`Tool: Using limit: ${limit}, skip: ${skip}, streaming: ${streaming}`)
 
-          const parsedFilter = filter ? JSON.parse(filter) : {}
-          const parsedProjection = projection ? JSON.parse(projection) : null
-          const parsedSort = sort ? JSON.parse(sort) : null
+          const parsedFilter = filter ? parseJsonString(filter) : {}
+          const parsedProjection = projection ? parseJsonString(projection) : null
+          const parsedSort = sort ? parseJsonString(sort) : null
 
           const documents = await findDocuments(collection, parsedFilter, parsedProjection, limit, skip, parsedSort)
           log(`Tool: Found ${documents.length} documents in collection '${collection}'.`)
@@ -1955,7 +2003,7 @@ const registerTools = (server) => {
           log(`Tool: Counting documents in collection '${collection}'…`)
           log(`Tool: Using filter: ${filter}`)
 
-          const parsedFilter = filter ? JSON.parse(filter) : {}
+          const parsedFilter = filter ? parseJsonString(filter) : {}
           const count = await countDocuments(collection, parsedFilter)
           log(`Tool: Count result: ${count} documents.`)
           return {
@@ -1992,10 +2040,15 @@ const registerTools = (server) => {
           log(`Tool: Inserting document(s) into collection '${collection}'…`)
 
           if (!document) throw new Error('Document is required for insert operation')
-          const parsedDocument = JSON.parse(document)
-          const parsedOptions = options ? JSON.parse(options) : {}
+          const parsedDocument = parseJsonString(document)
+          const parsedOptions = options ? parseJsonString(options) : {}
 
           const result = await insertDocument(collection, parsedDocument, parsedOptions)
+
+          const cacheKey = `${currentDbName}.${collection}`
+          memoryCache.schemas.delete(cacheKey)
+          memoryCache.fields.delete(cacheKey)
+          memoryCache.stats.delete(cacheKey)
 
           if (Array.isArray(parsedDocument)) {
             log(`Tool: Successfully inserted ${result.insertedCount} documents.`)
@@ -2040,11 +2093,17 @@ const registerTools = (server) => {
           if (!filter) throw new Error('Filter is required for update operation')
           if (!update) throw new Error('Update is required for update operation')
 
-          const parsedFilter = JSON.parse(filter)
-          const parsedUpdate = JSON.parse(update)
-          const parsedOptions = options ? JSON.parse(options) : {}
+          const parsedFilter = parseJsonString(filter)
+          const parsedUpdate = parseJsonString(update)
+          const parsedOptions = options ? parseJsonString(options) : {}
 
           const result = await updateDocument(collection, parsedFilter, parsedUpdate, parsedOptions)
+
+          const cacheKey = `${currentDbName}.${collection}`
+          memoryCache.schemas.delete(cacheKey)
+          memoryCache.fields.delete(cacheKey)
+          memoryCache.stats.delete(cacheKey)
+
           log(`Tool: Document(s) updated successfully.`)
 
           return {
@@ -2080,11 +2139,17 @@ const registerTools = (server) => {
       async ({ collection, filter, many, token }) => {
         return withErrorHandling(async () => {
           log(`Tool: Processing delete document request for collection '${collection}'…`)
-          const parsedFilter = JSON.parse(filter)
+          const parsedFilter = parseJsonString(filter)
 
           if (config.disableDestructiveOperationTokens) {
             const options = { many: many === 'true' }
             const result = await deleteDocument(collection, parsedFilter, options)
+
+            const cacheKey = `${currentDbName}.${collection}`
+            memoryCache.schemas.delete(cacheKey)
+            memoryCache.fields.delete(cacheKey)
+            memoryCache.stats.delete(cacheKey)
+
             return {
               content: [{
                 type: 'text',
@@ -2133,11 +2198,11 @@ const registerTools = (server) => {
       },
       async ({ collection, pipeline, streaming, limit }) => {
         return withErrorHandling(async () => {
-          log(`Tool: Running aggregation on collection '${collection}'...`)
+          log(`Tool: Running aggregation on collection '${collection}'…`)
           log(`Tool: Using pipeline: ${pipeline}`)
           log(`Tool: Streaming: ${streaming}, Limit: ${limit}`)
 
-          const parsedPipeline = JSON.parse(pipeline)
+          const parsedPipeline = parseJsonString(pipeline)
           const processedPipeline = processAggregationPipeline(parsedPipeline)
 
           const results = await aggregateData(collection, processedPipeline)
@@ -2168,8 +2233,8 @@ const registerTools = (server) => {
           log(`Tool: Index keys: ${keys}`)
           if (options) log(`Tool: Index options: ${options}`)
 
-          const parsedKeys = JSON.parse(keys)
-          const parsedOptions = options ? JSON.parse(options) : {}
+          const parsedKeys = parseJsonString(keys)
+          const parsedOptions = options ? parseJsonString(options) : {}
 
           const result = await createIndex(collection, parsedKeys, parsedOptions)
           log(`Tool: Index created successfully: ${result}`)
@@ -2431,7 +2496,7 @@ const registerTools = (server) => {
           log(`Tool: Filter: ${filter}`)
           log(`Tool: Verbosity level: ${verbosity}`)
 
-          const parsedFilter = JSON.parse(filter)
+          const parsedFilter = parseJsonString(filter)
           const explanation = await explainQuery(collection, parsedFilter, verbosity)
           log(`Tool: Query explanation generated.`)
 
@@ -2533,7 +2598,7 @@ const registerTools = (server) => {
       async ({ collection, operations, ordered, token }) => {
         return withErrorHandling(async () => {
           log(`Tool: Processing bulk operations on collection '${collection}'…`)
-          const parsedOperations = JSON.parse(operations)
+          const parsedOperations = parseJsonString(operations)
 
           const deleteOps = parsedOperations.filter(op =>
             op.deleteOne || op.deleteMany
@@ -2541,6 +2606,12 @@ const registerTools = (server) => {
 
           if (deleteOps.length === 0 || config.disableDestructiveOperationTokens) {
             const result = await bulkOperations(collection, parsedOperations, ordered === 'true')
+
+            const cacheKey = `${currentDbName}.${collection}`
+            memoryCache.schemas.delete(cacheKey)
+            memoryCache.fields.delete(cacheKey)
+            memoryCache.stats.delete(cacheKey)
+
             return {
               content: [{
                 type: 'text',
@@ -2608,6 +2679,9 @@ const registerTools = (server) => {
           if (expireAfterSeconds) options.expireAfterSeconds = expireAfterSeconds
 
           const result = await createCollection(name, options)
+
+          memoryCache.collections.delete(currentDbName)
+
           return {
             content: [{
               type: 'text',
@@ -2643,8 +2717,8 @@ const registerTools = (server) => {
         try {
           log(`Tool: Running collation query on collection '${collection}' with locale '${locale}'`)
 
-          const parsedFilter = JSON.parse(filter)
-          const parsedSort = sort ? JSON.parse(sort) : null
+          const parsedFilter = parseJsonString(filter)
+          const parsedSort = sort ? parseJsonString(sort) : null
 
           const collationOptions = {
             locale,
@@ -2777,7 +2851,7 @@ const registerTools = (server) => {
             log(`Warning: Unable to check for geospatial indexes: ${indexError.message}`, true)
           }
 
-          const geoJson = JSON.parse(geometry)
+          const geoJson = parseJsonString(geometry)
           let query = {}
 
           if (operator === 'near') {
@@ -2839,7 +2913,7 @@ const registerTools = (server) => {
             throw error
           }
 
-          const parsedOps = JSON.parse(operations)
+          const parsedOps = parseJsonString(operations)
           const session = mongoClient.startSession()
           let results = []
 
@@ -2872,9 +2946,15 @@ const registerTools = (server) => {
             }
 
             await session.commitTransaction()
+
+            clearMemoryCache()
+
             log('Tool: Transaction committed successfully')
           } catch (error) {
             await session.abortTransaction()
+
+            clearMemoryCache()
+
             log(`Tool: Transaction aborted due to error: ${error.message}`)
             throw error
           } finally {
@@ -3048,6 +3128,7 @@ const registerTools = (server) => {
           } else if (operation === 'delete') {
             if (!filename) throw new Error('Filename is required for delete operation')
             await gridFsBucket.delete(await getFileId(bucket, filename))
+            memoryCache.collections.delete(currentDbName)
             result = `File '${filename}' deleted successfully from bucket '${bucket}'`
           }
 
@@ -3062,6 +3143,65 @@ const registerTools = (server) => {
             content: [{
               type: 'text',
               text: `Error performing GridFS operation: ${error.message}`
+            }],
+            isError: true
+          }
+        }
+      }
+    )
+  }
+
+  if (!isDisabled('tools', 'clear-cache')) {
+    server.tool(
+      'clear-cache',
+      'Clear memory caches to ensure fresh data',
+      {
+        target: z.enum(['all', 'collections', 'schemas', 'indexes', 'stats', 'fields', 'serverStatus']).default('all').describe('Cache type to clear (default: all)')
+      },
+      async ({ target }) => {
+        try {
+          log(`Tool: Clearing cache: ${target}`)
+
+          if (target === 'all') {
+            clearMemoryCache()
+            return {
+              content: [{
+                type: 'text',
+                text: 'All enabled caches have been cleared. Next data requests will fetch fresh data from MongoDB.'
+              }]
+            }
+          } else if (Object.keys(memoryCache).includes(target)) {
+            if (isCacheEnabled(target)) {
+              memoryCache[target].clear()
+              return {
+                content: [{
+                  type: 'text',
+                  text: `The ${target} cache has been cleared. Next ${target} requests will fetch fresh data from MongoDB.`
+                }]
+              }
+            } else {
+              return {
+                content: [{
+                  type: 'text',
+                  text: `The ${target} cache is currently disabled. No action taken.`
+                }]
+              }
+            }
+          } else {
+            return {
+              content: [{
+                type: 'text',
+                text: `Invalid cache target: ${target}. Valid targets are: all, ${config.enabledCaches.join(', ')}`
+              }],
+              isError: true
+            }
+          }
+        } catch (error) {
+          log(`Error clearing cache: ${error.message}`, true)
+          return {
+            content: [{
+              type: 'text',
+              text: `Error clearing cache: ${error.message}`
             }],
             isError: true
           }
@@ -3235,6 +3375,28 @@ const withErrorHandling = async (operation, errorMessage, defaultValue = null) =
   }
 }
 
+const ensureValidMongoUri = (uri) => {
+  if (uri.includes('://') || uri.includes('@') || mongoUriMap.has(uri.toLowerCase())) return uri
+
+  const validHostRegex = new RegExp([
+    // Domain name pattern (with optional port)
+    '^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)+' +
+    '[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9](?::\\d+)?$',
+    // localhost pattern (with optional port)
+    '|^localhost(?::\\d+)?$',
+    // IPv4 address pattern (with optional port)
+    '|^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}(?::\\d+)?$'
+  ].join(''))
+
+  if (validHostRegex.test(uri)) {
+    const modifiedUri = `mongodb://${uri}`
+    log(`Automatically added protocol to URI: ${obfuscateMongoUri(modifiedUri)}`)
+    return modifiedUri
+  }
+
+  return uri
+}
+
 const isDatabaseName = async (name) => {
   try {
     const dbs = await listDatabases()
@@ -3338,8 +3500,11 @@ const switchDatabase = async (dbName) => {
     const dbs = await listDatabases()
     const dbExists = dbs.some(db => db.name === dbName)
     if (!dbExists) throw new Error(`Database '${dbName}' does not exist`)
+
+    const oldDbName = currentDbName
     currentDbName = dbName
     currentDb = mongoClient.db(dbName)
+    invalidateRelatedCaches(oldDbName)
 
     await setProfilerSlowMs()
 
@@ -3358,11 +3523,14 @@ const dropDatabase = async (dbName) => {
     const wasConnected = currentDbName === dbName
     const db = mongoClient.db(dbName)
     await db.dropDatabase()
+    invalidateRelatedCaches(dbName)
+
     if (wasConnected) {
       currentDbName = 'admin'
       currentDb = mongoClient.db('admin')
       log(`DB Operation: Switched to 'admin' database after dropping '${dbName}'`)
     }
+
     log(`DB Operation: Database '${dbName}' dropped successfully.`)
 
     const message = `Database '${dbName}' has been permanently deleted.${
@@ -3421,21 +3589,12 @@ const listCollections = async () => {
   try {
     if (!currentDb) throw new Error('No database selected')
 
-    const cacheKey = currentDbName
-    const cachedData = memoryCache.collections.get(cacheKey)
-
-    if (cachedData && (Date.now() - cachedData.timestamp) < config.cacheTTL.collections) {
-      log(`DB Operation: Using cached collections list for '${currentDbName}'`)
-      return cachedData.data
-    }
+    const cachedCollections = getCachedValue('collections', currentDbName)
+    if (cachedCollections) return cachedCollections
 
     const collections = await currentDb.listCollections().toArray()
+    setCachedValue('collections', currentDbName, collections)
     log(`DB Operation: Found ${collections.length} collections.`)
-
-    memoryCache.collections.set(cacheKey, {
-      data: collections,
-      timestamp: Date.now()
-    })
 
     return collections
   } catch (error) {
@@ -3462,6 +3621,7 @@ const createCollection = async (name, options = {}) => {
   log(`DB Operation: Creating collection '${name}'…`)
   try {
     const result = await currentDb.createCollection(name, options)
+    invalidateRelatedCaches(currentDbName)
 
     if (result === true) return { success: true, name }
     if (result && result.ok === 1) return { success: true, name }
@@ -3480,6 +3640,7 @@ const dropCollection = async (name) => {
   log(`DB Operation: Dropping collection '${name}'…`)
   try {
     const result = await currentDb.collection(name).drop()
+    invalidateRelatedCaches(currentDbName, name)
 
     if (result === true) return { success: true, name }
     if (result && result.ok === 1) return { success: true, name }
@@ -3498,6 +3659,8 @@ const renameCollection = async (oldName, newName, dropTarget = false) => {
   log(`DB Operation: Renaming collection from '${oldName}' to '${newName}'…`)
   try {
     const result = await currentDb.collection(oldName).rename(newName, { dropTarget })
+    invalidateRelatedCaches(currentDbName, oldName)
+    invalidateRelatedCaches(currentDbName, newName)
 
     if (result === true) return { success: true, oldName, newName }
     if (result && result.ok === 1) return { success: true, oldName, newName }
@@ -3516,6 +3679,10 @@ const getCollectionStats = async (collectionName) => {
   log(`DB Operation: Getting statistics for collection '${collectionName}'…`)
   try {
     await throwIfCollectionNotExists(collectionName)
+
+    const cacheKey = `${currentDbName}.${collectionName}`
+    const cachedStats = getCachedValue('stats', cacheKey)
+    if (cachedStats) return cachedStats
 
     const adminDb = mongoClient.db('admin')
     let serverInfo
@@ -3540,6 +3707,8 @@ const getCollectionStats = async (collectionName) => {
       normalizedStats.wiredTigerVersion = stats.wiredTiger.creationString || 'unknown'
     }
 
+    setCachedValue('stats', cacheKey, normalizedStats)
+
     log(`DB Operation: Retrieved statistics for collection '${collectionName}'.`)
     return normalizedStats
   } catch (error) {
@@ -3554,12 +3723,8 @@ const getCollectionIndexes = async (collectionName) => {
     await throwIfCollectionNotExists(collectionName)
 
     const cacheKey = `${currentDbName}.${collectionName}`
-    const cachedData = memoryCache.indexes.get(cacheKey)
-
-    if (cachedData && (Date.now() - cachedData.timestamp) < config.cacheTTL.stats) {
-      log(`DB Operation: Using cached indexes for '${collectionName}'`)
-      return cachedData.data
-    }
+    const cachedIndexes = getCachedValue('indexes', cacheKey)
+    if (cachedIndexes) return cachedIndexes
 
     const indexes = await currentDb.collection(collectionName).indexes()
     log(`DB Operation: Retrieved ${indexes.length} indexes for collection '${collectionName}'.`)
@@ -3577,10 +3742,7 @@ const getCollectionIndexes = async (collectionName) => {
       log(`DB Operation: Index usage stats not available: ${statsError.message}`)
     }
 
-    memoryCache.indexes.set(cacheKey, {
-      data: indexes,
-      timestamp: Date.now()
-    })
+    setCachedValue('indexes', cacheKey, indexes)
 
     return indexes
   } catch (error) {
@@ -3807,12 +3969,8 @@ const inferSchema = async (collectionName, sampleSize = config.defaults.schemaSa
     await throwIfCollectionNotExists(collectionName)
 
     const cacheKey = `${currentDbName}.${collectionName}.${sampleSize}`
-    const cachedSchema = memoryCache.schemas.get(cacheKey)
-
-    if (cachedSchema && (Date.now() - cachedSchema.timestamp) < config.cacheTTL.schemas) {
-      log(`DB Operation: Using cached schema for '${collectionName}'`)
-      return cachedSchema.data
-    }
+    const cachedSchema = getCachedValue('schemas', cacheKey)
+    if (cachedSchema) return cachedSchema
 
     const collection = currentDb.collection(collectionName)
 
@@ -3873,18 +4031,12 @@ const inferSchema = async (collectionName, sampleSize = config.defaults.schemaSa
       timestamp: new Date().toISOString()
     }
 
-    memoryCache.schemas.set(cacheKey, {
-      data: result,
-      timestamp: Date.now()
-    })
+    setCachedValue('schemas', cacheKey, result)
 
     const fieldsArray = Object.keys(schema)
     log(`DB Operation: Schema inference complete, identified ${fieldsArray.length} fields.`)
 
-    memoryCache.fields.set(`${currentDbName}.${collectionName}`, {
-      data: fieldsArray,
-      timestamp: Date.now()
-    })
+    setCachedValue('fields', `${currentDbName}.${collectionName}`, fieldsArray)
 
     return result
   } catch (error) {
@@ -3933,6 +4085,7 @@ const createIndex = async (collectionName, keys, options = {}) => {
   try {
     const collection = currentDb.collection(collectionName)
     const result = await collection.createIndex(keys, options)
+    invalidateRelatedCaches(currentDbName, collectionName)
 
     if (typeof result === 'string') return result
     if (result && result.name) return result.name
@@ -3952,6 +4105,8 @@ const dropIndex = async (collectionName, indexName) => {
   try {
     await throwIfCollectionNotExists(collectionName)
     const collection = currentDb.collection(collectionName)
+    invalidateRelatedCaches(currentDbName, collectionName)
+
     const result = await collection.dropIndex(indexName)
 
     if (result === true) return true
@@ -4006,13 +4161,8 @@ const getSuggestedProjection = (filter, fields) => {
 const getServerStatus = async () => {
   log('DB Operation: Getting server status…')
   try {
-    const cacheKey = 'server_status'
-    const cachedData = memoryCache.serverStatus.get(cacheKey)
-
-    if (cachedData && (Date.now() - cachedData.timestamp) < config.cacheTTL.serverStatus) {
-      log('DB Operation: Using cached server status')
-      return cachedData.data
-    }
+    const cachedStatus = getCachedValue('serverStatus', 'server_status')
+    if (cachedStatus) return cachedStatus
 
     const adminDb = mongoClient.db('admin')
     const status = await adminDb.command({ serverStatus: 1 })
@@ -4032,10 +4182,7 @@ const getServerStatus = async () => {
       normalizedStatus.wiredTiger = normalizedStatus.wiredTiger3
     }
 
-    memoryCache.serverStatus.set(cacheKey, {
-      data: normalizedStatus,
-      timestamp: Date.now()
-    })
+    setCachedValue('serverStatus', 'server_status', normalizedStatus)
 
     log('DB Operation: Retrieved and normalized server status.')
     return normalizedStatus
@@ -4089,20 +4236,13 @@ const getCollectionValidation = async (collectionName) => {
 
 const getCollectionFields = async (collectionName) => {
   const cacheKey = `${currentDbName}.${collectionName}`
-  const cachedData = memoryCache.fields.get(cacheKey)
-
-  if (cachedData && (Date.now() - cachedData.timestamp) < config.cacheTTL.fields) {
-    log(`DB Operation: Using cached fields for '${collectionName}'`)
-    return cachedData.data
-  }
+  const cachedFields = getCachedValue('fields', cacheKey)
+  if (cachedFields) return cachedFields
 
   const schema = await inferSchema(collectionName, 10)
   const fieldsArray = Object.keys(schema.fields)
 
-  memoryCache.fields.set(cacheKey, {
-    data: fieldsArray,
-    timestamp: Date.now()
-  })
+  setCachedValue('fields', cacheKey, fieldsArray)
 
   return fieldsArray
 }
@@ -4355,6 +4495,7 @@ const runMapReduce = async (collectionName, map, reduce, options = {}) => {
       const outCollection = currentDb.collection(
         typeof options.out === 'string' ? options.out : options.out.replace
       )
+      memoryCache.collections.delete(currentDbName)
       return outCollection.find().toArray()
     } else {
       log(`DB Operation: Map-Reduce operation complete (unknown format).`)
@@ -5978,6 +6119,16 @@ const parseEnvValue = (value, defaultValue, path) => {
   }
 }
 
+const parseJsonString = (jsonString) => {
+  if (!jsonString || typeof jsonString !== 'string') return jsonString
+
+  try {
+    return JSON.parse(jsonString)
+  } catch (error) {
+    throw new Error(`Invalid JSON: ${error.message}`)
+  }
+}
+
 const getValueAtPath = (obj, path) =>
     _.get(obj, path)
 
@@ -6095,9 +6246,6 @@ const memoryCache = {
   serverStatus: new Map(),
 }
 
-const clearMemoryCache = () =>
-  Object.values(memoryCache).forEach(cache => cache.clear())
-
 const confirmationTokens = {
   dropUser: new Map(),
   dropIndex: new Map(),
@@ -6142,6 +6290,7 @@ CAPS:
 - IDX: create/analyze/optimize
 - AGG: pipeline/mapreduce/distinct
 - PERF: explain/analyze/monitor
+- UTIL: clear-cache/export/validate
 - ADV: text/geo/timeseries/bulk/txn/gridfs/sharding/export
 - CONN: connect-mongodb{uri|alias}/add-alias/list/connect-original
 
@@ -6153,6 +6302,7 @@ PTRNS:
 - OPT: explain-query/analyze-patterns/create-index
 - AGG: aggregate-data/map-reduce
 - MON: server-status/performance-metrics/watch-changes
+- CACHE: clear-cache{all|specific}
 - CONN: add-alias→connect-mongodb→db-ops→connect-original
 
 FLOWS:
@@ -6165,6 +6315,7 @@ FLOWS:
 7. BULK: bulk-ops{batch}
 8. TXN: transaction{atomic}
 9. CONN: add-alias→connect-mongodb{uri|alias}→ops→connect-original
+10. FRESH: clear-cache→list-collections/find-docs
 
 SAFE: destructive ops require confirmation tokens
 
@@ -6200,6 +6351,7 @@ const defaultConfig = {
   },
   cacheTTL: {
     stats: 15 * 1000,
+    fields: 30 * 1000,
     schemas: 60 * 1000,
     indexes: 120 * 1000,
     collections: 30 * 1000,

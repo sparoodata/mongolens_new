@@ -6,7 +6,6 @@ import stripJsonComments from 'strip-json-comments'
 import { readFileSync, existsSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
-import { Transform } from 'stream'
 import mongodb from 'mongodb'
 import { z } from 'zod'
 import _ from 'lodash'
@@ -4204,86 +4203,6 @@ const setProfilerSlowMs = async () => {
   }
 }
 
-const runTransaction = async (operations) => {
-  try {
-    log('Tool: Executing operations in a transaction…')
-
-    try {
-      const session = mongoClient.startSession()
-      await session.endSession()
-    } catch (error) {
-      if (error.message.includes('not supported') ||
-          error.message.includes('requires replica set') ||
-          error.codeName === 'NotAReplicaSet') {
-        return {
-          content: [{
-            type: 'text',
-            text: `Transactions are not supported on your MongoDB deployment.\n\nTransactions require MongoDB to be running as a replica set or sharded cluster. You appear to be running a standalone server.\n\nAlternative: You can set up a single-node replica set for development purposes by following these steps:\n\n1. Stop your MongoDB server\n2. Start it with the --replSet option: \`mongod --replSet rs0\`\n3. Connect to it and initialize the replica set: \`rs.initiate()\`\n\nThen try the transaction tool again.`
-          }]
-        }
-      }
-      throw error
-    }
-
-    const parsedOps = JSON.parse(operations)
-    const session = mongoClient.startSession()
-    let results = []
-
-    try {
-      session.startTransaction({
-        readConcern: { level: config.tools.transaction.readConcern },
-        writeConcern: config.tools.transaction.writeConcern
-      })
-
-      for (let i = 0; i < parsedOps.length; i++) {
-        const op = parsedOps[i]
-        log(`Tool: Transaction step ${i+1}: ${op.operation} on ${op.collection}`)
-
-        let result
-        const collection = currentDb.collection(op.collection)
-
-        if (op.operation === 'insert') {
-          result = await collection.insertOne(op.document, { session })
-        } else if (op.operation === 'update') {
-          result = await collection.updateOne(op.filter, op.update, { session })
-        } else if (op.operation === 'delete') {
-          result = await collection.deleteOne(op.filter, { session })
-        } else if (op.operation === 'find') {
-          result = await collection.findOne(op.filter, { session })
-        } else {
-          throw new Error(`Unsupported operation: ${op.operation}`)
-        }
-
-        results.push({ step: i+1, operation: op.operation, result })
-      }
-
-      await session.commitTransaction()
-      log('Tool: Transaction committed successfully')
-    } catch (error) {
-      await session.abortTransaction()
-      log(`Tool: Transaction aborted due to error: ${error.message}`)
-      throw error
-    } finally {
-      await session.endSession()
-    }
-
-    return {
-      content: [{
-        type: 'text',
-        text: formatTransactionResults(results)
-      }]
-    }
-  } catch (error) {
-    return {
-      content: [{
-        type: 'text',
-        text: `Error executing transaction: ${error.message}`
-      }],
-      isError: true
-    }
-  }
-}
-
 const getDatabaseUsers = async () => {
   log(`DB Operation: Getting users for database '${currentDbName}'…`)
   try {
@@ -5668,15 +5587,6 @@ const generateJsonSchemaValidator = (schema, strictness) => {
   return validator
 }
 
-const createStreamingResultStream = () => {
-  return new Transform({
-    objectMode: true,
-    transform(chunk, encoding, callback) {
-      callback(null, chunk)
-    }
-  })
-}
-
 const processAggregationPipeline = (pipeline) => {
   if (!pipeline || !Array.isArray(pipeline)) return pipeline
   return pipeline.map(stage => {
@@ -5702,14 +5612,6 @@ const processAggregationPipeline = (pipeline) => {
 const sanitizeTextSearch = (searchText) => {
   if (!searchText) return ''
   return searchText.replace(/\$/g, '').replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
-}
-
-const monitorBinarySize = (size) => {
-  const mb = size / (1024 * 1024)
-  if (mb > 10) {
-    log(`Warning: Large binary data detected (${mb.toFixed(2)} MB)`, true)
-  }
-  return mb < 50
 }
 
 const generateDropToken = () => {

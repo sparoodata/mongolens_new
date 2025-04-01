@@ -114,7 +114,6 @@
 ### Other Features
 
 - [Overview](#other-features-overview)
-- [BSON Type Handling](#other-features-bson-type-handling)
 - [New Database Metadata](#other-features-new-database-metadata)
 
 #### Other Features: Overview
@@ -134,21 +133,6 @@ MongoDB Lens includes numerous other features:
 - **Memory Management**: Auto-monitoring and cleanup for large operations
 - **Smart Caching**: Optimized caching for schema, indexes, fields and collections
 - **Backwards Compatible**: Support both modern and legacy MongoDB versions
-
-#### Other Features: BSON Type Handling
-
-MongoDB Lens supports MongoDB-specific BSON types in JSON strings, allowing you to use native MongoDB syntax in your queries, updates, and other operations.
-
-| BSON Type          | JSON Syntax                      | Example                                |
-| ------------------ | -------------------------------- | -------------------------------------- |
-| Binary             | `BinData(<SUBTYPE>, "<BASE64>")` | `BinData(0, "ZmFzdGVyIQ==")`           |
-| Decimal128         | `NumberDecimal("<VALUE>")`       | `NumberDecimal("123.45")`              |
-| ISODate            | `ISODate("<ISO STRING>")`        | `ISODate("2023-01-01T00:00:00Z")`      |
-| Int32 (32-bit int) | `NumberInt("<VALUE>")`           | `NumberInt("42")`                      |
-| Long (64-bit int)  | `NumberLong("<VALUE>")`          | `NumberLong("9223372036854775807")`    |
-| ObjectId           | `ObjectId("<HEX>")`              | `ObjectId("507f1f77bcf86cd799439011")` |
-| Regular Expression | `RegExp("<PATTERN>", "<FLAGS>")` | `RegExp("^test", "i")`                 |
-| Timestamp          | `Timestamp(t, i)`                | `Timestamp(1612137600, 1)`             |
 
 #### Other Features: New Database Metadata
 

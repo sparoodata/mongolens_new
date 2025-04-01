@@ -11,16 +11,7 @@ import mongodb from 'mongodb'
 import { z } from 'zod'
 import _ from 'lodash'
 
-const {
-  Long,
-  Int32,
-  Binary,
-  ObjectId,
-  Timestamp,
-  Decimal128,
-  MongoClient,
-  GridFSBucket
-} = mongodb
+const { MongoClient, ObjectId, GridFSBucket } = mongodb
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -1938,7 +1929,7 @@ const registerTools = (server) => {
           log(`Tool: Getting distinct values for field '${field}' in collection '${collection}'…`)
           log(`Tool: Using filter: ${filter}`)
 
-          const parsedFilter = filter ? parseBsonTypes(filter) : {}
+          const parsedFilter = filter ? parseJsonString(filter) : {}
           const values = await getDistinctValues(collection, field, parsedFilter)
           log(`Tool: Found ${values.length} distinct values.`)
           return {
@@ -1982,9 +1973,9 @@ const registerTools = (server) => {
           if (sort) log(`Tool: Using sort: ${sort}`)
           log(`Tool: Using limit: ${limit}, skip: ${skip}, streaming: ${streaming}`)
 
-          const parsedFilter = filter ? parseBsonTypes(filter) : {}
-          const parsedProjection = projection ? parseBsonTypes(projection) : null
-          const parsedSort = sort ? parseBsonTypes(sort) : null
+          const parsedFilter = filter ? parseJsonString(filter) : {}
+          const parsedProjection = projection ? parseJsonString(projection) : null
+          const parsedSort = sort ? parseJsonString(sort) : null
 
           const documents = await findDocuments(collection, parsedFilter, parsedProjection, limit, skip, parsedSort)
           log(`Tool: Found ${documents.length} documents in collection '${collection}'.`)
@@ -2012,7 +2003,7 @@ const registerTools = (server) => {
           log(`Tool: Counting documents in collection '${collection}'…`)
           log(`Tool: Using filter: ${filter}`)
 
-          const parsedFilter = filter ? parseBsonTypes(filter) : {}
+          const parsedFilter = filter ? parseJsonString(filter) : {}
           const count = await countDocuments(collection, parsedFilter)
           log(`Tool: Count result: ${count} documents.`)
           return {
@@ -2049,8 +2040,8 @@ const registerTools = (server) => {
           log(`Tool: Inserting document(s) into collection '${collection}'…`)
 
           if (!document) throw new Error('Document is required for insert operation')
-          const parsedDocument = parseBsonTypes(document)
-          const parsedOptions = options ? parseBsonTypes(options) : {}
+          const parsedDocument = parseJsonString(document)
+          const parsedOptions = options ? parseJsonString(options) : {}
 
           const result = await insertDocument(collection, parsedDocument, parsedOptions)
 
@@ -2102,9 +2093,9 @@ const registerTools = (server) => {
           if (!filter) throw new Error('Filter is required for update operation')
           if (!update) throw new Error('Update is required for update operation')
 
-          const parsedFilter = parseBsonTypes(filter)
-          const parsedUpdate = parseBsonTypes(update)
-          const parsedOptions = options ? parseBsonTypes(options) : {}
+          const parsedFilter = parseJsonString(filter)
+          const parsedUpdate = parseJsonString(update)
+          const parsedOptions = options ? parseJsonString(options) : {}
 
           const result = await updateDocument(collection, parsedFilter, parsedUpdate, parsedOptions)
 
@@ -2148,7 +2139,7 @@ const registerTools = (server) => {
       async ({ collection, filter, many, token }) => {
         return withErrorHandling(async () => {
           log(`Tool: Processing delete document request for collection '${collection}'…`)
-          const parsedFilter = parseBsonTypes(filter)
+          const parsedFilter = parseJsonString(filter)
 
           if (config.disableDestructiveOperationTokens) {
             const options = { many: many === 'true' }
@@ -2211,7 +2202,7 @@ const registerTools = (server) => {
           log(`Tool: Using pipeline: ${pipeline}`)
           log(`Tool: Streaming: ${streaming}, Limit: ${limit}`)
 
-          const parsedPipeline = parseBsonTypes(pipeline)
+          const parsedPipeline = parseJsonString(pipeline)
           const processedPipeline = processAggregationPipeline(parsedPipeline)
 
           const results = await aggregateData(collection, processedPipeline)
@@ -2242,8 +2233,8 @@ const registerTools = (server) => {
           log(`Tool: Index keys: ${keys}`)
           if (options) log(`Tool: Index options: ${options}`)
 
-          const parsedKeys = parseBsonTypes(keys)
-          const parsedOptions = options ? parseBsonTypes(options) : {}
+          const parsedKeys = parseJsonString(keys)
+          const parsedOptions = options ? parseJsonString(options) : {}
 
           const result = await createIndex(collection, parsedKeys, parsedOptions)
           log(`Tool: Index created successfully: ${result}`)
@@ -2505,7 +2496,7 @@ const registerTools = (server) => {
           log(`Tool: Filter: ${filter}`)
           log(`Tool: Verbosity level: ${verbosity}`)
 
-          const parsedFilter = parseBsonTypes(filter)
+          const parsedFilter = parseJsonString(filter)
           const explanation = await explainQuery(collection, parsedFilter, verbosity)
           log(`Tool: Query explanation generated.`)
 
@@ -2607,7 +2598,7 @@ const registerTools = (server) => {
       async ({ collection, operations, ordered, token }) => {
         return withErrorHandling(async () => {
           log(`Tool: Processing bulk operations on collection '${collection}'…`)
-          const parsedOperations = parseBsonTypes(operations)
+          const parsedOperations = parseJsonString(operations)
 
           const deleteOps = parsedOperations.filter(op =>
             op.deleteOne || op.deleteMany
@@ -2726,8 +2717,8 @@ const registerTools = (server) => {
         try {
           log(`Tool: Running collation query on collection '${collection}' with locale '${locale}'`)
 
-          const parsedFilter = parseBsonTypes(filter)
-          const parsedSort = sort ? parseBsonTypes(sort) : null
+          const parsedFilter = parseJsonString(filter)
+          const parsedSort = sort ? parseJsonString(sort) : null
 
           const collationOptions = {
             locale,
@@ -2860,7 +2851,7 @@ const registerTools = (server) => {
             log(`Warning: Unable to check for geospatial indexes: ${indexError.message}`, true)
           }
 
-          const geoJson = parseBsonTypes(geometry)
+          const geoJson = parseJsonString(geometry)
           let query = {}
 
           if (operator === 'near') {
@@ -2922,7 +2913,7 @@ const registerTools = (server) => {
             throw error
           }
 
-          const parsedOps = parseBsonTypes(operations)
+          const parsedOps = parseJsonString(operations)
           const session = mongoClient.startSession()
           let results = []
 
@@ -6128,122 +6119,14 @@ const parseEnvValue = (value, defaultValue, path) => {
   }
 }
 
-const parseBsonTypes = (jsonString) => {
+const parseJsonString = (jsonString) => {
   if (!jsonString || typeof jsonString !== 'string') return jsonString
 
-  // Handle ObjectId
-  jsonString = jsonString.replace(
-    /"ObjectId\(\"([0-9a-fA-F]{24})\"\)"/g,
-    'ObjectId("$1")'
-  )
-
-  // Handle ISODate
-  jsonString = jsonString.replace(
-    /"ISODate\(\"(.*?)\"\)"/g,
-    'ISODate("$1")'
-  )
-
-  // Handle NumberDecimal
-  jsonString = jsonString.replace(
-    /"NumberDecimal\(\"(.*?)\"\)"/g,
-    'NumberDecimal("$1")'
-  )
-
-  // Handle NumberLong
-  jsonString = jsonString.replace(
-    /"NumberLong\(\"(.*?)\"\)"/g,
-    'NumberLong("$1")'
-  )
-
-  // Handle NumberInt
-  jsonString = jsonString.replace(
-    /"NumberInt\(\"(.*?)\"\)"/g,
-    'NumberInt("$1")'
-  )
-
-  // Handle Binary
-  jsonString = jsonString.replace(
-    /"BinData\((\d+), \"(.*?)\"\)"/g,
-    'BinData($1, "$2")'
-  )
-
-  // Handle Timestamp
-  jsonString = jsonString.replace(
-    /"Timestamp\((\d+), (\d+)\)"/g,
-    'Timestamp($1, $2)'
-  )
-
-  // Handle Regex
-  jsonString = jsonString.replace(
-    /"RegExp\(\"(.*?)\", \"(.*?)\"\)"/g,
-    'RegExp("$1", "$2")'
-  )
-
-  // Parse with a custom reviver function
-  return JSON.parse(jsonString, (key, value) => {
-    if (typeof value !== 'string') return value
-
-    // Handle ObjectId
-    if (value.match(/^ObjectId\([\"\']([0-9a-fA-F]{24})[\"\']?\)$/)) {
-      const oid = value.match(/^ObjectId\([\"\']([0-9a-fA-F]{24})[\"\']?\)$/)[1]
-      return new ObjectId(oid)
-    }
-
-    // Handle ISODate
-    if (value.match(/^ISODate\([\"\'](.*?)[\"\']?\)$/)) {
-      const dateStr = value.match(/^ISODate\([\"\'](.*?)[\"\']?\)$/)[1]
-      return new Date(dateStr)
-    }
-
-    // Handle NumberDecimal
-    if (value.match(/^NumberDecimal\([\"\'](.*?)[\"\']?\)$/)) {
-      const numStr = value.match(/^NumberDecimal\([\"\'](.*?)[\"\']?\)$/)[1]
-      return mongodb.Decimal128.fromString(numStr)
-    }
-
-    // Handle NumberLong
-    if (value.match(/^NumberLong\([\"\'](.*?)[\"\']?\)$/)) {
-      const numStr = value.match(/^NumberLong\([\"\'](.*?)[\"\']?\)$/)[1]
-      return mongodb.Long.fromString(numStr)
-    }
-
-    // Handle NumberInt
-    if (value.match(/^NumberInt\([\"\'](.*?)[\"\']?\)$/)) {
-      const numStr = value.match(/^NumberInt\([\"\'](.*?)[\"\']?\)$/)[1]
-      return mongodb.Int32(parseInt(numStr, 10))
-    }
-
-    // Handle Binary data
-    if (value.match(/^BinData\((\d+), [\"\'](.*?)[\"\']?\)$/)) {
-      const matches = value.match(/^BinData\((\d+), [\"\'](.*?)[\"\']?\)$/)
-      const subType = parseInt(matches[1], 10)
-      const base64 = matches[2]
-      return new mongodb.Binary(Buffer.from(base64, 'base64'), subType)
-    }
-
-    // Handle Timestamp
-    if (value.match(/^Timestamp\((\d+), (\d+)\)$/)) {
-      const matches = value.match(/^Timestamp\((\d+), (\d+)\)$/)
-      const low = parseInt(matches[1], 10)
-      const high = parseInt(matches[2], 10)
-      return mongodb.Timestamp({ t: high, i: low })
-    }
-
-    // Handle RegExp
-    if (value.match(/^RegExp\([\"\'](.+?)[\"\'], [\"\'](.+?)[\"\']?\)$/)) {
-      const matches = value.match(/^RegExp\([\"\'](.+?)[\"\'], [\"\'](.+?)[\"\']?\)$/)
-      const pattern = matches[1]
-      const flags = matches[2]
-      return new RegExp(pattern, flags)
-    }
-
-    // Handle plain date strings (ISO format)
-    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$/.test(value)) {
-      return new Date(value)
-    }
-
-    return value
-  })
+  try {
+    return JSON.parse(jsonString)
+  } catch (error) {
+    throw new Error(`Invalid JSON: ${error.message}`)
+  }
 }
 
 const getValueAtPath = (obj, path) =>

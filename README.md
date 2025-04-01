@@ -40,6 +40,7 @@
 - [`analyze-query-patterns`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27analyze-query-patterns%27%2C%2F): Analyze live queries and suggest optimizations
 - [`analyze-schema`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27analyze-schema%27%2C%2F): Automatically infer collection schemas
 - [`bulk-operations`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27bulk-operations%27%2C%2F): Perform multiple operations efficiently ([requires confirmation](#data-protection-confirmation-for-destructive-operations) for destructive operations)
+- [`clear-cache`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27clear-cache%27%2C%2F): Clear memory caches to ensure fresh data
 - [`collation-query`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27collation-query%27%2C%2F): Find documents with language-specific collation rules
 - [`compare-schemas`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27compare-schemas%27%2C%2F): Compare schemas between two collections
 - [`connect-mongodb`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27connect-mongodb%27%2C%2F): Connect to a different MongoDB URI
@@ -398,6 +399,7 @@ MongoDB Lens supports extensive customization via JSON configuration file.
   },
   "cacheTTL": {
     "stats": 15000,                                // Stats cache lifetime in milliseconds
+    "fields": 30000,                               // Fields cache lifetime in milliseconds
     "schemas": 60000,                              // Schema cache lifetime in milliseconds
     "indexes": 120000,                             // Index cache lifetime in milliseconds
     "collections": 30000,                          // Collections list cache lifetime in milliseconds
@@ -559,10 +561,10 @@ Example overrides:
 | `mongoUri`                       | `CONFIG_MONGO_URI`                        |
 | `logLevel`                       | `CONFIG_LOG_LEVEL`                        |
 | `defaultDbName`                  | `CONFIG_DEFAULT_DB_NAME`                  |
-| `connectionOptions.maxPoolSize`  | `CONFIG_CONNECTION_OPTIONS_MAX_POOL_SIZE` |
-| `connection.reconnectionRetries` | `CONFIG_CONNECTION_RECONNECTION_RETRIES`  |
 | `defaults.queryLimit`            | `CONFIG_DEFAULTS_QUERY_LIMIT`             |
 | `tools.export.defaultFormat`     | `CONFIG_TOOLS_EXPORT_DEFAULT_FORMAT`      |
+| `connectionOptions.maxPoolSize`  | `CONFIG_CONNECTION_OPTIONS_MAX_POOL_SIZE` |
+| `connection.reconnectionRetries` | `CONFIG_CONNECTION_RECONNECTION_RETRIES`  |
 
 For environment variable values:
 
@@ -1124,6 +1126,10 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
   <sup>➥ Uses `export-data` tool</sup>
 - _"Switch to sample_analytics database, then check its sharding status"_<br>
   <sup>➥ Uses `shard-status` tool</sup>
+- _"Clear the collections cache"_<br>
+  <sup>➥ Uses `clear-cache` tool with target=collections</sup>
+- _"Clear all caches to ensure I'm seeing fresh data"_<br>
+  <sup>➥ Uses `clear-cache` tool</sup>
 - _"Switch to sample_weatherdata database, and generate an interactive report on its current state"_<br>
   <sup>➥ Uses numerous tools</sup>
 

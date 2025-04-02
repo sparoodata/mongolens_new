@@ -1144,16 +1144,31 @@ const registerPrompts = (server) => {
         if (includeSchemaBool) {
           const collectionsToAnalyze = collections.slice(0, 3)
           for (const coll of collectionsToAnalyze) {
-            schemaAnalysis[coll.name] = await inferSchema(coll.name, 10)
+            try {
+              schemaAnalysis[coll.name] = await inferSchema(coll.name, 10)
+            } catch (schemaError) {
+              log(`Prompt: Error analyzing schema for collection '${coll.name}': ${schemaError.message}`)
+              schemaAnalysis[coll.name] = {
+                collectionName: coll.name,
+                error: schemaError.message,
+                isEmpty: schemaError.message.includes('empty'),
+                fields: {}
+              }
+            }
           }
         }
 
         let securityInfo = null
         if (includeSecurityBool) {
-          const users = await getDatabaseUsers()
-          securityInfo = {
-            users,
-            auth: serverStatus ? serverStatus.security : null
+          try {
+            const users = await getDatabaseUsers()
+            securityInfo = {
+              users,
+              auth: serverStatus ? serverStatus.security : null
+            }
+          } catch (secError) {
+            log(`Prompt: Error getting security info: ${secError.message}`)
+            securityInfo = { error: secError.message }
           }
         }
 
@@ -1166,40 +1181,40 @@ const registerPrompts = (server) => {
                 type: 'text',
                 text: `Please perform a comprehensive health check on my MongoDB database "${currentDbName}" and provide recommendations for improvements.
 
-      Database Statistics:
-      ${JSON.stringify(dbStats, null, 2)}
+        Database Statistics:
+        ${JSON.stringify(dbStats, null, 2)}
 
-      Collections (${collections.length}):
-      ${collections.map(c => `- ${c.name}`).join('\n')}
+        Collections (${collections.length}):
+        ${collections.map(c => `- ${c.name}`).join('\n')}
 
-      ${includePerformanceBool ? `\nPerformance Metrics:
-      ${JSON.stringify(serverStatus ? {
-        connections: serverStatus.connections,
-        opcounters: serverStatus.opcounters,
-        mem: serverStatus.mem
-      } : {}, null, 2)}
+        ${includePerformanceBool ? `\nPerformance Metrics:
+        ${JSON.stringify(serverStatus ? {
+          connections: serverStatus.connections,
+          opcounters: serverStatus.opcounters,
+          mem: serverStatus.mem
+        } : {}, null, 2)}
 
-      Indexes:
-      ${Object.entries(indexes).map(([coll, idxs]) =>
-        `- ${coll}: ${idxs.length} indexes`
-      ).join('\n')}` : ''}
+        Indexes:
+        ${Object.entries(indexes).map(([coll, idxs]) =>
+          `- ${coll}: ${idxs.length} indexes`
+        ).join('\n')}` : ''}
 
-      ${includeSchemaBool ? `\nSchema Samples:
-      ${Object.keys(schemaAnalysis).join(', ')}` : ''}
+        ${includeSchemaBool ? `\nSchema Samples:
+        ${Object.keys(schemaAnalysis).join(', ')}` : ''}
 
-      ${includeSecurityBool ? `\nSecurity Information:
-      - Users: ${securityInfo.users.users ? securityInfo.users.users.length : 'N/A'}
-      - Authentication: ${securityInfo.auth && securityInfo.auth.authentication ?
-      JSON.stringify(securityInfo.auth.authentication.mechanisms || securityInfo.auth.authentication) : 'N/A'}` : ''}
+        ${includeSecurityBool ? `\nSecurity Information:
+        - Users: ${securityInfo?.users?.users ? securityInfo.users.users.length : 'N/A'}
+        - Authentication: ${securityInfo?.auth?.authentication ?
+        JSON.stringify(securityInfo.auth.authentication.mechanisms || securityInfo.auth.authentication) : 'N/A'}` : ''}
 
-      Please provide:
-      1. Overall health assessment
-      2. Urgent issues that need addressing
-      3. Performance optimization recommendations
-      4. Schema design suggestions and improvements
-      5. Security best practices and concerns
-      6. Monitoring and maintenance recommendations
-      7. Specific MongoDB Lens tools to use for implementing your recommendations`
+        Please provide:
+        1. Overall health assessment
+        2. Urgent issues that need addressing
+        3. Performance optimization recommendations
+        4. Schema design suggestions and improvements
+        5. Security best practices and concerns
+        6. Monitoring and maintenance recommendations
+        7. Specific MongoDB Lens tools to use for implementing your recommendations`
               }
             }
           ]
@@ -3948,7 +3963,22 @@ const inferSchema = async (collectionName, sampleSize = config.defaults.schemaSa
 
     log(`DB Operation: Retrieved ${documents.length} sample documents for schema inference.`)
 
-    if (documents.length === 0) throw new Error(`Collection '${collectionName}' is empty`)
+    if (documents.length === 0) {
+      // Return a minimal schema for empty collections instead of throwing error
+      const result = {
+        collectionName,
+        sampleSize: 0,
+        fields: {},
+        timestamp: new Date().toISOString(),
+        isEmpty: true
+      }
+
+      setCachedValue('schemas', cacheKey, result)
+      setCachedValue('fields', `${currentDbName}.${collectionName}`, [])
+
+      log(`DB Operation: Collection '${collectionName}' is empty, returning minimal schema.`)
+      return result
+    }
 
     fieldPaths.forEach(path => {
       schema[path] = {
@@ -5075,38 +5105,63 @@ const formatPerformanceMetrics = (metrics) => {
   }
 
   result += '## Server Status\n'
-  if (metrics.serverStatus.connections) {
+  if (metrics.serverStatus?.connections) {
     result += `- Current Connections: ${metrics.serverStatus.connections.current}\n`
     result += `- Available Connections: ${metrics.serverStatus.connections.available}\n`
   }
 
-  if (metrics.serverStatus.opcounters) {
+  if (metrics.serverStatus?.opcounters) {
     result += '\n## Operation Counters (since server start)\n'
     for (const [op, count] of Object.entries(metrics.serverStatus.opcounters)) {
       result += `- ${op}: ${count}\n`
     }
   }
 
-  if (metrics.serverStatus.wiredTiger) {
+  if (metrics.serverStatus?.wiredTiger) {
     result += '\n## Cache Utilization\n'
-    result += `- Pages Read: ${metrics.serverStatus.wiredTiger.pages_read}\n`
-    result += `- Max Bytes: ${formatSize(metrics.serverStatus.wiredTiger.maximum_bytes_configured)}\n`
-    result += `- Current Bytes: ${formatSize(metrics.serverStatus.wiredTiger.bytes_currently_in_cache)}\n`
-    result += `- Dirty Bytes: ${formatSize(metrics.serverStatus.wiredTiger.tracked_dirty_bytes)}\n`
+    result += `- Pages Read: ${metrics.serverStatus.wiredTiger.pages_read || 'N/A'}\n`
+    result += `- Max Bytes: ${formatSize(metrics.serverStatus.wiredTiger.maximum_bytes_configured || 0)}\n`
+    result += `- Current Bytes: ${formatSize(metrics.serverStatus.wiredTiger.bytes_currently_in_cache || 0)}\n`
+    result += `- Dirty Bytes: ${formatSize(metrics.serverStatus.wiredTiger.tracked_dirty_bytes || 0)}\n`
   }
 
   result += '\n## Database Profiling\n'
-  result += `- Profiling Level: ${metrics.profileSettings.was}\n`
-  result += `- Slow Query Threshold: ${metrics.profileSettings.slowms}ms\n`
+  result += `- Profiling Level: ${metrics.profileSettings?.was || 'N/A'}\n`
+  result += `- Slow Query Threshold: ${metrics.profileSettings?.slowms || 0}ms\n`
 
   if (metrics.currentOperations && metrics.currentOperations.length > 0) {
-    result += '\n## Long-Running Operations\n'
-    for (const op of metrics.currentOperations) {
-      result += `- Op: ${op.op} running for ${op.secs_running}s\n`
-      result += `  - Namespace: ${op.ns}\n`
-      if (op.query) result += `  - Query: ${JSON.stringify(op.query)}\n`
-      if (op.command) result += `  - Command: ${JSON.stringify(op.command)}\n`
+    result += '\n## Long-Running Operations (Limited)\n'
+    // Only show limited operations with simplified content
+    const limitedOps = metrics.currentOperations.slice(0, 3)
+    for (const op of limitedOps) {
+      result += `- Op: ${op.op || 'unknown'} running for ${op.secs_running || 0}s\n`
+      result += `  - Namespace: ${op.ns || 'unknown'}\n`
+      // Avoid stringifying complex objects
+      if (op.command) {
+        const cmdKeys = Object.keys(op.command).slice(0, 3)
+        result += `  - Command keys: ${cmdKeys.join(', ')}\n`
+      }
       result += '\n'
+    }
+
+    if (metrics.currentOperations.length > 3) {
+      result += `(${metrics.currentOperations.length - 3} more operations not shown)\n`
+    }
+  }
+
+  if (metrics.slowQueries && metrics.slowQueries.length > 0) {
+    result += '\n## Slow Queries (Limited)\n'
+    // Only show top few slow queries
+    const limitedQueries = metrics.slowQueries.slice(0, 3)
+    for (const query of limitedQueries) {
+      result += `- Collection: ${query.ns?.split('.')[1] || 'unknown'}\n`
+      result += `  - Duration: ${query.millis || 0}ms\n`
+      result += `  - Date: ${query.ts ? new Date(query.ts).toISOString() : 'unknown'}\n`
+      result += '\n'
+    }
+
+    if (metrics.slowQueries.length > 3) {
+      result += `(${metrics.slowQueries.length - 3} more slow queries not shown)\n`
     }
   }
 

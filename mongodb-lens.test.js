@@ -11,6 +11,7 @@ const { MongoClient, ObjectId } = mongodb
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
+const DIVIDER = '-'.repeat(30)
 const TEST_DB_NAME = 'mongodb_lens_test'
 const TEST_COLLECTION_NAME = 'test_collection'
 const ANOTHER_TEST_COLLECTION = 'another_collection'
@@ -54,7 +55,7 @@ const runTests = async () => {
   await initialize()
 
   try {
-    logHeader('TESTING TOOLS')
+    logHeader('Testing Tools', 'margin:top,bottom')
 
     await runTestGroup('Connection Tools', [
       { name: 'connect-mongodb Tool', fn: testConnectMongodbTool },
@@ -117,7 +118,7 @@ const runTests = async () => {
       { name: 'export-data Tool', fn: testExportDataTool }
     ])
 
-    logHeader('TESTING RESOURCES')
+    logHeader('Testing Resources', 'margin:top,bottom')
 
     await runTestGroup('Resources', [
       { name: 'databases Resource', fn: testDatabasesResource },
@@ -134,7 +135,7 @@ const runTests = async () => {
       { name: 'performance-metrics Resource', fn: testPerformanceMetricsResource }
     ])
 
-    logHeader('TESTING PROMPTS')
+    logHeader('Testing Prompts', 'margin:top,bottom')
 
     await runTestGroup('Prompts', [
       { name: 'query-builder Prompt', fn: testQueryBuilderPrompt },
@@ -159,13 +160,16 @@ const runTests = async () => {
   }
 }
 
-const logHeader = (title) => {
-  console.log(`\n${COLORS.blue}=== ${title} ===${COLORS.reset}\n`)
+const logHeader = (title, margin = 'none') => {
+  if (margin.indexOf('top') !== -1) console.log('')
+  console.log(`${COLORS.cyan}${DIVIDER}${COLORS.reset}`)
+  console.log(`${COLORS.cyan}${title}${COLORS.reset}`)
+  console.log(`${COLORS.cyan}${DIVIDER}${COLORS.reset}`)
+  if (margin.indexOf('bottom') !== -1) console.log('')
 }
 
 const displayTestSummary = () => {
-  console.log('\n------------------------------')
-  console.log(`${COLORS.cyan}Test Summary:${COLORS.reset}`)
+  logHeader('Test Summary', 'margin:top,bottom')
   console.log(`${COLORS.white}Total Tests: ${stats.total}${COLORS.reset}`)
   console.log(`${COLORS.green}Passed: ${stats.passed}${COLORS.reset}`)
   console.log(`${COLORS.red}Failed: ${stats.failed}${COLORS.reset}`)
@@ -248,7 +252,7 @@ const obfuscateMongoUri = uri => {
 }
 
 const initialize = async () => {
-  console.log(`${COLORS.cyan}MongoDB Lens Test Suite${COLORS.reset}`)
+  logHeader('MongoDB Lens Test Suite', 'margin:bottom')
   mongoUri = await setupMongoUri()
   await connectToMongo()
   await setupTestEnvironment()
@@ -270,7 +274,7 @@ const setupMongoUri = async () => {
 }
 
 const startInMemoryMongo = async () => {
-  console.log(`${COLORS.yellow}In-memory MongoDB requested. Checking if mongodb-memory-server is available...${COLORS.reset}`)
+  console.log(`${COLORS.yellow}In-memory MongoDB requested. Checking if mongodb-memory-server is available…${COLORS.reset}`)
   try {
     const { MongoMemoryServer } = await import('mongodb-memory-server')
     const mongod = await MongoMemoryServer.create()
@@ -278,7 +282,7 @@ const startInMemoryMongo = async () => {
     console.log(`${COLORS.green}In-memory MongoDB instance started at: ${uri}${COLORS.reset}`)
 
     process.on('exit', async () => {
-      console.log(`${COLORS.yellow}Stopping in-memory MongoDB server...${COLORS.reset}`)
+      console.log(`${COLORS.yellow}Stopping in-memory MongoDB server…${COLORS.reset}`)
       await mongod.stop()
     })
 
@@ -313,7 +317,7 @@ const setupTestEnvironment = async () => {
   testDb = directMongoClient.db(TEST_DB_NAME)
   await cleanupTestDatabase()
   await setupTestData()
-  console.log(`${COLORS.blue}Running tests against MongoDB Lens...${COLORS.reset}`)
+  console.log(`${COLORS.blue}Running tests against MongoDB Lens…${COLORS.reset}`)
 }
 
 const checkServerCapabilities = async () => {
@@ -322,11 +326,11 @@ const checkServerCapabilities = async () => {
 
     const replSetStatus = await adminDb.command({ replSetGetStatus: 1 }).catch(() => null)
     isReplSet = !!replSetStatus
-    console.log(`${COLORS.blue}MongoDB instance ${isReplSet ? 'is' : 'is not'} a replica set${COLORS.reset}`)
+    console.log(`${COLORS.blue}MongoDB instance ${isReplSet ? 'is' : 'is not'} a replica set.${COLORS.reset}`)
 
     const listShards = await adminDb.command({ listShards: 1 }).catch(() => null)
     isSharded = !!listShards
-    console.log(`${COLORS.blue}MongoDB instance ${isSharded ? 'is' : 'is not'} a sharded cluster${COLORS.reset}`)
+    console.log(`${COLORS.blue}MongoDB instance ${isSharded ? 'is' : 'is not'} a sharded cluster.${COLORS.reset}`)
   } catch (error) {
     console.log(`${COLORS.yellow}Not a replica set: ${error.message}${COLORS.reset}`)
   }
@@ -463,7 +467,7 @@ const waitForServerStart = () => {
     const handler = data => {
       if (data.toString().includes('MongoDB Lens server running.')) {
         lensProcess.stderr.removeListener('data', handler)
-        console.log('MongoDB Lens server started successfully')
+        console.log('MongoDB Lens server started successfully.')
         resolve()
       }
     }
@@ -1519,7 +1523,7 @@ const testCollationQueryTool = async () => {
 
   await testDb.collection(TEST_COLLECTION_NAME).insertMany(collationTestDocs)
 
-  console.log(`${COLORS.blue}Verifying collation test documents were inserted...${COLORS.reset}`)
+  console.log(`${COLORS.blue}Verifying collation test documents were inserted…${COLORS.reset}`)
   const testDocs = await testDb.collection(TEST_COLLECTION_NAME)
     .find({ name: { $in: ['café', 'cafe', 'CAFE'] } })
     .toArray()
@@ -1718,6 +1722,10 @@ const testClearCacheTool = async () => {
 }
 
 const testShardStatusTool = async () => {
+  if (!isSharded) {
+    return skipTest('shard-status Tool', 'MongoDB not in sharded cluster mode - sharding features require sharded deployment')
+  }
+
   await useTestDatabase()
 
   const response = await runLensCommand({
@@ -1729,11 +1737,6 @@ const testShardStatusTool = async () => {
       }
     }
   })
-
-  if (response?.result?.isError) {
-    console.log(`${COLORS.yellow}Received error response for shard status, expected for non-sharded deployments${COLORS.reset}`)
-    return
-  }
 
   assert(response?.result?.content, 'No content in response')
   assert(Array.isArray(response.result.content), 'Content not an array')

@@ -24,7 +24,9 @@
     "docker:hub:run": "docker run --rm -i --network=host --pull always furey/mongodb-lens",
     "docker:local:build": "docker build -t mongodb-lens .",
     "docker:local:run": "docker run --rm -i --network=host mongodb-lens",
-    "config:create": "node config-create.js"
+    "config:create": "node config-create.js",
+    "test": "cross-env CONFIG_MONGO_URI=mongodb://localhost:27017 node mongodb-lens.test.js",
+    "test:verbose": "cross-env DEBUG=true CONFIG_MONGO_URI=mongodb://localhost:27017 node mongodb-lens.test.js"
   },
   "keywords": [
     "ai",

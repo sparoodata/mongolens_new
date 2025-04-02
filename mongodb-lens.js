@@ -6074,7 +6074,7 @@ const setupSignalHandlers = () => {
   })
 }
 
-const exit = (exitCode = 1) => {
+const exit = (exitCode = 0) => {
   log('Exiting…', true)
   process.exit(exitCode)
 }

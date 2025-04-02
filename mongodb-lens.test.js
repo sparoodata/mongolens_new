@@ -182,11 +182,18 @@ const runTests = async () => {
 
     if (stats.failed > 0) {
       console.error(`${COLORS.red}Some tests failed.${COLORS.reset}`)
-      if (lensProcess) lensProcess.kill()
+      if (lensProcess) {
+        lensProcess.kill('SIGKILL')
+        await new Promise(resolve => lensProcess.on('exit', resolve))
+      }
       process.exit(1)
     } else {
       console.log(`${COLORS.green}All tests passed!${COLORS.reset}`)
-      if (lensProcess) lensProcess.kill()
+      if (lensProcess) {
+        lensProcess.kill('SIGKILL')
+        await new Promise(resolve => lensProcess.on('exit', resolve))
+      }
+      process.exit(0)
     }
   }
 }

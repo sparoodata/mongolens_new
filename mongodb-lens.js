@@ -7,6 +7,7 @@ import { readFileSync, existsSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import mongodb from 'mongodb'
+import { EJSON } from 'bson'
 import { z } from 'zod'
 import _ from 'lodash'
 
@@ -5717,7 +5718,7 @@ const parseEnvValue = (value, defaultValue, path) => {
 const parseJsonString = (jsonString) => {
   if (!jsonString || typeof jsonString !== 'string') return jsonString
   try {
-    return JSON.parse(jsonString)
+    return EJSON.parse(jsonString, { relaxed: false })
   } catch (error) {
     throw new Error(`Invalid JSON: ${error.message}`)
   }

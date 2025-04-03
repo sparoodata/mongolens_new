@@ -16,6 +16,7 @@
 - [Client Setup](#client-setup)
 - [Data Protection](#data-protection)
 - [Tutorial](#tutorial)
+- [Test Suite](#test-suite)
 - [Disclaimer](#disclaimer)
 - [Support](#support)
 
@@ -1198,6 +1199,73 @@ This two-step process prevents accidental data loss by requiring explicit confir
 
 > [!NOTE]<br>
 > If you're working in a controlled environment where data loss is acceptable, you can configure MongoDB Lens to [bypass confirmation](#bypassing-confirmation-for-destructive-operations) and perform destructive operations immediately.
+
+## Test Suite
+
+MongoDB Lens includes a [test suite](./mongodb-lens.test.js) to verify functionality across tools, resources, and prompts.
+
+- [Running Tests](#test-suite-running-tests)
+- [Command Line Options](#test-suite-command-line-options)
+- [Examples](#test-suite-examples)
+
+### Test Suite: Running Tests
+
+The test suite requires a `CONFIG_MONGO_URI` environment variable which can be set to:
+
+- a MongoDB connection string (e.g. `mongodb://localhost:27017`)
+- `mongodb-memory-server` (for in-memory testing)
+
+```console
+# Run Tests with MongoDB Connection String
+CONFIG_MONGO_URI=mongodb://localhost:27017 node mongodb-lens.test.js
+
+# Run Tests with In-Memory MongoDB (requires mongodb-memory-server)
+CONFIG_MONGO_URI=mongodb-memory-server node mongodb-lens.test.js
+```
+
+For convenience, the following scripts are available for running tests:
+
+```console
+npm test                        # Fails if no CONFIG_MONGO_URI provided
+npm run test:localhost          # Uses mongodb://localhost:27017
+npm run test:localhost:verbose  # Runs with DEBUG=true for verbose output
+npm run test:in-memory          # Uses mongodb-memory-server
+npm run test:in-memory:verbose  # Runs with DEBUG=true for verbose output
+```
+
+> [!TIP]<br>
+> The test suite creates temporary databases and collections that are cleaned up after test completion.
+
+### Test Suite: Command Line Options
+
+| Option             | Description                                          |
+| ------------------ | ---------------------------------------------------- |
+| `--list`           | List all available tests without running them        |
+| `--test=<n>`       | Run specific test(s) by name (comma-separated)       |
+| `--group=<n>`      | Run all tests in specific group(s) (comma-separated) |
+| `--pattern=<glob>` | Run tests matching pattern(s) (comma-separated)      |
+
+### Test Suite: Examples
+
+```console
+# List All Available Tests
+npm test -- --list
+
+# Run Only Connection-Related Tests (:27017)
+npm run test:localhost -- --group=Connection\ Tools
+
+# Test Specific Database Operations (In-Memory)
+npm run test:in-memory -- --test=create-database\ Tool,drop-database\ Tool
+
+# Test All Document-Related Tools (:27017)
+npm run test:localhost -- --pattern=document
+
+# Run Resource Tests Only (In-Memory)
+npm run test:in-memory -- --group=Resources
+
+# Run Specific Tests Only (In-Memory)
+npm run test:in-memory -- --test=aggregate-data\ Tool,find-documents\ Tool
+```
 
 ## Disclaimer
 

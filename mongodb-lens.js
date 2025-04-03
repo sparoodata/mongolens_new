@@ -1563,7 +1563,7 @@ const registerTools = (server) => {
         database: z.string().min(1).describe('Database name to use')
       },
       async ({ database }) => {
-        try {
+        return withErrorHandling(async () => {
           log(`Tool: Switching to database '${database}'…`)
           await switchDatabase(database)
           log(`Tool: Successfully switched to database '${database}'.`)
@@ -1573,16 +1573,7 @@ const registerTools = (server) => {
               text: `Switched to database: ${database}`
             }]
           }
-        } catch (error) {
-          log(`Error switching database: ${error.message}`, true)
-          return {
-            content: [{
-              type: 'text',
-              text: `Error switching database: ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, `Error switching to database '${database}'`)
       }
     )
   }
@@ -1648,7 +1639,7 @@ const registerTools = (server) => {
         roles: z.string().describe('Roles as JSON array, e.g. [{"role": "readWrite", "db": "mydb"}]')
       },
       async ({ username, password, roles }) => {
-        try {
+        return withErrorHandling(async () => {
           log(`Tool: Creating user '${username}'…`)
           const parsedRoles = JSON.parse(roles)
           await createUser(username, password, parsedRoles)
@@ -1659,16 +1650,7 @@ const registerTools = (server) => {
               text: `User '${username}' created with roles: ${JSON.stringify(parsedRoles)}`
             }]
           }
-        } catch (error) {
-          log(`Error creating user: ${error.message}`, true)
-          return {
-            content: [{
-              type: 'text',
-              text: `Error creating user: ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, `Error creating user '${username}'`)
       }
     )
   }
@@ -1725,7 +1707,7 @@ const registerTools = (server) => {
       'list-collections',
       'List collections in the current database',
       async () => {
-        try {
+        return withErrorHandling(async () => {
           log(`Tool: Listing collections in database '${currentDbName}'…`)
           const collections = await listCollections()
           log(`Tool: Found ${collections.length} collections in database '${currentDbName}'.`)
@@ -1735,16 +1717,7 @@ const registerTools = (server) => {
               text: formatCollectionsList(collections)
             }]
           }
-        } catch (error) {
-          log(`Error listing collections: ${error.message}`, true)
-          return {
-            content: [{
-              type: 'text',
-              text: `Error listing collections: ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, 'Error listing collections')
       }
     )
   }
@@ -1758,7 +1731,7 @@ const registerTools = (server) => {
         options: z.string().default('{}').describe('Collection options as JSON string (capped, size, etc.)')
       },
       async ({ name, options }) => {
-        try {
+        return withErrorHandling(async () => {
           log(`Tool: Creating collection '${name}'…`)
           log(`Tool: Using options: ${options}`)
           const parsedOptions = options ? JSON.parse(options) : {}
@@ -1770,16 +1743,7 @@ const registerTools = (server) => {
               text: `Collection '${name}' created successfully.`
             }]
           }
-        } catch (error) {
-          log(`Error creating collection: ${error.message}`, true)
-          return {
-            content: [{
-              type: 'text',
-              text: `Error creating collection: ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, `Error creating collection '${name}'`)
       }
     )
   }
@@ -1894,7 +1858,7 @@ const registerTools = (server) => {
         full: createBooleanSchema('Perform full validation (slower but more thorough)', 'false')
       },
       async ({ collection, full }) => {
-        try {
+        return withErrorHandling(async () => {
           log(`Tool: Validating collection '${collection}'…`)
           log(`Tool: Full validation: ${full}`)
           const results = await validateCollection(collection, full)
@@ -1905,16 +1869,7 @@ const registerTools = (server) => {
               text: formatValidationResults(results)
             }]
           }
-        } catch (error) {
-          log(`Error validating collection: ${error.message}`, true)
-          return {
-            content: [{
-              type: 'text',
-              text: `Error validating collection: ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, `Error validating collection '${collection}'`)
       }
     )
   }
@@ -1929,7 +1884,7 @@ const registerTools = (server) => {
         filter: z.string().default('{}').describe('Optional filter as JSON string')
       },
       async ({ collection, field, filter }) => {
-        try {
+        return withErrorHandling(async () => {
           log(`Tool: Getting distinct values for field '${field}' in collection '${collection}'…`)
           log(`Tool: Using filter: ${filter}`)
           const parsedFilter = filter ? parseJsonString(filter) : {}
@@ -1941,16 +1896,7 @@ const registerTools = (server) => {
               text: formatDistinctValues(field, values)
             }]
           }
-        } catch (error) {
-          log(`Error getting distinct values: ${error.message}`, true)
-          return {
-            content: [{
-              type: 'text',
-              text: `Error getting distinct values: ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, `Error getting distinct values for field '${field}' in collection '${collection}'`)
       }
     )
   }
@@ -1999,7 +1945,7 @@ const registerTools = (server) => {
         filter: z.string().default('{}').describe('MongoDB query filter (JSON string)')
       },
       async ({ collection, filter }) => {
-        try {
+        return withErrorHandling(async () => {
           log(`Tool: Counting documents in collection '${collection}'…`)
           log(`Tool: Using filter: ${filter}`)
           const parsedFilter = filter ? parseJsonString(filter) : {}
@@ -2011,16 +1957,7 @@ const registerTools = (server) => {
               text: `Count: ${count} document(s)`
             }]
           }
-        } catch (error) {
-          log(`Error counting documents: ${error.message}`, true)
-          return {
-            content: [{
-              type: 'text',
-              text: `Error counting documents: ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, `Error counting documents in collection '${collection}'`)
       }
     )
   }
@@ -2085,7 +2022,7 @@ const registerTools = (server) => {
         options: z.string().optional().describe('Options as JSON string')
       },
       async ({ collection, filter, update, options }) => {
-        try {
+        return withErrorHandling(async () => {
           log(`Tool: Updating documents in collection '${collection}'…`)
 
           if (!filter) throw new Error('Filter is required for update operation')
@@ -2108,16 +2045,7 @@ const registerTools = (server) => {
               text: formatUpdateResult(result)
             }]
           }
-        } catch (error) {
-          console.error(`Error updating document:`, error)
-          return {
-            content: [{
-              type: 'text',
-              text: `Error updating document: ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, `Error updating documents in collection '${collection}'`)
       }
     )
   }
@@ -2222,7 +2150,7 @@ const registerTools = (server) => {
         options: z.string().optional().describe('Index options as JSON object')
       },
       async ({ collection, keys, options }) => {
-        try {
+        return withErrorHandling(async () => {
           log(`Tool: Creating index on collection '${collection}'…`)
           log(`Tool: Index keys: ${keys}`)
           if (options) log(`Tool: Index options: ${options}`)
@@ -2236,16 +2164,7 @@ const registerTools = (server) => {
               text: `Index created: ${result}`
             }]
           }
-        } catch (error) {
-          log(`Error creating index: ${error.message}`, true)
-          return {
-            content: [{
-              type: 'text',
-              text: `Error creating index: ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, `Error creating index on collection '${collection}'`)
       }
     )
   }
@@ -2315,7 +2234,7 @@ const registerTools = (server) => {
         name: z.string().optional().describe('Collection name (for collection stats)')
       },
       async ({ target, name }) => {
-        try {
+        return withErrorHandling(async () => {
           let stats
           if (target === 'database') {
             log(`Tool: Getting statistics for database '${currentDbName}'…`)
@@ -2333,16 +2252,7 @@ const registerTools = (server) => {
               text: formatStats(stats)
             }]
           }
-        } catch (error) {
-          log(`Error getting stats: ${error.message}`, true)
-          return {
-            content: [{
-              type: 'text',
-              text: `Error getting stats: ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, `Error getting ${target} statistics${name ? ` for '${name}'` : ''}`)
       }
     )
   }
@@ -2356,7 +2266,7 @@ const registerTools = (server) => {
         sampleSize: z.number().int().min(1).default(100).describe('Number of documents to sample')
       },
       async ({ collection, sampleSize }) => {
-        try {
+        return withErrorHandling(async () => {
           log(`Tool: Analyzing schema for collection '${collection}' with sample size ${sampleSize}…`)
           const schema = await inferSchema(collection, sampleSize)
           log(`Tool: Schema analysis complete for '${collection}', found ${Object.keys(schema.fields).length} fields.`)
@@ -2366,16 +2276,7 @@ const registerTools = (server) => {
               text: formatSchema(schema)
             }]
           }
-        } catch (error) {
-          log(`Error inferring schema: ${error.message}`, true)
-          return {
-            content: [{
-              type: 'text',
-              text: `Error inferring schema: ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, `Error inferring schema for collection '${collection}'`)
       }
     )
   }
@@ -2478,7 +2379,7 @@ const registerTools = (server) => {
         verbosity: z.enum(['queryPlanner', 'executionStats', 'allPlansExecution']).default('executionStats').describe('Explain verbosity level')
       },
       async ({ collection, filter, verbosity }) => {
-        try {
+        return withErrorHandling(async () => {
           log(`Tool: Explaining query on collection '${collection}'…`)
           log(`Tool: Filter: ${filter}`)
           log(`Tool: Verbosity level: ${verbosity}`)
@@ -2501,16 +2402,7 @@ const registerTools = (server) => {
               text: formatExplanation(explanation) + fieldInfo + projectionInfo
             }]
           }
-        } catch (error) {
-          log(`Error explaining query: ${error.message}`, true)
-          return {
-            content: [{
-              type: 'text',
-              text: `Error explaining query: ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, `Error explaining query for collection '${collection}'`)
       }
     )
   }
@@ -2645,7 +2537,7 @@ const registerTools = (server) => {
         expireAfterSeconds: z.number().int().optional().describe('Optional TTL in seconds')
       },
       async ({ name, timeField, metaField, granularity, expireAfterSeconds }) => {
-        try {
+        return withErrorHandling(async () => {
           log(`Tool: Creating time series collection '${name}'…`)
 
           const adminDb = mongoClient.db('admin')
@@ -2675,15 +2567,7 @@ const registerTools = (server) => {
               text: `Time series collection '${name}' created successfully.`
             }]
           }
-        } catch (error) {
-          return {
-            content: [{
-              type: 'text',
-              text: `Error creating time series collection: ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, `Error creating time series collection '${name}'`)
       }
     )
   }
@@ -2701,7 +2585,7 @@ const registerTools = (server) => {
         sort: z.string().optional().describe('Sort specification as JSON string')
       },
       async ({ collection, filter, locale, strength, caseLevel, sort }) => {
-        try {
+        return withErrorHandling(async () => {
           log(`Tool: Running collation query on collection '${collection}' with locale '${locale}'`)
 
           const parsedFilter = parseJsonString(filter)
@@ -2726,15 +2610,7 @@ const registerTools = (server) => {
               text: formatCollationResults(results, locale, strength, caseLevel)
             }]
           }
-        } catch (error) {
-          return {
-            content: [{
-              type: 'text',
-              text: `Error running collation query: ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, `Error running collation query on collection '${collection}' with locale '${locale}'`)
       }
     )
   }
@@ -2752,7 +2628,7 @@ const registerTools = (server) => {
         limit: z.number().int().min(1).default(10).describe('Maximum results to return')
       },
       async ({ collection, searchText, language, caseSensitive, diacriticSensitive, limit }) => {
-        try {
+        return withErrorHandling(async () => {
           log(`Tool: Performing text search in collection '${collection}' for: "${searchText}"`)
 
           try {
@@ -2789,15 +2665,7 @@ const registerTools = (server) => {
               text: formatTextSearchResults(results, searchText)
             }]
           }
-        } catch (error) {
-          return {
-            content: [{
-              type: 'text',
-              text: `Error performing text search: ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, `Error performing text search in collection '${collection}' for: "${searchText}"`)
       }
     )
   }
@@ -2815,7 +2683,7 @@ const registerTools = (server) => {
         limit: z.number().int().min(1).default(10).describe('Maximum number of documents to return')
       },
       async ({ collection, operator, field, geometry, maxDistance, limit }) => {
-        try {
+        return withErrorHandling(async () => {
           log(`Tool: Running geospatial query on collection '${collection}'…`)
 
           let indexMessage = ''
@@ -2859,15 +2727,7 @@ const registerTools = (server) => {
               text: resultText
             }]
           }
-        } catch (error) {
-          return {
-            content: [{
-              type: 'text',
-              text: `Error running geospatial query: ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, `Error running geospatial query on collection '${collection}'`)
       }
     )
   }
@@ -2880,7 +2740,7 @@ const registerTools = (server) => {
         operations: z.string().describe('JSON array of operations with collection, operation type, and parameters')
       },
       async ({ operations }) => {
-        try {
+        return withErrorHandling(async () => {
           log('Tool: Executing operations in a transaction…')
 
           try {
@@ -2954,15 +2814,7 @@ const registerTools = (server) => {
               text: formatTransactionResults(results)
             }]
           }
-        } catch (error) {
-          return {
-            content: [{
-              type: 'text',
-              text: `Error executing transaction: ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, 'Error executing transaction')
       }
     )
   }
@@ -2978,7 +2830,7 @@ const registerTools = (server) => {
         options: z.string().optional().describe('Options as JSON string (query, limit, etc.)')
       },
       async ({ collection, map, reduce, options }) => {
-        try {
+        return withErrorHandling(async () => {
           log(`Tool: Running Map-Reduce on collection '${collection}'…`)
           const mapFunction = eval(`(${map})`)
           const reduceFunction = eval(`(${reduce})`)
@@ -2991,16 +2843,7 @@ const registerTools = (server) => {
               text: formatMapReduceResults(results)
             }]
           }
-        } catch (error) {
-          log(`Error running Map-Reduce: ${error.message}`, true)
-          return {
-            content: [{
-              type: 'text',
-              text: `Error running Map-Reduce: ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, `Error running Map-Reduce on collection '${collection}'`)
       }
     )
   }
@@ -3016,7 +2859,7 @@ const registerTools = (server) => {
         fullDocument: createBooleanSchema('Include full document in update events', 'false')
       },
       async ({ collection, operations, duration, fullDocument }) => {
-        try {
+        return withErrorHandling(async () => {
           log(`Tool: Watching collection '${collection}' for changes…`)
 
           let maxDuration = config.tools.watchChanges.maxDurationSeconds
@@ -3074,15 +2917,7 @@ const registerTools = (server) => {
               })
             })
           })
-        } catch (error) {
-          return {
-            content: [{
-              type: 'text',
-              text: `Error watching for changes: ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, `Error watching for changes in collection '${collection}'`)
       }
     )
   }
@@ -3098,7 +2933,7 @@ const registerTools = (server) => {
         limit: z.number().int().min(1).default(20).describe('Maximum files to list')
       },
       async ({ operation, bucket, filename, limit }) => {
-        try {
+        return withErrorHandling(async () => {
           log(`Tool: Performing GridFS ${operation} operation on bucket '${bucket}'`)
 
           const gridFsBucket = new mongodb.GridFSBucket(currentDb, { bucketName: bucket })
@@ -3125,15 +2960,7 @@ const registerTools = (server) => {
               text: result
             }]
           }
-        } catch (error) {
-          return {
-            content: [{
-              type: 'text',
-              text: `Error performing GridFS operation: ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, `Error performing GridFS ${operation} operation${filename ? ` on file '${filename}'` : ''}`)
       }
     )
   }
@@ -3146,7 +2973,7 @@ const registerTools = (server) => {
         target: z.enum(['all', 'collections', 'schemas', 'indexes', 'stats', 'fields', 'serverStatus']).default('all').describe('Cache type to clear (default: all)')
       },
       async ({ target }) => {
-        try {
+        return withErrorHandling(async () => {
           log(`Tool: Clearing cache: ${target}`)
 
           if (target === 'all') {
@@ -3185,16 +3012,7 @@ const registerTools = (server) => {
             }],
             isError: true
           }
-        } catch (error) {
-          log(`Error clearing cache: ${error.message}`, true)
-          return {
-            content: [{
-              type: 'text',
-              text: `Error clearing cache: ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, `Error clearing cache target: ${target}`)
       }
     )
   }
@@ -3266,7 +3084,7 @@ const registerTools = (server) => {
         sort: z.string().optional().describe('Sort specification as JSON string (e.g. {"date": -1} for descending)')
       },
       async ({ collection, filter, format, fields, limit, sort }) => {
-        try {
+        return withErrorHandling(async () => {
           log(`Tool: Exporting data from collection '${collection}' in ${format} format…`)
           log(`Tool: Using filter: ${filter}`)
           if (sort) log(`Tool: Using sort: ${sort}`)
@@ -3284,16 +3102,7 @@ const registerTools = (server) => {
               text: exportData
             }]
           }
-        } catch (error) {
-          log(`Error exporting data: ${error.message}`, true)
-          return {
-            content: [{
-              type: 'text',
-              text: `Error exporting data: ${error.message}`
-            }],
-            isError: true
-          }
-        }
+        }, `Error exporting data from collection '${collection}'`)
       }
     )
   }

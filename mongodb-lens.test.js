@@ -12,116 +12,122 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
 const runTests = async () => {
-  await initialize()
+  parseCommandLineArgs()
+
+  if (process.argv.includes('--list')) return listAllTests()
 
   try {
+    logHeader('MongoDB Lens Test Suite', 'margin:bottom')
+
+    await initialize()
+
     logHeader('Testing Tools', 'margin:top,bottom')
 
-    await runTestGroup('Connection Tools', [
-      { name: 'connect-mongodb Tool', fn: testConnectMongodbTool },
-      { name: 'connect-original Tool', fn: testConnectOriginalTool },
-      { name: 'add-connection-alias Tool', fn: testAddConnectionAliasTool },
-      { name: 'list-connections Tool', fn: testListConnectionsTool }
-    ])
-
-    await runTestGroup('Database Tools', [
-      { name: 'list-databases Tool', fn: testListDatabasesTool },
-      { name: 'current-database Tool', fn: testCurrentDatabaseTool },
-      { name: 'create-database Tool', fn: testCreateDatabaseTool },
-      { name: 'use-database Tool', fn: testUseDatabaseTool },
-      { name: 'drop-database Tool', fn: testDropDatabaseTool }
-    ])
-
-    await runTestGroup('User Tools', [
-      { name: 'create-user Tool', fn: testCreateUserTool },
-      { name: 'drop-user Tool', fn: testDropUserTool }
-    ])
-
-    await runTestGroup('Collection Tools', [
-      { name: 'list-collections Tool', fn: testListCollectionsTool },
-      { name: 'create-collection Tool', fn: testCreateCollectionTool },
-      { name: 'drop-collection Tool', fn: testDropCollectionTool },
-      { name: 'rename-collection Tool', fn: testRenameCollectionTool },
-      { name: 'validate-collection Tool', fn: testValidateCollectionTool }
-    ])
-
-    await runTestGroup('Document Tools', [
-      { name: 'distinct-values Tool', fn: testDistinctValuesTool },
-      { name: 'find-documents Tool', fn: testFindDocumentsTool },
-      { name: 'count-documents Tool', fn: testCountDocumentsTool },
-      { name: 'insert-document Tool', fn: testInsertDocumentTool },
-      { name: 'update-document Tool', fn: testUpdateDocumentTool },
-      { name: 'delete-document Tool', fn: testDeleteDocumentTool }
-    ])
-
-    await runTestGroup('Advanced Tools', [
-      { name: 'aggregate-data Tool', fn: testAggregateDataTool },
-      { name: 'map-reduce Tool', fn: testMapReduceTool },
-      { name: 'create-index Tool', fn: testCreateIndexTool },
-      { name: 'drop-index Tool', fn: testDropIndexTool },
-      { name: 'analyze-schema Tool', fn: testAnalyzeSchemaTool },
-      { name: 'generate-schema-validator Tool', fn: testGenerateSchemaValidatorTool },
-      { name: 'compare-schemas Tool', fn: testCompareSchemasTool },
-      { name: 'explain-query Tool', fn: testExplainQueryTool },
-      { name: 'analyze-query-patterns Tool', fn: testAnalyzeQueryPatternsTool },
-      { name: 'get-stats Tool', fn: testGetStatsTool },
-      { name: 'bulk-operations Tool', fn: testBulkOperationsTool },
-      { name: 'create-timeseries Tool', fn: testCreateTimeseriesCollectionTool },
-      { name: 'collation-query Tool', fn: testCollationQueryTool },
-      { name: 'text-search Tool', fn: testTextSearchTool },
-      { name: 'geo-query Tool', fn: testGeoQueryTool },
-      { name: 'transaction Tool', fn: testTransactionTool },
-      { name: 'watch-changes Tool', fn: testWatchChangesTool },
-      { name: 'gridfs-operation Tool', fn: testGridFSOperationTool },
-      { name: 'clear-cache Tool', fn: testClearCacheTool },
-      { name: 'shard-status Tool', fn: testShardStatusTool },
-      { name: 'export-data Tool', fn: testExportDataTool }
-    ])
+    for (const group of TEST_GROUPS) {
+      if (group.name !== 'Resources' && group.name !== 'Prompts') {
+        await runTestGroup(group.name, group.tests)
+      }
+    }
 
     logHeader('Testing Resources', 'margin:top,bottom')
 
-    await runTestGroup('Resources', [
-      { name: 'databases Resource', fn: testDatabasesResource },
-      { name: 'collections Resource', fn: testCollectionsResource },
-      { name: 'database-users Resource', fn: testDatabaseUsersResource },
-      { name: 'database-triggers Resource', fn: testDatabaseTriggersResource },
-      { name: 'stored-functions Resource', fn: testStoredFunctionsResource },
-      { name: 'collection-schema Resource', fn: testCollectionSchemaResource },
-      { name: 'collection-indexes Resource', fn: testCollectionIndexesResource },
-      { name: 'collection-stats Resource', fn: testCollectionStatsResource },
-      { name: 'collection-validation Resource', fn: testCollectionValidationResource },
-      { name: 'server-status Resource', fn: testServerStatusResource },
-      { name: 'replica-status Resource', fn: testReplicaStatusResource },
-      { name: 'performance-metrics Resource', fn: testPerformanceMetricsResource }
-    ])
+    const resourcesGroup = TEST_GROUPS.find(g => g.name === 'Resources')
+    if (resourcesGroup) await runTestGroup(resourcesGroup.name, resourcesGroup.tests)
 
     logHeader('Testing Prompts', 'margin:top,bottom')
 
-    await runTestGroup('Prompts', [
-      { name: 'query-builder Prompt', fn: testQueryBuilderPrompt },
-      { name: 'aggregation-builder Prompt', fn: testAggregationBuilderPrompt },
-      { name: 'mongo-shell Prompt', fn: testMongoShellPrompt },
-      { name: 'sql-to-mongodb Prompt', fn: testSqlToMongodbPrompt },
-      { name: 'schema-analysis Prompt', fn: testSchemaAnalysisPrompt },
-      { name: 'data-modeling Prompt', fn: testDataModelingPrompt },
-      { name: 'schema-versioning Prompt', fn: testSchemaVersioningPrompt },
-      { name: 'multi-tenant-design Prompt', fn: testMultiTenantDesignPrompt },
-      { name: 'index-recommendation Prompt', fn: testIndexRecommendationPrompt },
-      { name: 'query-optimizer Prompt', fn: testQueryOptimizerPrompt },
-      { name: 'security-audit Prompt', fn: testSecurityAuditPrompt },
-      { name: 'backup-strategy Prompt', fn: testBackupStrategyPrompt },
-      { name: 'migration-guide Prompt', fn: testMigrationGuidePrompt },
-      { name: 'database-health-check Prompt', fn: testDatabaseHealthCheckPrompt }
-    ])
-
+    const promptsGroup = TEST_GROUPS.find(g => g.name === 'Prompts')
+    if (promptsGroup) await runTestGroup(promptsGroup.name, promptsGroup.tests)
   } finally {
     await cleanup()
     displayTestSummary()
   }
 }
 
+const runTestGroup = async (groupName, tests) => {
+  let anyTestsInGroup = false
+
+  for (const test of tests) {
+    if (shouldRunTest(test.name, groupName)) {
+      anyTestsInGroup = true
+      break
+    }
+  }
+
+  if (!anyTestsInGroup) return console.log(`${COLORS.yellow}Skipping group: ${groupName} - No matching tests${COLORS.reset}`)
+
+  console.log(`${COLORS.blue}Running tests in group: ${groupName}${COLORS.reset}`)
+
+  for (const test of tests) {
+    if (shouldRunTest(test.name, groupName)) {
+      await runTest(test.name, test.fn)
+    } else {
+      skipTest(test.name, 'Not selected for execution')
+    }
+  }
+}
+
+const shouldRunTest = (testName, groupName) => {
+  if (!testFilters.length && !groupFilters.length && !patternFilters.length) return true
+
+  if (testFilters.includes(testName)) return true
+
+  if (groupFilters.includes(groupName)) return true
+
+  for (const pattern of patternFilters) {
+    const regexPattern = pattern.replace(/\*/g, '.*')
+    const regex = new RegExp(regexPattern, 'i')
+    if (regex.test(testName)) return true
+  }
+
+  return false
+}
+
+const listAllTests = () => {
+  logHeader('Available Test Groups & Tests', 'margin:bottom')
+
+  TEST_GROUPS.forEach(group => {
+    console.log(`${COLORS.yellow}${group.name}:${COLORS.reset}`)
+    group.tests.forEach(test => {
+      console.log(`- ${test.name}`)
+    })
+    console.log('')
+  })
+
+  console.log(`${COLORS.yellow}Usage:${COLORS.reset}`)
+  console.log('  --test=<test-name>     Run specific test(s), comma separated')
+  console.log('  --group=<group-name>   Run all tests in specific group(s), comma separated')
+  console.log('  --pattern=<pattern>    Run tests matching pattern (glob style, e.g. *collection*)')
+  console.log('  --list                 List all available tests without running them')
+
+  process.exit(0)
+}
+
+const parseCommandLineArgs = () => {
+  for (let i = 2; i < process.argv.length; i++) {
+    const arg = process.argv[i]
+
+    if (arg.startsWith('--test=')) {
+      const tests = arg.replace('--test=', '').split(',')
+      testFilters.push(...tests.map(t => t.trim()))
+    } else if (arg.startsWith('--group=')) {
+      const groups = arg.replace('--group=', '').split(',')
+      groupFilters.push(...groups.map(g => g.trim()))
+    } else if (arg.startsWith('--pattern=')) {
+      const patterns = arg.replace('--pattern=', '').split(',')
+      patternFilters.push(...patterns.map(p => p.trim()))
+    }
+  }
+
+  if (testFilters.length || groupFilters.length || patternFilters.length) {
+    console.log(`${COLORS.blue}Running with filters:${COLORS.reset}`)
+    if (testFilters.length) console.log(`${COLORS.blue}Tests: ${testFilters.join(', ')}${COLORS.reset}`)
+    if (groupFilters.length) console.log(`${COLORS.blue}Groups: ${groupFilters.join(', ')}${COLORS.reset}`)
+    if (patternFilters.length) console.log(`${COLORS.blue}Patterns: ${patternFilters.join(', ')}${COLORS.reset}`)
+  }
+}
+
 const initialize = async () => {
-  logHeader('MongoDB Lens Test Suite', 'margin:bottom')
   mongoUri = await setupMongoUri()
   await connectToMongo()
   await setupTestEnvironment()
@@ -296,12 +302,6 @@ const createTestUser = async () => {
     })
   } catch (e) {
     console.log(`${COLORS.yellow}Could not create test user: ${e.message}${COLORS.reset}`)
-  }
-}
-
-const runTestGroup = async (groupName, tests) => {
-  for (const test of tests) {
-    await runTest(test.name, test.fn)
   }
 }
 
@@ -2324,6 +2324,9 @@ let nextRequestId = 1
 let lensProcess = null
 let responseHandlers = new Map()
 
+const testFilters = []
+const groupFilters = []
+const patternFilters = []
 const isDebugging = process.env.DEBUG === 'true'
 
 const DIVIDER = '-'.repeat(30)
@@ -2356,6 +2359,118 @@ const testConfig = {
   serverStartupTimeout: 20000,
   disableTokens: process.env.CONFIG_DISABLE_DESTRUCTIVE_OPERATION_TOKENS === 'true'
 }
+
+const TEST_GROUPS = [
+  {
+    name: 'Connection Tools',
+    tests: [
+      { name: 'connect-mongodb Tool', fn: testConnectMongodbTool },
+      { name: 'connect-original Tool', fn: testConnectOriginalTool },
+      { name: 'add-connection-alias Tool', fn: testAddConnectionAliasTool },
+      { name: 'list-connections Tool', fn: testListConnectionsTool }
+    ]
+  },
+  {
+    name: 'Database Tools',
+    tests: [
+      { name: 'list-databases Tool', fn: testListDatabasesTool },
+      { name: 'current-database Tool', fn: testCurrentDatabaseTool },
+      { name: 'create-database Tool', fn: testCreateDatabaseTool },
+      { name: 'use-database Tool', fn: testUseDatabaseTool },
+      { name: 'drop-database Tool', fn: testDropDatabaseTool }
+    ]
+  },
+  {
+    name: 'User Tools',
+    tests: [
+      { name: 'create-user Tool', fn: testCreateUserTool },
+      { name: 'drop-user Tool', fn: testDropUserTool }
+    ]
+  },
+  {
+    name: 'Collection Tools',
+    tests: [
+      { name: 'list-collections Tool', fn: testListCollectionsTool },
+      { name: 'create-collection Tool', fn: testCreateCollectionTool },
+      { name: 'drop-collection Tool', fn: testDropCollectionTool },
+      { name: 'rename-collection Tool', fn: testRenameCollectionTool },
+      { name: 'validate-collection Tool', fn: testValidateCollectionTool }
+    ]
+  },
+  {
+    name: 'Document Tools',
+    tests: [
+      { name: 'distinct-values Tool', fn: testDistinctValuesTool },
+      { name: 'find-documents Tool', fn: testFindDocumentsTool },
+      { name: 'count-documents Tool', fn: testCountDocumentsTool },
+      { name: 'insert-document Tool', fn: testInsertDocumentTool },
+      { name: 'update-document Tool', fn: testUpdateDocumentTool },
+      { name: 'delete-document Tool', fn: testDeleteDocumentTool }
+    ]
+  },
+  {
+    name: 'Advanced Tools',
+    tests: [
+      { name: 'aggregate-data Tool', fn: testAggregateDataTool },
+      { name: 'map-reduce Tool', fn: testMapReduceTool },
+      { name: 'create-index Tool', fn: testCreateIndexTool },
+      { name: 'drop-index Tool', fn: testDropIndexTool },
+      { name: 'analyze-schema Tool', fn: testAnalyzeSchemaTool },
+      { name: 'generate-schema-validator Tool', fn: testGenerateSchemaValidatorTool },
+      { name: 'compare-schemas Tool', fn: testCompareSchemasTool },
+      { name: 'explain-query Tool', fn: testExplainQueryTool },
+      { name: 'analyze-query-patterns Tool', fn: testAnalyzeQueryPatternsTool },
+      { name: 'get-stats Tool', fn: testGetStatsTool },
+      { name: 'bulk-operations Tool', fn: testBulkOperationsTool },
+      { name: 'create-timeseries Tool', fn: testCreateTimeseriesCollectionTool },
+      { name: 'collation-query Tool', fn: testCollationQueryTool },
+      { name: 'text-search Tool', fn: testTextSearchTool },
+      { name: 'geo-query Tool', fn: testGeoQueryTool },
+      { name: 'transaction Tool', fn: testTransactionTool },
+      { name: 'watch-changes Tool', fn: testWatchChangesTool },
+      { name: 'gridfs-operation Tool', fn: testGridFSOperationTool },
+      { name: 'clear-cache Tool', fn: testClearCacheTool },
+      { name: 'shard-status Tool', fn: testShardStatusTool },
+      { name: 'export-data Tool', fn: testExportDataTool }
+    ]
+  },
+  {
+    name: 'Resources',
+    tests: [
+      { name: 'databases Resource', fn: testDatabasesResource },
+      { name: 'collections Resource', fn: testCollectionsResource },
+      { name: 'database-users Resource', fn: testDatabaseUsersResource },
+      { name: 'database-triggers Resource', fn: testDatabaseTriggersResource },
+      { name: 'stored-functions Resource', fn: testStoredFunctionsResource },
+      { name: 'collection-schema Resource', fn: testCollectionSchemaResource },
+      { name: 'collection-indexes Resource', fn: testCollectionIndexesResource },
+      { name: 'collection-stats Resource', fn: testCollectionStatsResource },
+      { name: 'collection-validation Resource', fn: testCollectionValidationResource },
+      { name: 'server-status Resource', fn: testServerStatusResource },
+      { name: 'replica-status Resource', fn: testReplicaStatusResource },
+      { name: 'performance-metrics Resource', fn: testPerformanceMetricsResource }
+    ]
+  },
+  {
+    name: 'Prompts',
+    tests: [
+      { name: 'query-builder Prompt', fn: testQueryBuilderPrompt },
+      { name: 'aggregation-builder Prompt', fn: testAggregationBuilderPrompt },
+      { name: 'mongo-shell Prompt', fn: testMongoShellPrompt },
+      { name: 'sql-to-mongodb Prompt', fn: testSqlToMongodbPrompt },
+      { name: 'schema-analysis Prompt', fn: testSchemaAnalysisPrompt },
+      { name: 'data-modeling Prompt', fn: testDataModelingPrompt },
+      { name: 'schema-versioning Prompt', fn: testSchemaVersioningPrompt },
+      { name: 'multi-tenant-design Prompt', fn: testMultiTenantDesignPrompt },
+      { name: 'index-recommendation Prompt', fn: testIndexRecommendationPrompt },
+      { name: 'query-optimizer Prompt', fn: testQueryOptimizerPrompt },
+      { name: 'security-audit Prompt', fn: testSecurityAuditPrompt },
+      { name: 'backup-strategy Prompt', fn: testBackupStrategyPrompt },
+      { name: 'migration-guide Prompt', fn: testMigrationGuidePrompt },
+      { name: 'database-health-check Prompt', fn: testDatabaseHealthCheckPrompt }
+    ]
+  }
+]
 
 runTests().catch(err => {
   console.error(`${COLORS.red}Test runner error: ${err.message}${COLORS.reset}`)

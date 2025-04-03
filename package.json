@@ -11,6 +11,7 @@
   },
   "files": [
     "mongodb-lens.js",
+    "config-create.js",
     "package.json",
     "README.md",
     "LICENSE"
@@ -25,6 +26,7 @@
     "docker:local:build": "docker build -t mongodb-lens .",
     "docker:local:run": "docker run --rm -i --network=host mongodb-lens",
     "config:create": "node config-create.js",
+    "test": "node mongodb-lens.test.js",
     "test:localhost": "cross-env CONFIG_MONGO_URI=mongodb://localhost:27017 node mongodb-lens.test.js",
     "test:localhost:verbose": "cross-env DEBUG=true CONFIG_MONGO_URI=mongodb://localhost:27017 node mongodb-lens.test.js",
     "test:in-memory": "cross-env CONFIG_MONGO_URI=mongodb-memory-server node mongodb-lens.test.js",

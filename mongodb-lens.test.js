@@ -178,8 +178,6 @@ const connectToMongo = async () => {
   }
 
   directMongoClient = new MongoClient(mongoUri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
     retryWrites: true
   })
 

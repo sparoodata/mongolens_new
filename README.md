@@ -190,6 +190,7 @@ MongoDB Lens can be installed and run in several ways:
 - [Node.js from Source](#installation-nodejs-from-source)
 - [Docker from Source](#installation-docker-from-source)
 - [Installation Verification](#installation-verification)
+- [Compatibility with Older MongoDB Versions](#installation-compatibility-with-older-mongodb-versions)
 
 ### Installation: NPX
 
@@ -320,6 +321,63 @@ The server should respond with a list of databases in your MongoDB instance, for
 
 MongoDB Lens is now installed and ready to accept MCP requests.
 
+### Installation: Compatibility with Older MongoDB Versions
+
+If connecting to a MongoDB instance with a version `< 4.0`, the MongoDB Node.js driver used by the latest version of MongoDB Lens will not be compatible. Specifically, MongoDB Node.js driver versions `4.0.0` and above require MongoDB version `4.0` or higher.
+
+To use MongoDB Lens with older MongoDB instances, you need to use a MongoDB Node.js driver version from the `3.x` series (e.g. `3.7.4` which is compatible with MongoDB `3.6`).
+
+#### Older MongoDB Versions: Running from Source
+
+1. Clone the MongoDB Lens repository:<br>
+    ```console
+    git clone https://github.com/furey/mongodb-lens.git
+    ```
+1. Navigate to the cloned repository directory:<br>
+    ```console
+    cd /path/to/mongodb-lens
+    ```
+1. Modify `package.json`:<br>
+    ```diff
+    "dependencies": {
+      ...
+    -  "mongodb": "^6.15.0",  // Or whatever newer version is listed
+    +  "mongodb": "^3.7.4",   // Or whatever 3.x version is compatible with your older MongoDB instance
+      ...
+    }
+    ```
+1. Install Node.js dependencies:<br>
+    ```console
+    npm install
+    ```
+1. Start MongoDB Lens:<br>
+    ```console
+    node mongodb-lens.js mongodb://older-mongodb-server
+    ```
+
+This will use the older driver version compatible with your MongoDB instance.
+
+> [!NOTE]<br>
+> You may also need to revert [this commit](https://github.com/furey/mongodb-lens/commit/603b28cbde72fcd62a15cd324afc93028380a054) to add back `useNewUrlParser` and `useUnifiedTopology` MongoDB configuration options.
+
+#### Older MongoDB Versions: Using NPX or Docker
+
+If you prefer to use NPX or Docker, you'll need to use an older version of MongoDB Lens that was published with a compatible driver.
+
+For example, MongoDB Lens `8.3.0` uses MongoDB Node.js driver `3.7.4` (see: [`package-lock.json`](https://github.com/furey/mongodb-lens/blob/8.3.0/package-lock.json#L944-L945)).
+
+To run an older version of MongoDB Lens using NPX, specify the version tag:
+
+```console
+npx -y mongodb-lens@8.3.0
+```
+
+Similarly for Docker:
+
+```console
+docker run --rm -i --network=host furey/mongodb-lens:8.3.0
+```
+
 ## Configuration
 
 - [MongoDB Connection String](#configuration-mongodb-connection-string)
@@ -378,10 +436,8 @@ MongoDB Lens supports extensive customization via JSON configuration file.
   "connectionOptions": {
     "maxPoolSize": 20,                             // Maximum number of connections in the pool
     "retryWrites": false,                          // Whether to retry write operations
-    "useNewUrlParser": true,                       // Use MongoDB's new URL parser
     "connectTimeoutMS": 30000,                     // Connection timeout in milliseconds
     "socketTimeoutMS": 360000,                     // Socket timeout in milliseconds
-    "useUnifiedTopology": true,                    // Use the new unified topology engine
     "heartbeatFrequencyMS": 10000,                 // How often to ping servers for status
     "serverSelectionTimeoutMS": 30000              // Timeout for server selection
   },

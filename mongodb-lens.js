@@ -2819,35 +2819,6 @@ const registerTools = (server) => {
     )
   }
 
-  if (!isDisabled('tools', 'map-reduce')) {
-    server.tool(
-      'map-reduce',
-      'Run Map-Reduce operations (note: Map-Reduce deprecated as of MongoDB 5.0)',
-      {
-        collection: z.string().min(1).describe('Collection name'),
-        map: z.string().describe('Map function as string e.g. "function() { emit(this.field, 1); }"'),
-        reduce: z.string().describe('Reduce function as string e.g. "function(key, values) { return Array.sum(values); }"'),
-        options: z.string().optional().describe('Options as JSON string (query, limit, etc.)')
-      },
-      async ({ collection, map, reduce, options }) => {
-        return withErrorHandling(async () => {
-          log(`Tool: Running Map-Reduce on collection '${collection}'…`)
-          const mapFunction = eval(`(${map})`)
-          const reduceFunction = eval(`(${reduce})`)
-          const parsedOptions = options ? JSON.parse(options) : {}
-          const results = await runMapReduce(collection, mapFunction, reduceFunction, parsedOptions)
-          log(`Tool: Map-Reduce operation complete.`)
-          return {
-            content: [{
-              type: 'text',
-              text: formatMapReduceResults(results)
-            }]
-          }
-        }, `Error running Map-Reduce on collection '${collection}'`)
-      }
-    )
-  }
-
   if (!isDisabled('tools', 'watch-changes')) {
     server.tool(
       'watch-changes',
@@ -4177,39 +4148,6 @@ const getDistinctValues = async (collectionName, field, filter = {}) => {
 const isValidFieldName = (field) =>
   typeof field === 'string' && field.length > 0 && !field.startsWith('$')
 
-const runMapReduce = async (collectionName, map, reduce, options = {}) => {
-  log(`DB Operation: Running Map-Reduce on collection '${collectionName}'…`)
-  try {
-    await throwIfCollectionNotExists(collectionName)
-    const collection = currentDb.collection(collectionName)
-
-    if (!options.out) options.out = { inline: 1 }
-
-    const results = await collection.mapReduce(map, reduce, options)
-
-    if (results && typeof results.toArray === 'function') {
-      log(`DB Operation: Map-Reduce operation complete (legacy mode).`)
-      return results.toArray()
-    } else if (results && Array.isArray(results)) {
-      log(`DB Operation: Map-Reduce operation complete (array results).`)
-      return results
-    } else if (results && options.out && options.out.inline !== 1) {
-      log(`DB Operation: Map-Reduce output to collection '${typeof options.out === 'string' ? options.out : JSON.stringify(options.out)}'.`)
-      const outCollection = currentDb.collection(
-        typeof options.out === 'string' ? options.out : options.out.replace
-      )
-      memoryCache.collections.delete(currentDbName)
-      return outCollection.find().toArray()
-    } else {
-      log(`DB Operation: Map-Reduce operation complete (unknown format).`)
-      return Array.isArray(results) ? results : (results.result || results)
-    }
-  } catch (error) {
-    log(`DB Operation: Map-Reduce operation failed: ${error.message}`)
-    throw error
-  }
-}
-
 const bulkOperations = async (collectionName, operations, ordered = config.tools.bulkOperations.ordered) => {
   log(`DB Operation: Performing bulk operations on collection '${collectionName}'…`)
   try {
@@ -4647,16 +4585,6 @@ const formatUpdateResult = (result) => {
   output += `- Modified: ${result.modifiedCount}\n`
   output += `- Acknowledged: ${result.acknowledged}\n`
   if (result.upsertedId) output += `- Upserted ID: ${result.upsertedId}\n`
-  return output
-}
-
-const formatMapReduceResults = (results) => {
-  if (!results || !Array.isArray(results)) return 'Map-Reduce results not available'
-  let output = `Map-Reduce Results (${results.length} entries):\n`
-  for (const result of results) {
-    output += `- Key: ${formatValue(result._id)}\n`
-    output += `  Value: ${formatValue(result.value)}\n`
-  }
   return output
 }
 
@@ -5954,7 +5882,7 @@ CAPS:
 - DOC: find/count/insert-doc/update-doc/delete
 - SCH: infer/validate/compare/analyze
 - IDX: create/analyze/optimize
-- AGG: pipeline/mapreduce/distinct
+- AGG: pipeline/distinct
 - PERF: explain/analyze/monitor
 - UTIL: clear-cache/export/validate
 - ADV: text/geo/timeseries/bulk/txn/gridfs/sharding/export
@@ -5966,7 +5894,7 @@ PTRNS:
 - MOD: insert-doc/update-doc/delete-doc/bulk-ops
 - SCH: collection-schema/analyze-schema/compare-schemas
 - OPT: explain-query/analyze-patterns/create-index
-- AGG: aggregate-data/map-reduce
+- AGG: aggregate-data
 - MON: server-status/performance-metrics/watch-changes
 - CACHE: clear-cache{all|specific}
 - CONN: add-alias→connect-mongodb→db-ops→connect-original

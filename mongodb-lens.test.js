@@ -1161,31 +1161,6 @@ const testAggregateDataTool = async () => {
   assert(content.includes('"count":'), 'Count not found')
 }
 
-const testMapReduceTool = async () => {
-  await useTestDatabase()
-
-  const mapFunction = 'function() { emit(this.isActive, 1); }'
-  const reduceFunction = 'function(key, values) { return Array.sum(values); }'
-
-  const response = await runLensCommand({
-    command: 'mcp.tool.invoke',
-    params: {
-      name: 'map-reduce',
-      args: {
-        collection: TEST_COLLECTION_NAME,
-        map: mapFunction,
-        reduce: reduceFunction,
-        options: JSON.stringify({ out: { inline: 1 } })
-      }
-    }
-  })
-
-  assertToolSuccess(response, 'Map-Reduce Results')
-
-  const content = response.result.content[0].text
-  assert(content.includes('Key:') && content.includes('Value:'), 'Map-reduce key-value pairs not found')
-}
-
 const testCreateIndexTool = async () => {
   await useTestDatabase()
 
@@ -2412,7 +2387,6 @@ const TEST_GROUPS = [
     name: 'Advanced Tools',
     tests: [
       { name: 'aggregate-data Tool', fn: testAggregateDataTool },
-      { name: 'map-reduce Tool', fn: testMapReduceTool },
       { name: 'create-index Tool', fn: testCreateIndexTool },
       { name: 'drop-index Tool', fn: testDropIndexTool },
       { name: 'analyze-schema Tool', fn: testAnalyzeSchemaTool },

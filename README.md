@@ -70,7 +70,6 @@
 - [`list-collections`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27list-collections%27%2C%2F): Explore collections in the current database
 - [`list-connections`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27list-connections%27%2C%2F): View all available MongoDB connection aliases
 - [`list-databases`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27list-databases%27%2C%2F): View all accessible databases
-- [`map-reduce`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27map-reduce%27%2C%2F): Run MapReduce operations for complex data processing
 - [`rename-collection`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27rename-collection%27%2C%2F): Rename existing collections ([requires confirmation](#data-protection-confirmation-for-destructive-operations) when dropping targets)
 - [`shard-status`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27shard-status%27%2C%2F): View sharding configuration for databases and collections
 - [`text-search`](https://github.com/search?type=code&q=repo%3Afurey%2Fmongodb-lens+%2Fserver%5C.tool%5C%28%5Cs*%27text-search%27%2C%2F): Perform full-text search across text-indexed fields
@@ -1127,8 +1126,6 @@ With your MCP Client running and connected to MongoDB Lens, try the following ex
 
 - _"Switch to sample_geospatial db, then find all shipwrecks within 10km of coordinates [-80.12, 26.46]"_<br>
   <sup>➥ Uses `geo-query` tool</sup>
-- _"Switch to sample_mflix db, then run this map reduce to calculate movie counts by year: map=`'function () { emit(this.year, 1) }'` reduce=`'function (key, values) { return Array.sum(values) }'`"_<br>
-  <sup>➥ Uses `map-reduce` tool</sup>
 - _"Switch to sample_analytics db, then execute a transaction to move funds between accounts: \<account ids\>"_<br>
   <sup>➥ Uses `transaction` tool</sup>
 - _"Create a time series collection for sensor readings"_<br>

@@ -134,8 +134,8 @@ const setupMongoUri = async () => {
 
   if (!uri) {
     console.error(`${COLORS.red}No MongoDB URI provided. Please set CONFIG_MONGO_URI environment variable.${COLORS.reset}`)
-    console.error(`${COLORS.yellow}Usage: CONFIG_MONGO_URI=mongodb://localhost:27017 node mongodb-lens.test.js${COLORS.reset}`)
-    console.error(`${COLORS.yellow}Alternative: CONFIG_MONGO_URI=memory node mongodb-lens.test.js (requires mongodb-memory-server)${COLORS.reset}`)
+    console.error(`${COLORS.yellow}Example: CONFIG_MONGO_URI=mongodb://localhost:27017 node mongodb-lens.test.js${COLORS.reset}`)
+    console.error(`${COLORS.yellow}Example: CONFIG_MONGO_URI=mongodb-memory-server node mongodb-lens.test.js${COLORS.reset}`)
     process.exit(1)
   }
 
@@ -708,6 +708,9 @@ const testCreateUserTool = async () => {
   })
 
   assertToolSuccess(response, `User '${username}' created`)
+
+  const usersInfo = await testDb.command({ usersInfo: username })
+  assert(usersInfo.users.length > 0, `Created user '${username}' not found`)
 }
 
 const testDropUserTool = async () => {
@@ -737,8 +740,11 @@ const testDropUserTool = async () => {
     }
   })
 
+  let dropped = false
+
   if (testConfig.disableTokens) {
     assertToolSuccess(tokenResponse, 'dropped successfully')
+    dropped = true
   } else {
     assert(tokenResponse?.result?.content[0].text.includes('Confirmation code:'), 'Confirmation message not found')
 
@@ -759,6 +765,12 @@ const testDropUserTool = async () => {
     })
 
     assertToolSuccess(dropResponse, 'dropped successfully')
+    dropped = true
+  }
+
+  if (dropped) {
+    const usersInfo = await testDb.command({ usersInfo: username })
+    assert(usersInfo.users.length === 0, `Dropped user '${username}' still exists`)
   }
 }
 
@@ -884,6 +896,10 @@ const testValidateCollectionTool = async () => {
   })
 
   assertToolSuccess(response, 'Validation Results')
+
+  const content = response.result.content[0].text
+  assert(content.includes('Collection'), 'Collection name not found')
+  assert(content.includes('Valid:') || content.includes('Records Validated:'), 'Validation results not found')
 }
 
 const testDistinctValuesTool = async () => {
@@ -902,6 +918,9 @@ const testDistinctValuesTool = async () => {
   })
 
   assertToolSuccess(response, 'Distinct values for field')
+
+  const content = response.result.content[0].text
+  assert(content.includes('tag') || content.includes('category'), 'Expected distinct tag values not found')
 }
 
 const testFindDocumentsTool = async () => {
@@ -1162,6 +1181,9 @@ const testMapReduceTool = async () => {
   })
 
   assertToolSuccess(response, 'Map-Reduce Results')
+
+  const content = response.result.content[0].text
+  assert(content.includes('Key:') && content.includes('Value:'), 'Map-reduce key-value pairs not found')
 }
 
 const testCreateIndexTool = async () => {
@@ -1213,8 +1235,11 @@ const testDropIndexTool = async () => {
     }
   })
 
+  let dropped = false
+
   if (testConfig.disableTokens) {
     assertToolSuccess(tokenResponse, 'dropped from collection')
+    dropped = true
   } else {
     assert(tokenResponse?.result?.content[0].text.includes('Confirmation code:'), 'Confirmation message not found')
 
@@ -1236,6 +1261,13 @@ const testDropIndexTool = async () => {
     })
 
     assertToolSuccess(dropResponse, 'dropped from collection')
+    dropped = true
+  }
+
+  if (dropped) {
+    const indexes = await testDb.collection(TEST_COLLECTION_NAME).indexes()
+    const indexStillExists = indexes.some(idx => idx.name === indexName)
+    assert(!indexStillExists, `Dropped index '${indexName}' still exists`)
   }
 }
 
@@ -1335,6 +1367,15 @@ const testAnalyzeQueryPatternsTool = async () => {
   })
 
   assertToolSuccess(response, 'Query Pattern Analysis')
+
+  const content = response.result.content[0].text
+  assert(
+    content.includes('Analysis') ||
+    content.includes('Recommendations') ||
+    content.includes('Queries') ||
+    content.includes('Patterns'),
+    'No analysis content found in response'
+  )
 }
 
 const testGetStatsTool = async () => {
@@ -1424,6 +1465,10 @@ const testCreateTimeseriesCollectionTool = async () => {
 
   assertToolSuccess(response, 'Time series collection')
   assert(response.result.content[0].text.includes('created'), 'Created confirmation not found')
+
+  const collections = await testDb.listCollections({name: collectionName}).toArray()
+  assert(collections.length > 0, `Timeseries collection '${collectionName}' not found`)
+  assert(collections[0].options?.timeseries, 'Collection is not configured as timeseries')
 }
 
 const testCollationQueryTool = async () => {
@@ -1518,6 +1563,14 @@ const testGeoQueryTool = async () => {
   assert(response?.result?.content, 'No content in response')
   assert(Array.isArray(response.result.content), 'Content not an array')
   assert(response.result.content.length > 0, 'Empty content array')
+
+  const responseText = response.result.content[0].text
+  assert(
+    responseText.includes('coordinates') ||
+    responseText.includes('location') ||
+    responseText.includes('Geo Test'),
+    'Geospatial data not found in results'
+  )
 }
 
 const testTransactionTool = async () => {
@@ -1559,6 +1612,13 @@ const testTransactionTool = async () => {
   assert(response?.result?.content, 'No content in response')
   assert(Array.isArray(response.result.content), 'Content not an array')
   assert(response.result.content.length > 0, 'Empty content array')
+
+  const responseText = response.result.content[0].text
+  assert(
+    responseText.includes('Transaction') &&
+    (responseText.includes('Step') || responseText.includes('committed')),
+    'Transaction results not found'
+  )
 }
 
 const testWatchChangesTool = async () => {
@@ -1584,6 +1644,13 @@ const testWatchChangesTool = async () => {
   assert(response?.result?.content, 'No content in response')
   assert(Array.isArray(response.result.content), 'Content not an array')
   assert(response.result.content.length > 0, 'Empty content array')
+
+  const responseText = response.result.content[0].text
+  assert(
+    responseText.includes('changes detected') ||
+    responseText.includes('No changes detected'),
+    'Change stream results not found'
+  )
 }
 
 const testGridFSOperationTool = async () => {
@@ -1617,6 +1684,14 @@ const testGridFSOperationTool = async () => {
   assert(response?.result?.content, 'No content in response')
   assert(Array.isArray(response.result.content), 'Content not an array')
   assert(response.result.content.length > 0, 'Empty content array')
+
+  const responseText = response.result.content[0].text
+  assert(
+    responseText.includes('GridFS') ||
+    responseText.includes('Filename') ||
+    responseText.includes('Size:'),
+    'GridFS data not found in response'
+  )
 }
 
 const testClearCacheTool = async () => {

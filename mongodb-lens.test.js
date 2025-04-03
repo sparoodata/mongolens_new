@@ -11,46 +11,6 @@ const { MongoClient, ObjectId } = mongodb
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-const DIVIDER = '-'.repeat(30)
-const TEST_DB_NAME = 'mongodb_lens_test'
-const TEST_COLLECTION_NAME = 'test_collection'
-const ANOTHER_TEST_COLLECTION = 'another_collection'
-const MONGODB_LENS_PATH = join(__dirname, 'mongodb-lens.js')
-
-const COLORS = {
-  red: '\x1b[31m',
-  reset: '\x1b[0m',
-  blue: '\x1b[34m',
-  cyan: '\x1b[36m',
-  green: '\x1b[32m',
-  white: '\x1b[37m',
-  yellow: '\x1b[33m',
-  magenta: '\x1b[35m'
-}
-
-const stats = {
-  total: 0,
-  passed: 0,
-  failed: 0,
-  skipped: 0
-}
-
-let testDb
-let mongoUri
-let testCollection
-let directMongoClient
-let isReplSet = false
-let isSharded = false
-let nextRequestId = 1
-let lensProcess = null
-let responseHandlers = new Map()
-
-const testConfig = {
-  requestTimeout: 15000,
-  serverStartupTimeout: 20000,
-  disableTokens: process.env.CONFIG_DISABLE_DESTRUCTIVE_OPERATION_TOKENS === 'true'
-}
-
 const runTests = async () => {
   await initialize()
 
@@ -160,97 +120,6 @@ const runTests = async () => {
   }
 }
 
-const logHeader = (title, margin = 'none') => {
-  if (margin.indexOf('top') !== -1) console.log('')
-  console.log(`${COLORS.cyan}${DIVIDER}${COLORS.reset}`)
-  console.log(`${COLORS.cyan}${title}${COLORS.reset}`)
-  console.log(`${COLORS.cyan}${DIVIDER}${COLORS.reset}`)
-  if (margin.indexOf('bottom') !== -1) console.log('')
-}
-
-const displayTestSummary = () => {
-  logHeader('Test Summary', 'margin:top,bottom')
-  console.log(`${COLORS.white}Total Tests: ${stats.total}${COLORS.reset}`)
-  console.log(`${COLORS.green}Passed: ${stats.passed}${COLORS.reset}`)
-  console.log(`${COLORS.red}Failed: ${stats.failed}${COLORS.reset}`)
-  console.log(`${COLORS.yellow}Skipped: ${stats.skipped}${COLORS.reset}`)
-
-  if (stats.failed > 0) {
-    console.error(`${COLORS.red}Some tests failed.${COLORS.reset}`)
-    process.exit(1)
-  } else {
-    console.log(`${COLORS.green}All tests passed!${COLORS.reset}`)
-    process.exit(0)
-  }
-}
-
-const cleanup = async () => {
-  await cleanupTestDatabase()
-  await directMongoClient.close()
-
-  if (lensProcess) {
-    lensProcess.kill('SIGKILL')
-    await new Promise(resolve => lensProcess.on('exit', resolve))
-  }
-}
-
-const runTestGroup = async (groupName, tests) => {
-  for (const test of tests) {
-    await runTest(test.name, test.fn)
-  }
-}
-
-const runTest = async (name, testFn) => {
-  stats.total++
-  console.log(`${COLORS.blue}Running test: ${name}${COLORS.reset}`)
-  try {
-    const startTime = Date.now()
-    await testFn()
-    const duration = Date.now() - startTime
-    console.log(`${COLORS.green}✓ PASS: ${name} (${duration}ms)${COLORS.reset}`)
-    stats.passed++
-  } catch (err) {
-    console.error(`${COLORS.red}✗ FAIL: ${name} - ${err.message}${COLORS.reset}`)
-    console.error(`${COLORS.red}Stack: ${err.stack}${COLORS.reset}`)
-    stats.failed++
-  }
-}
-
-const skipTest = (name, reason) => {
-  stats.total++
-  stats.skipped++
-  console.log(`${COLORS.yellow}⚠ SKIP: ${name} - ${reason}${COLORS.reset}`)
-}
-
-const assert = (condition, message, context = null) => {
-  if (condition) return
-  if (context) console.error('CONTEXT:', JSON.stringify(context, null, 2))
-  throw new Error(message || 'Assertion failed')
-}
-
-const obfuscateMongoUri = uri => {
-  if (!uri || typeof uri !== 'string') return uri
-  try {
-    if (uri.includes('@') && uri.includes('://')) {
-      const parts = uri.split('@')
-      const authPart = parts[0]
-      const restPart = parts.slice(1).join('@')
-      const authIndex = authPart.lastIndexOf('://')
-      if (authIndex !== -1) {
-        const protocol = authPart.substring(0, authIndex + 3)
-        const credentials = authPart.substring(authIndex + 3)
-        if (credentials.includes(':')) {
-          const [username] = credentials.split(':')
-          return `${protocol}${username}:********@${restPart}`
-        }
-      }
-    }
-    return uri
-  } catch (error) {
-    return uri
-  }
-}
-
 const initialize = async () => {
   logHeader('MongoDB Lens Test Suite', 'margin:bottom')
   mongoUri = await setupMongoUri()
@@ -312,6 +181,29 @@ const connectToMongo = async () => {
   console.log(`${COLORS.green}Connected to MongoDB successfully.${COLORS.reset}`)
 }
 
+const obfuscateMongoUri = uri => {
+  if (!uri || typeof uri !== 'string') return uri
+  try {
+    if (uri.includes('@') && uri.includes('://')) {
+      const parts = uri.split('@')
+      const authPart = parts[0]
+      const restPart = parts.slice(1).join('@')
+      const authIndex = authPart.lastIndexOf('://')
+      if (authIndex !== -1) {
+        const protocol = authPart.substring(0, authIndex + 3)
+        const credentials = authPart.substring(authIndex + 3)
+        if (credentials.includes(':')) {
+          const [username] = credentials.split(':')
+          return `${protocol}${username}:********@${restPart}`
+        }
+      }
+    }
+    return uri
+  } catch (error) {
+    return uri
+  }
+}
+
 const setupTestEnvironment = async () => {
   await checkServerCapabilities()
   testDb = directMongoClient.db(TEST_DB_NAME)
@@ -333,15 +225,6 @@ const checkServerCapabilities = async () => {
     console.log(`${COLORS.blue}MongoDB instance ${isSharded ? 'is' : 'is not'} a sharded cluster.${COLORS.reset}`)
   } catch (error) {
     console.log(`${COLORS.yellow}Not a replica set: ${error.message}${COLORS.reset}`)
-  }
-}
-
-const cleanupTestDatabase = async () => {
-  try {
-    await testDb.dropDatabase()
-    console.log(`${COLORS.yellow}Test database cleaned up.${COLORS.reset}`)
-  } catch (err) {
-    console.error(`${COLORS.red}Error cleaning up test database: ${err.message}${COLORS.reset}`)
   }
 }
 
@@ -416,13 +299,41 @@ const createTestUser = async () => {
   }
 }
 
+const runTestGroup = async (groupName, tests) => {
+  for (const test of tests) {
+    await runTest(test.name, test.fn)
+  }
+}
+
+const runTest = async (name, testFn) => {
+  stats.total++
+  console.log(`${COLORS.blue}Running test: ${name}${COLORS.reset}`)
+  try {
+    const startTime = Date.now()
+    await testFn()
+    const duration = Date.now() - startTime
+    console.log(`${COLORS.green}✓ PASS: ${name} (${duration}ms)${COLORS.reset}`)
+    stats.passed++
+  } catch (err) {
+    console.error(`${COLORS.red}✗ FAIL: ${name} - ${err.message}${COLORS.reset}`)
+    console.error(`${COLORS.red}Stack: ${err.stack}${COLORS.reset}`)
+    stats.failed++
+  }
+}
+
+const skipTest = (name, reason) => {
+  stats.total++
+  stats.skipped++
+  console.log(`${COLORS.yellow}⚠ SKIP: ${name} - ${reason}${COLORS.reset}`)
+}
+
 const startLensServer = async () => {
   console.log('Starting MongoDB Lens server…')
 
   const env = {
     ...process.env,
     CONFIG_MONGO_URI: mongoUri,
-    CONFIG_LOG_LEVEL: process.env.DEBUG === 'true' ? 'verbose' : 'info',
+    CONFIG_LOG_LEVEL: isDebugging ? 'verbose' : 'info',
   }
 
   if (testConfig.disableTokens) {
@@ -456,9 +367,8 @@ const setupResponseHandling = () => {
 
   lensProcess.stderr.on('data', data => {
     const output = data.toString().trim()
-    if (process.env.DEBUG === 'true') {
-      console.log(`[SERVER] ${output}`)
-    }
+    if (isDebugging)
+      console.log(`${COLORS.gray}[SERVER] ${output.split('\n').join(`\n[SERVER] `)}${COLORS.reset}`)
   })
 }
 
@@ -493,9 +403,7 @@ const runLensCommand = async ({ command, params = {} }) => {
 
     responseHandlers.set(requestId, { resolve, reject })
 
-    if (process.env.DEBUG === 'true') {
-      console.log(`Sending request #${requestId}:`, JSON.stringify(request))
-    }
+    if (isDebugging) console.log(`Sending request #${requestId}:`, JSON.stringify(request))
 
     lensProcess.stdin.write(JSON.stringify(request) + '\n')
 
@@ -554,6 +462,30 @@ const useTestDatabase = async () => {
   })
 }
 
+const handleDestructiveOperationToken = async (tokenResponse, toolName, params) => {
+  if (testConfig.disableTokens) {
+    return assertToolSuccess(tokenResponse, 'has been permanently deleted')
+  }
+
+  assert(tokenResponse?.result?.content[0].text.includes('Confirmation code:'), 'Confirmation message not found')
+  const tokenMatch = tokenResponse.result.content[0].text.match(/Confirmation code:\s+(\d+)/)
+  assert(tokenMatch && tokenMatch[1], 'Confirmation code not found in text')
+
+  const token = tokenMatch[1]
+  const completeResponse = await runLensCommand({
+    command: 'mcp.tool.invoke',
+    params: {
+      name: toolName,
+      args: {
+        ...params,
+        token
+      }
+    }
+  })
+
+  return assertToolSuccess(completeResponse, 'has been permanently deleted')
+}
+
 const assertToolSuccess = (response, successIndicator) => {
   assert(response?.result?.content, 'No content in response')
   assert(Array.isArray(response.result.content), 'Content not an array')
@@ -578,28 +510,10 @@ const assertPromptSuccess = (response, successIndicator) => {
   return response
 }
 
-const handleDestructiveOperationToken = async (tokenResponse, toolName, params) => {
-  if (testConfig.disableTokens) {
-    return assertToolSuccess(tokenResponse, 'has been permanently deleted')
-  }
-
-  assert(tokenResponse?.result?.content[0].text.includes('Confirmation code:'), 'Confirmation message not found')
-  const tokenMatch = tokenResponse.result.content[0].text.match(/Confirmation code:\s+(\d+)/)
-  assert(tokenMatch && tokenMatch[1], 'Confirmation code not found in text')
-
-  const token = tokenMatch[1]
-  const completeResponse = await runLensCommand({
-    command: 'mcp.tool.invoke',
-    params: {
-      name: toolName,
-      args: {
-        ...params,
-        token
-      }
-    }
-  })
-
-  return assertToolSuccess(completeResponse, 'has been permanently deleted')
+const assert = (condition, message, context = null) => {
+  if (condition) return
+  if (context) console.error('CONTEXT:', JSON.stringify(context, null, 2))
+  throw new Error(message || 'Assertion failed')
 }
 
 const testConnectMongodbTool = async () => {
@@ -2274,6 +2188,49 @@ const testDatabaseHealthCheckPrompt = async () => {
   }
 }
 
+const logHeader = (title, margin = 'none') => {
+  if (margin.indexOf('top') !== -1) console.log('')
+  console.log(`${COLORS.cyan}${DIVIDER}${COLORS.reset}`)
+  console.log(`${COLORS.cyan}${title}${COLORS.reset}`)
+  console.log(`${COLORS.cyan}${DIVIDER}${COLORS.reset}`)
+  if (margin.indexOf('bottom') !== -1) console.log('')
+}
+
+const displayTestSummary = () => {
+  logHeader('Test Summary', 'margin:top,bottom')
+  console.log(`${COLORS.white}Total Tests: ${stats.total}${COLORS.reset}`)
+  console.log(`${COLORS.green}Passed: ${stats.passed}${COLORS.reset}`)
+  console.log(`${COLORS.red}Failed: ${stats.failed}${COLORS.reset}`)
+  console.log(`${COLORS.yellow}Skipped: ${stats.skipped}${COLORS.reset}`)
+
+  if (stats.failed > 0) {
+    console.error(`${COLORS.red}Some tests failed.${COLORS.reset}`)
+    process.exit(1)
+  } else {
+    console.log(`${COLORS.green}All tests passed!${COLORS.reset}`)
+    process.exit(0)
+  }
+}
+
+const cleanup = async () => {
+  await cleanupTestDatabase()
+  await directMongoClient.close()
+
+  if (lensProcess) {
+    lensProcess.kill('SIGKILL')
+    await new Promise(resolve => lensProcess.on('exit', resolve))
+  }
+}
+
+const cleanupTestDatabase = async () => {
+  try {
+    await testDb.dropDatabase()
+    console.log(`${COLORS.yellow}Test database cleaned up.${COLORS.reset}`)
+  } catch (err) {
+    console.error(`${COLORS.red}Error cleaning up test database: ${err.message}${COLORS.reset}`)
+  }
+}
+
 process.on('exit', () => {
   console.log('Exiting test process…')
   if (lensProcess) {
@@ -2281,6 +2238,49 @@ process.on('exit', () => {
     lensProcess.kill()
   }
 })
+
+let testDb
+let mongoUri
+let testCollection
+let directMongoClient
+let isReplSet = false
+let isSharded = false
+let nextRequestId = 1
+let lensProcess = null
+let responseHandlers = new Map()
+
+const isDebugging = process.env.DEBUG === 'true'
+
+const DIVIDER = '-'.repeat(30)
+const TEST_DB_NAME = 'mongodb_lens_test'
+const TEST_COLLECTION_NAME = 'test_collection'
+const ANOTHER_TEST_COLLECTION = 'another_collection'
+const MONGODB_LENS_PATH = join(__dirname, 'mongodb-lens.js')
+
+const stats = {
+  total: 0,
+  passed: 0,
+  failed: 0,
+  skipped: 0
+}
+
+const COLORS = {
+  red: '\x1b[31m',
+  reset: '\x1b[0m',
+  blue: '\x1b[34m',
+  cyan: '\x1b[36m',
+  gray: '\x1b[90m',
+  green: '\x1b[32m',
+  white: '\x1b[37m',
+  yellow: '\x1b[33m',
+  magenta: '\x1b[35m',
+}
+
+const testConfig = {
+  requestTimeout: 15000,
+  serverStartupTimeout: 20000,
+  disableTokens: process.env.CONFIG_DISABLE_DESTRUCTIVE_OPERATION_TOKENS === 'true'
+}
 
 runTests().catch(err => {
   console.error(`${COLORS.red}Test runner error: ${err.message}${COLORS.reset}`)

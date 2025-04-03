@@ -1230,7 +1230,7 @@ npm run test:in-memory          # Uses mongodb-memory-server
 npm run test:in-memory:verbose  # Runs with DEBUG=true for verbose output
 ```
 
-> [!TIP]<br>
+> [!NOTE]<br>
 > The test suite creates temporary databases and collections that are cleaned up after test completion.
 
 ### Test Suite: Command Line Options

@@ -1,6 +1,6 @@
 {
   "name": "mongodb-lens",
-  "version": "8.1.2",
+  "version": "8.2.0",
   "author": "James Furey (https://about.me/jamesfurey)",
   "description": "MongoDB Lens: Full Featured MCP Server for MongoDB Databases",
   "license": "MIT",
@@ -11,6 +11,7 @@
   },
   "files": [
     "mongodb-lens.js",
+    "config-create.js",
     "package.json",
     "README.md",
     "LICENSE"
@@ -24,7 +25,12 @@
     "docker:hub:run": "docker run --rm -i --network=host --pull always furey/mongodb-lens",
     "docker:local:build": "docker build -t mongodb-lens .",
     "docker:local:run": "docker run --rm -i --network=host mongodb-lens",
-    "config:create": "node config-create.js"
+    "config:create": "node config-create.js",
+    "test": "node mongodb-lens.test.js",
+    "test:localhost": "cross-env CONFIG_MONGO_URI=mongodb://localhost:27017 node mongodb-lens.test.js",
+    "test:localhost:verbose": "cross-env DEBUG=true CONFIG_MONGO_URI=mongodb://localhost:27017 node mongodb-lens.test.js",
+    "test:in-memory": "cross-env CONFIG_MONGO_URI=mongodb-memory-server node mongodb-lens.test.js",
+    "test:in-memory:verbose": "cross-env DEBUG=true CONFIG_MONGO_URI=mongodb-memory-server node mongodb-lens.test.js"
   },
   "keywords": [
     "ai",
@@ -42,6 +48,9 @@
     "mongodb": "^3.7.4",
     "strip-json-comments": "^5.0.1",
     "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^10.1.4"
   },
   "volta": {
     "node": "22.14.0"

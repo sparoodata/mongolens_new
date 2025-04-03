@@ -306,7 +306,7 @@ docker run --rm -i --network=host --pull=always furey/mongodb-lens
 
 ### Installation Verification
 
-To verify the installation, paste and run the following jsonrpc message into the server's stdio:
+To verify the installation, paste and run the following JSONRPC message into the server's stdio:
 
 ```json
 {"method":"resources/read","params":{"uri":"mongodb://databases"},"jsonrpc":"2.0","id":1}
@@ -484,10 +484,14 @@ docker run --rm -i --network=host --pull=always -v /path/to/config.json:/root/.m
 You can generate a configuration file automatically using the `config:create` script:
 
 ```console
-# Create config file
+# NPX Usage (recommended)
+npx -y mongodb-lens@latest config:create
+
+# Node.js Usage
 npm run config:create
 
-# Create config file (force overwrite existing)
+# Force overwrite existing files
+npx -y mongodb-lens@latest config:create -- --force
 npm run config:create -- --force
 ```
 
@@ -495,23 +499,36 @@ This script extracts the [example configuration file](#configuration-config-file
 
 #### Config File Generation: Custom Path
 
-You can specify a custom configuration file output location using the `CONFIG_PATH` environment variable:
-
-```console
-# Save to a specific file path
-CONFIG_PATH=/path/to/config.jsonc npm run config:create
-
-# Save to a specific directory (will append .mongodb-lens.jsonc to the path)
-CONFIG_PATH=/path/to/directory npm run config:create
-
-# Save as JSON without comments
-CONFIG_PATH=/path/to/config.json npm run config:create
-```
-
-The script handles paths intelligently:
+You can specify a custom output location using the `CONFIG_PATH` environment variable.
 
 - If `CONFIG_PATH` has no file extension, it's treated as a directory and `.mongodb-lens.jsonc` is appended
-- If `CONFIG_PATH` ends with `.json` (not `.jsonc`), comments are automatically stripped from the output
+- If `CONFIG_PATH` ends with `.json` (not `.jsonc`) comments are removed from the generated file
+
+Example NPX usage:
+
+```console
+# With custom path
+CONFIG_PATH=/path/to/config.jsonc npx -y mongodb-lens@latest config:create
+
+# Save to directory (will append .mongodb-lens.jsonc to the path)
+CONFIG_PATH=/path/to/directory npx -y mongodb-lens@latest config:create
+
+# Save as JSON instead of JSONC
+CONFIG_PATH=/path/to/config.json npx -y mongodb-lens@latest config:create
+```
+
+Example Node.js usage:
+
+```console
+# With custom path
+CONFIG_PATH=/path/to/config.jsonc node mongodb-lens.js config:create
+
+# Save to directory (will append .mongodb-lens.jsonc to the path)
+CONFIG_PATH=/path/to/directory node mongodb-lens.js config:create
+
+# Save as JSON instead of JSONC
+CONFIG_PATH=/path/to/config.json node mongodb-lens.js config:create
+```
 
 ### Configuration: Multiple MongoDB Connections
 

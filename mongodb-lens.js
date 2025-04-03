@@ -5930,10 +5930,8 @@ const defaultConfig = {
   connectionOptions: {
     maxPoolSize: 20,
     retryWrites: false,
-    useNewUrlParser: true,
     connectTimeoutMS: 30000,
     socketTimeoutMS: 360000,
-    useUnifiedTopology: true,
     heartbeatFrequencyMS: 10000,
     serverSelectionTimeoutMS: 30000
   },

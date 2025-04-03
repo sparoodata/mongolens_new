@@ -42,10 +42,10 @@
     "model-context-protocol"
   ],
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.1.0",
+    "@modelcontextprotocol/sdk": "^1.8.0",
     "cross-env": "^7.0.3",
     "lodash": "^4.17.21",
-    "mongodb": "^3.7.4",
+    "mongodb": "^6.15.0",
     "strip-json-comments": "^5.0.1",
     "zod": "^3.24.2"
   },

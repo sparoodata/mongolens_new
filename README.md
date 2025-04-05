@@ -190,14 +190,14 @@ MongoDB Lens can be installed and run in several ways:
 - [Node.js from Source](#installation-nodejs-from-source)
 - [Docker from Source](#installation-docker-from-source)
 - [Installation Verification](#installation-verification)
-- [Compatibility with Older MongoDB Versions](#installation-compatibility-with-older-mongodb-versions)
+- [Older MongoDB Versions](#installation-older-mongodb-versions)
 
 ### Installation: NPX
 
 > [!NOTE]<br>
 > NPX requires [Node.js](https://nodejs.org/en/download) installed and running on your system (suggestion: use [Volta](https://volta.sh)).
 
-The easiest way to run MongoDB Lens is using `npx`.
+The easiest way to run MongoDB Lens is using NPX.
 
 First, ensure Node.js is installed:
 
@@ -321,7 +321,7 @@ The server should respond with a list of databases in your MongoDB instance, for
 
 MongoDB Lens is now installed and ready to accept MCP requests.
 
-### Installation: Compatibility with Older MongoDB Versions
+### Installation: Older MongoDB Versions
 
 If connecting to a MongoDB instance with a version `< 4.0`, the MongoDB Node.js driver used by the latest version of MongoDB Lens will not be compatible. Specifically, MongoDB Node.js driver versions `4.0.0` and above require MongoDB version `4.0` or higher.
 
@@ -352,7 +352,7 @@ To use MongoDB Lens with older MongoDB instances, you need to use a MongoDB Node
     ```
 1. Start MongoDB Lens:<br>
     ```console
-    node mongodb-lens.js mongodb://older-mongodb-server
+    node mongodb-lens.js mongodb://older-mongodb-instance
     ```
 
 This will use the older driver version compatible with your MongoDB instance.

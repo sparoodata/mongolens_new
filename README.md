@@ -891,7 +891,35 @@ This approach gives you a sandbox to test complex or destructive operations agai
 
 #### Data Flow Considerations: How Your Data Flows Through the System
 
-When using an MCP Server with a remote LLM provider (such as Anthropic via Claude Desktop) understanding how your data moves through the system is key to protecting sensitive information from unintended exposure. When you send a MongoDB Lens related query through your MCP client, here’s what happens:
+When using an MCP Server with a remote LLM provider (such as Anthropic via Claude Desktop) understanding how your data moves through the system is key to protecting sensitive information from unintended exposure.
+
+When you send a MongoDB Lens related query through your MCP client, here’s what happens:
+
+```mermaid
+sequenceDiagram
+    actor User
+    box Local Machine #d4f1f9
+        participant Client
+        participant Lens as MongoDB Lens
+        participant MongoDB as MongoDB Database
+    end
+    box Remote Server #ffe6cc
+        participant LLM as Remote LLM Provider
+    end
+
+    User->>Client: 1. Query request<br>"Show me all users older than 30"
+    Client->>LLM: 2. Original request + available tools
+    Note over LLM: Interprets request<br>Chooses appropriate tool
+    LLM->>Client: 3. Tool selection (find-documents)
+    Client->>Lens: 4. Run tool with parameters
+    Lens->>MongoDB: 5. Database query
+    MongoDB-->>Lens: 6. Query results
+    Lens-->>Client: 7. Tool results (formatted data)
+    Client->>LLM: 8. Tool results (raw data)
+    Note over LLM: Processes results<br>Formats response
+    LLM-->>Client: 9. Processed response
+    Client-->>User: 10. Final answer
+```
 
 1. **You enter a request**: e.g. _"Show me all users older than 30"_
 2. **Your client sends the request to the remote LLM**: The LLM provider receives your exact words, along with a list of currently available MCP tools and their parameters.

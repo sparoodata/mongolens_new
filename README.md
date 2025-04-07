@@ -899,7 +899,7 @@ When you send a MongoDB Lens related query through your MCP client, here’s wha
 sequenceDiagram
     actor User
     box Local Machine #d4f1f9
-        participant Client
+        participant Client as MCP Client
         participant Lens as MongoDB Lens
         participant MongoDB as MongoDB Database
     end
@@ -921,7 +921,7 @@ sequenceDiagram
     Client-->>User: 10. Final answer
 ```
 
-1. **You enter a request**: e.g. _"Show me all users older than 30"_
+1. **You sumbit a request**: e.g. _"Show me all users older than 30"_
 1. **Your client sends the request to the remote LLM**: The LLM provider receives your exact words, along with a list of currently available MCP tools and their parameters.
 1. **The remote LLM interprets your request**: It determines your intent and instructs the client to use a specific MCP tool, such as `find-documents`, with appropriate parameters.
 1. **The client asks MongoDB Lens to run the tool**: This occurs locally on your machine via stdio.

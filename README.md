@@ -449,9 +449,14 @@ MongoDB Lens supports extensive customization via JSON configuration file.
     "initialRetryDelayMs": 1000                    // Initial delay between retries
   },
   "disabled": {
-    "tools": [],                                   // List of tools to disable or true to disable all
-    "prompts": [],                                 // List of prompts to disable or true to disable all
-    "resources": []                                // List of resources to disable or true to disable all
+    "tools": [],                                   // Array of tools to disable or true to disable all
+    "prompts": [],                                 // Array of prompts to disable or true to disable all
+    "resources": []                                // Array of resources to disable or true to disable all
+  },
+  "enabled": {
+    "tools": true,                                 // Array of tools to enable or true to enable all
+    "prompts": true,                               // Array of prompts to enable or true to enable all
+    "resources": true                              // Array of resources to enable or true to enable all
   },
   "cacheTTL": {
     "stats": 15000,                                // Stats cache lifetime in milliseconds
@@ -920,6 +925,7 @@ docker run --rm -i --network=host --pull=always -e CONFIG_DISABLE_DESTRUCTIVE_OP
 ### Data Protection: Disabling Destructive Operations
 
 - [Disabling Tools](#disabling-tools)
+- [Selective Component Enabling](#selective-component-enabling)
 - [High-Risk Tools](#high-risk-tools)
 - [Medium-Risk Tools](#medium-risk-tools)
 - [Read-Only Configuration](#read-only-configuration)
@@ -943,6 +949,43 @@ MongoDB Lens includes several tools that can modify or delete data. To disable s
   }
 }
 ```
+
+To disable all tools (keeping `resources` and `prompts`), set `disabled.tools` to `true`:
+
+```json
+{
+  "disabled": {
+    "tools": true
+  }
+}
+```
+
+> [!NOTE]<br>
+> Resources and prompts can also be disabled via `disabled.resources` and `disabled.prompts` settings.
+
+#### Selective Component Enabling
+
+In addition to [disabling components](#disabling-tools), specify exactly which components should be enabled (implicitly disabling all others) using the `enabled` settings in your [configuration file](#configuration-config-file):
+
+```json
+{
+  "enabled": {
+    "tools": [
+      "use-database",
+      "find-documents",
+      "count-documents",
+      "aggregate-data"
+    ]
+  },
+  "disabled": {
+    "resources": true,
+    "prompts": true
+  }
+}
+```
+
+> [!IMPORTANT]<br>
+> If a component appears in both `enabled` and `disabled` lists, the `enabled` setting takes precedence.
 
 #### High-Risk Tools
 

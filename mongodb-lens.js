@@ -300,13 +300,24 @@ const changeConnection = async (uri, validate = true) => {
 }
 
 const isDisabled = (type, name) => {
-  if (!config.disabled || !config.disabled[type]) return false
-  if (config.disabled[type] === true) return true
-  return Array.isArray(config.disabled[type]) && config.disabled[type].includes(name)
+  if (config.enabled && config.enabled[type] !== undefined) {
+    if (name === 'all') return config.enabled[type] === false
+    if (Array.isArray(config.enabled[type]) && config.enabled[type].includes(name)) return false
+  }
+
+  if (config.disabled && config.disabled[type] !== undefined) {
+    if (name === 'all') return config.disabled[type] === true
+    if (Array.isArray(config.disabled[type]) && config.disabled[type].includes(name)) return true
+  }
+
+  if (config.enabled && Array.isArray(config.enabled[type]))
+    return !config.enabled[type].includes(name)
+
+  return false
 }
 
 const registerResources = (server) => {
-  if (isDisabled('resources', true)) {
+  if (isDisabled('resources', 'all')) {
     log('All MCP resources disabled via configuration', true)
     return
   }
@@ -695,7 +706,7 @@ const registerResources = (server) => {
 }
 
 const registerPrompts = (server) => {
-  if (isDisabled('prompts', true)) {
+  if (isDisabled('prompts', 'all')) {
     log('All MCP prompts disabled via configuration', true)
     return
   }
@@ -1330,7 +1341,7 @@ const registerPrompts = (server) => {
 }
 
 const registerTools = (server) => {
-  if (isDisabled('tools', true)) {
+  if (isDisabled('tools', 'all')) {
     log('All MCP tools disabled via configuration', true)
     return
   }
@@ -5999,9 +6010,14 @@ const defaultConfig = {
     }
   },
   disabled: {
-    tools: [],
-    prompts: [],
-    resources: []
+    tools: undefined,
+    prompts: undefined,
+    resources: undefined
+  },
+  enabled: {
+    tools: undefined,
+    prompts: undefined,
+    resources: undefined
   }
 }
 

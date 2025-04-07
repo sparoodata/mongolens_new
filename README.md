@@ -925,10 +925,10 @@ docker run --rm -i --network=host --pull=always -e CONFIG_DISABLE_DESTRUCTIVE_OP
 ### Data Protection: Disabling Destructive Operations
 
 - [Disabling Tools](#disabling-tools)
-- [Selective Component Enabling](#selective-component-enabling)
 - [High-Risk Tools](#high-risk-tools)
 - [Medium-Risk Tools](#medium-risk-tools)
 - [Read-Only Configuration](#read-only-configuration)
+- [Selective Component Enabling](#selective-component-enabling)
 
 #### Disabling Tools
 
@@ -962,30 +962,6 @@ To disable all tools (keeping `resources` and `prompts`), set `disabled.tools` t
 
 > [!NOTE]<br>
 > Resources and prompts can also be disabled via `disabled.resources` and `disabled.prompts` settings.
-
-#### Selective Component Enabling
-
-In addition to [disabling components](#disabling-tools), specify exactly which components should be enabled (implicitly disabling all others) using the `enabled` settings in your [configuration file](#configuration-config-file):
-
-```json
-{
-  "enabled": {
-    "tools": [
-      "use-database",
-      "find-documents",
-      "count-documents",
-      "aggregate-data"
-    ]
-  },
-  "disabled": {
-    "resources": true,
-    "prompts": true
-  }
-}
-```
-
-> [!IMPORTANT]<br>
-> If a component appears in both `enabled` and `disabled` lists, the `enabled` setting takes precedence.
 
 #### High-Risk Tools
 
@@ -1037,6 +1013,30 @@ For a complete read-only configuration, disable all potentially destructive tool
 ```
 
 This configuration allows MongoDB Lens to query and analyze data while preventing any modifications, providing multiple layers of protection against accidental data loss.
+
+#### Selective Component Enabling
+
+In addition to [disabling components](#disabling-tools), specify exactly which components should be enabled (implicitly disabling all others) using the `enabled` settings in your [configuration file](#configuration-config-file):
+
+```json
+{
+  "enabled": {
+    "tools": [
+      "use-database",
+      "find-documents",
+      "count-documents",
+      "aggregate-data"
+    ]
+  },
+  "disabled": {
+    "resources": true,
+    "prompts": true
+  }
+}
+```
+
+> [!IMPORTANT]<br>
+> If a component appears in both `enabled` and `disabled` lists, the `enabled` setting takes precedence.
 
 ## Tutorial
 

@@ -1020,16 +1020,6 @@ MongoDB Lens includes several tools that can modify or delete data. To disable s
 }
 ```
 
-To disable all tools (keeping `resources` and `prompts`), set `disabled.tools` to `true`:
-
-```json
-{
-  "disabled": {
-    "tools": true
-  }
-}
-```
-
 > [!NOTE]<br>
 > Resources and prompts can also be disabled via `disabled.resources` and `disabled.prompts` settings.
 

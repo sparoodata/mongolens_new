@@ -907,7 +907,7 @@ The remote LLM provider sees both your original request and the full response fr
 
 #### Data Flow Considerations: Protecting Sensitive Data with Projection
 
-To prevent sensitive data from being sent to the remote LLM provider, use the `projection` parameter when querying with tools like `find-documents`, `aggregate-data`, or `export-data`. Projection allows you to specify which fields to include or exclude in query results, ensuring sensitive information stays local.
+To prevent sensitive data from being sent to the remote LLM provider, use the concept of projection when using tools like `find-documents`, `aggregate-data`, or `export-data`. Projection allows you to specify which fields to include or exclude in query results, ensuring sensitive information stays local.
 
 Example projection usage:
 

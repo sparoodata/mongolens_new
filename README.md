@@ -846,6 +846,7 @@ To protect your data while using MongoDB Lens, consider the following:
 
 - [Read-Only User Accounts](#data-protection-read-only-user-accounts)
 - [Working with Database Backups](#data-protection-working-with-database-backups)
+- [Network Transaction Considerations](#data-protection-network-transaction-considerations)
 - [Confirmation for Destructive Operations](#data-protection-confirmation-for-destructive-operations)
 - [Disabling Destructive Operations](#data-protection-disabling-destructive-operations)
 
@@ -880,6 +881,46 @@ When working with MongoDB Lens, consider connecting to a backup copy of your dat
 Start by generating the backup with `mongodump`. Next, spin up a fresh MongoDB instance (e.g. on a different port like `27018`) and restore the backup there using `mongorestore`. Once it's running, point MongoDB Lens to the backup instance's connection string (e.g. `mongodb://localhost:27018/mydatabase`).
 
 This approach gives you a sandbox to test complex or destructive operations against without risking accidental corruption of your live data.
+
+### Data Protection: Data Flow Considerations
+
+- [How Your Data Flows Through the System](#data-flow-considerations-how-your-data-flows-through-the-system)
+- [Protecting Sensitive Data with Projection](#data-flow-considerations-protecting-sensitive-data-with-projection)
+- [Connection Aliases and Passwords](#data-flow-considerations-connection-aliases-and-passwords)
+- [Local Setup for Maximum Safety](#data-flow-considerations-local-setup-for-maximum-safety)
+
+#### Data Flow Considerations: How Your Data Flows Through the System
+
+When using an MCP Server with a remote LLM provider (such as Anthropic via Claude Desktop), understanding how your data moves through the system is key to protecting sensitive information from unintended exposure. When you send a MongoDB Lens related query through your MCP client, here’s what happens:
+
+1. **You enter a request**: e.g. _"Show me all users older than 30"_
+2. **Your client sends the request to the remote LLM**: The LLM provider receives your exact words, along with a list of currently available MCP tools and their parameters.
+3. **The remote LLM interprets your request**: It determines your intent and instructs the client to use a specific MCP tool, such as `find-documents`, with appropriate parameters.
+4. **The client asks MongoDB Lens to run the tool**: This occurs locally on your machine via stdio.
+5. **MongoDB Lens queries your MongoDB database**: It retrieves the requested data.
+6. **MongoDB Lens sends the data back to the client**: The client receives results formatted by MongoDB Lens.
+7. **The client forwards the data to the remote LLM**: The LLM provider sees the exact data returned by MongoDB Lens.
+8. **The remote LLM processes the data**: It may summarize or format the results further.
+9. **The remote LLM sends the final response to the client**: The client displays the answer to you.
+
+The remote LLM provider sees both your original request and the full response from MongoDB Lens. If your database includes sensitive fields (e.g. passwords, personal details, etc), this data could be unintentionally transmitted to the remote provider unless you take precautions.
+
+#### Data Flow Considerations: Protecting Sensitive Data with Projection
+
+To prevent sensitive data from being sent to the remote LLM provider, use the `projection` parameter when querying with tools like `find-documents`, `aggregate-data`, or `export-data`. Projection allows you to specify which fields to include or exclude in query results, ensuring sensitive information stays local.
+
+Example projection usage:
+
+- _"Show me all users older than 30, but use projection to hide their passwords."_<br>
+  <sup>➥ Uses `find-documents` tool with projection</sup>
+
+#### Data Flow Considerations: Connection Aliases and Passwords
+
+When adding new connection aliases using the `add-connection-alias` tool, avoid added aliases to URIs that contain passwords if you're using a remote LLM provider. Since your request is sent to the LLM, any passwords in the URI could be exposed. Instead, define aliases with passwords in the MongoDB Lens [config file](#configuration-multiple-mongodb-connections), where they remain local and are not transmitted to the LLM.
+
+#### Data Flow Considerations: Local Setup for Maximum Safety
+
+While outside the scope of this document, for the highest level of data privacy, consider using a local MCP client paired with a locally hosted LLM model. This approach keeps all requests and data within your local environment, eliminating the risk of sensitive information being sent to a remote provider.
 
 ### Data Protection: Confirmation for Destructive Operations
 

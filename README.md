@@ -922,14 +922,15 @@ sequenceDiagram
 ```
 
 1. **You enter a request**: e.g. _"Show me all users older than 30"_
-2. **Your client sends the request to the remote LLM**: The LLM provider receives your exact words, along with a list of currently available MCP tools and their parameters.
-3. **The remote LLM interprets your request**: It determines your intent and instructs the client to use a specific MCP tool, such as `find-documents`, with appropriate parameters.
-4. **The client asks MongoDB Lens to run the tool**: This occurs locally on your machine via stdio.
-5. **MongoDB Lens queries your MongoDB database**: It retrieves the requested data.
-6. **MongoDB Lens sends the data back to the client**: The client receives results formatted by MongoDB Lens.
-7. **The client forwards the data to the remote LLM**: The LLM provider sees the exact data returned by MongoDB Lens.
-8. **The remote LLM processes the data**: It may summarize or format the results further.
-9. **The remote LLM sends the final response to the client**: The client displays the answer to you.
+1. **Your client sends the request to the remote LLM**: The LLM provider receives your exact words, along with a list of currently available MCP tools and their parameters.
+1. **The remote LLM interprets your request**: It determines your intent and instructs the client to use a specific MCP tool, such as `find-documents`, with appropriate parameters.
+1. **The client asks MongoDB Lens to run the tool**: This occurs locally on your machine via stdio.
+1. **MongoDB Lens queries your MongoDB database**
+1. **MongoDB Lens retreves your MongoDB query results**
+1. **MongoDB Lens sends the data back to the client**: The client receives results formatted by MongoDB Lens.
+1. **The client forwards the data to the remote LLM**: The LLM provider sees the exact data returned by MongoDB Lens.
+1. **The remote LLM processes the data**: It may summarize or format the results further.
+1. **The remote LLM sends the final response to the client**: The client displays the answer to you.
 
 The remote LLM provider sees both your original request and the full response from MongoDB Lens. If your database includes sensitive fields (e.g. passwords, personal details, etc), this data could be unintentionally transmitted to the remote provider unless you take precautions.
 

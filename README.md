@@ -449,9 +449,14 @@ MongoDB Lens supports extensive customization via JSON configuration file.
     "initialRetryDelayMs": 1000                    // Initial delay between retries
   },
   "disabled": {
-    "tools": [],                                   // List of tools to disable or true to disable all
-    "prompts": [],                                 // List of prompts to disable or true to disable all
-    "resources": []                                // List of resources to disable or true to disable all
+    "tools": [],                                   // Array of tools to disable or true to disable all
+    "prompts": [],                                 // Array of prompts to disable or true to disable all
+    "resources": []                                // Array of resources to disable or true to disable all
+  },
+  "enabled": {
+    "tools": true,                                 // Array of tools to enable or true to enable all
+    "prompts": true,                               // Array of prompts to enable or true to enable all
+    "resources": true                              // Array of resources to enable or true to enable all
   },
   "cacheTTL": {
     "stats": 15000,                                // Stats cache lifetime in milliseconds
@@ -841,6 +846,7 @@ To protect your data while using MongoDB Lens, consider the following:
 
 - [Read-Only User Accounts](#data-protection-read-only-user-accounts)
 - [Working with Database Backups](#data-protection-working-with-database-backups)
+- [Data Flow Considerations](#data-protection-data-flow-considerations)
 - [Confirmation for Destructive Operations](#data-protection-confirmation-for-destructive-operations)
 - [Disabling Destructive Operations](#data-protection-disabling-destructive-operations)
 
@@ -875,6 +881,75 @@ When working with MongoDB Lens, consider connecting to a backup copy of your dat
 Start by generating the backup with `mongodump`. Next, spin up a fresh MongoDB instance (e.g. on a different port like `27018`) and restore the backup there using `mongorestore`. Once it's running, point MongoDB Lens to the backup instance's connection string (e.g. `mongodb://localhost:27018/mydatabase`).
 
 This approach gives you a sandbox to test complex or destructive operations against without risking accidental corruption of your live data.
+
+### Data Protection: Data Flow Considerations
+
+- [How Your Data Flows Through the System](#data-flow-considerations-how-your-data-flows-through-the-system)
+- [Protecting Sensitive Data with Projection](#data-flow-considerations-protecting-sensitive-data-with-projection)
+- [Connection Aliases and Passwords](#data-flow-considerations-connection-aliases-and-passwords)
+- [Local Setup for Maximum Safety](#data-flow-considerations-local-setup-for-maximum-safety)
+
+#### Data Flow Considerations: How Your Data Flows Through the System
+
+When using an MCP Server with a remote LLM provider (such as Anthropic via Claude Desktop) understanding how your data moves through the system is key to protecting sensitive information from unintended exposure.
+
+When you send a MongoDB Lens related query through your MCP client, here’s what happens:
+
+```mermaid
+sequenceDiagram
+    actor User
+    box Local Machine #d4f1f9
+        participant Client as MCP Client
+        participant Lens as MongoDB Lens
+        participant MongoDB as MongoDB Database
+    end
+    box Remote Server #ffe6cc
+        participant LLM as Remote LLM Provider
+    end
+
+    User->>Client: 1. Query request<br>"Show me all users older than 30"
+    Client->>LLM: 2. Original request + available tools
+    Note over LLM: Interprets request<br>Chooses appropriate tool
+    LLM->>Client: 3. Tool selection (find-documents)
+    Client->>Lens: 4. Run tool with parameters
+    Lens->>MongoDB: 5. Database query
+    MongoDB-->>Lens: 6. Query results
+    Lens-->>Client: 7. Tool results (formatted data)
+    Client->>LLM: 8. Tool results (raw data)
+    Note over LLM: Processes results<br>Formats response
+    LLM-->>Client: 9. Processed response
+    Client-->>User: 10. Final answer
+```
+
+1. **You sumbit a request**: e.g. _"Show me all users older than 30"_
+1. **Your client sends the request to the remote LLM**: The LLM provider receives your exact words, along with a list of currently available MCP tools and their parameters.
+1. **The remote LLM interprets your request**: It determines your intent and instructs the client to use a specific MCP tool, such as `find-documents`, with appropriate parameters.
+1. **The client asks MongoDB Lens to run the tool**: This occurs locally on your machine via stdio.
+1. **MongoDB Lens queries your MongoDB database**
+1. **MongoDB Lens retreves your MongoDB query results**
+1. **MongoDB Lens sends the data back to the client**: The client receives results formatted by MongoDB Lens.
+1. **The client forwards the data to the remote LLM**: The LLM provider sees the exact data returned by MongoDB Lens.
+1. **The remote LLM processes the data**: It may summarize or format the results further.
+1. **The remote LLM sends the final response to the client**: The client displays the answer to you.
+
+The remote LLM provider sees both your original request and the full response from MongoDB Lens. If your database includes sensitive fields (e.g. passwords, personal details, etc), this data could be unintentionally transmitted to the remote provider unless you take precautions.
+
+#### Data Flow Considerations: Protecting Sensitive Data with Projection
+
+To prevent sensitive data from being sent to the remote LLM provider, use the concept of projection when using tools like `find-documents`, `aggregate-data`, or `export-data`. Projection allows you to specify which fields to include or exclude in query results, ensuring sensitive information stays local.
+
+Example projection usage:
+
+- _"Show me all users older than 30, but use projection to hide their passwords."_<br>
+  <sup>➥ Uses `find-documents` tool with projection</sup>
+
+#### Data Flow Considerations: Connection Aliases and Passwords
+
+When adding new connection aliases using the `add-connection-alias` tool, avoid added aliases to URIs that contain passwords if you're using a remote LLM provider. Since your request is sent to the LLM, any passwords in the URI could be exposed. Instead, define aliases with passwords in the MongoDB Lens [config file](#configuration-multiple-mongodb-connections), where they remain local and are not transmitted to the LLM.
+
+#### Data Flow Considerations: Local Setup for Maximum Safety
+
+While outside the scope of this document, for the highest level of data privacy, consider using a local MCP client paired with a locally hosted LLM model. This approach keeps all requests and data within your local environment, eliminating the risk of sensitive information being sent to a remote provider.
 
 ### Data Protection: Confirmation for Destructive Operations
 
@@ -923,6 +998,7 @@ docker run --rm -i --network=host --pull=always -e CONFIG_DISABLE_DESTRUCTIVE_OP
 - [High-Risk Tools](#high-risk-tools)
 - [Medium-Risk Tools](#medium-risk-tools)
 - [Read-Only Configuration](#read-only-configuration)
+- [Selective Component Enabling](#selective-component-enabling)
 
 #### Disabling Tools
 
@@ -943,6 +1019,19 @@ MongoDB Lens includes several tools that can modify or delete data. To disable s
   }
 }
 ```
+
+To disable all tools (keeping `resources` and `prompts`), set `disabled.tools` to `true`:
+
+```json
+{
+  "disabled": {
+    "tools": true
+  }
+}
+```
+
+> [!NOTE]<br>
+> Resources and prompts can also be disabled via `disabled.resources` and `disabled.prompts` settings.
 
 #### High-Risk Tools
 
@@ -994,6 +1083,30 @@ For a complete read-only configuration, disable all potentially destructive tool
 ```
 
 This configuration allows MongoDB Lens to query and analyze data while preventing any modifications, providing multiple layers of protection against accidental data loss.
+
+#### Selective Component Enabling
+
+In addition to [disabling components](#disabling-tools), specify exactly which components should be enabled (implicitly disabling all others) using the `enabled` settings in your [configuration file](#configuration-config-file):
+
+```json
+{
+  "enabled": {
+    "tools": [
+      "use-database",
+      "find-documents",
+      "count-documents",
+      "aggregate-data"
+    ]
+  },
+  "disabled": {
+    "resources": true,
+    "prompts": true
+  }
+}
+```
+
+> [!IMPORTANT]<br>
+> If a component appears in both `enabled` and `disabled` lists, the `enabled` setting takes precedence.
 
 ## Tutorial
 

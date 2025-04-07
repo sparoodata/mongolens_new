@@ -846,7 +846,7 @@ To protect your data while using MongoDB Lens, consider the following:
 
 - [Read-Only User Accounts](#data-protection-read-only-user-accounts)
 - [Working with Database Backups](#data-protection-working-with-database-backups)
-- [Network Transaction Considerations](#data-protection-network-transaction-considerations)
+- [Data Flow Considerations](#data-protection-data-flow-considerations)
 - [Confirmation for Destructive Operations](#data-protection-confirmation-for-destructive-operations)
 - [Disabling Destructive Operations](#data-protection-disabling-destructive-operations)
 

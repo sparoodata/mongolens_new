@@ -908,7 +908,7 @@ sequenceDiagram
     end
 
     User->>Client: 1. Submit request<br>"Show me all users older than 30"
-    Client->>LLM: 2. User's request + available tools
+    Client->>LLM: 2. User request + available tools
     Note over LLM: Interprets request<br>Chooses appropriate tool
     LLM->>Client: 3. Tool selection (find-documents)
     Client->>Lens: 4. Tool run with parameters

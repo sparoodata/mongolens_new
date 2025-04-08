@@ -896,7 +896,7 @@ When using an MCP Server with a remote LLM provider (such as Anthropic via Claud
 When you send a MongoDB related query through your MCP client, here’s what happens:
 
 > [!NOTE]<br>
-> The following example uses a MongoDB instance running locally, but the same principles apply to remote MongoDB instances.
+> While this example uses a local MongoDB instance, the same principles apply to remote MongoDB instances.
 
 ```mermaid
 sequenceDiagram
@@ -904,7 +904,7 @@ sequenceDiagram
     box Local Machine #d4f1f9
         participant Client as MCP Client
         participant Lens as MongoDB Lens
-        participant MongoDB as MongoDB Database
+        participant MongoDB as MongoDB Instance
     end
     box Remote Server #ffe6cc
         participant LLM as Remote LLM Provider

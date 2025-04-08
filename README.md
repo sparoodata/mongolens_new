@@ -907,15 +907,15 @@ sequenceDiagram
         participant LLM as Remote LLM Provider
     end
 
-    User->>Client: 1. Query request<br>"Show me all users older than 30"
-    Client->>LLM: 2. Original request + available tools
+    User->>Client: 1. Submit request<br>"Show me all users older than 30"
+    Client->>LLM: 2. User's request + available tools
     Note over LLM: Interprets request<br>Chooses appropriate tool
     LLM->>Client: 3. Tool selection (find-documents)
-    Client->>Lens: 4. Run tool with parameters
+    Client->>Lens: 4. Tool run with parameters
     Lens->>MongoDB: 5. Database query
-    MongoDB-->>Lens: 6. Query results
+    MongoDB-->>Lens: 6. Database results
     Lens-->>Client: 7. Tool results (formatted data)
-    Client->>LLM: 8. Tool results (raw data)
+    Client->>LLM: 8. Tool results
     Note over LLM: Processes results<br>Formats response
     LLM-->>Client: 9. Processed response
     Client-->>User: 10. Final answer
@@ -932,7 +932,7 @@ sequenceDiagram
 1. **The remote LLM processes the data**: It may summarize or format the results further.
 1. **The remote LLM sends the final response to the client**: The client displays the answer to you.
 
-The remote LLM provider sees both your original request and the full response from MongoDB Lens. If your database includes sensitive fields (e.g. passwords, personal details, etc), this data could be unintentionally transmitted to the remote provider unless you take precautions.
+The remote LLM provider sees both your original request and the full response from MongoDB Lens. If your database includes sensitive fields (e.g. passwords, personal details, etc) this data could be unintentionally transmitted to the remote provider unless you take precautions.
 
 #### Data Flow Considerations: Protecting Sensitive Data with Projection
 

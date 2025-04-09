@@ -928,8 +928,8 @@ sequenceDiagram
 1. Your client sends the request to the remote LLM<br><sup>➥ The LLM provider receives your exact words along with a list of available MCP tools and their parameters.</sup>
 1. The remote LLM interprets your request<br><sup>➥ It determines your intent and instructs the client to use a specific MCP tool with appropriate parameters.</sup>
 1. The client asks MongoDB Lens to run the tool<br><sup>➥ This occurs locally on your machine via stdio.</sup>
-1. MongoDB Lens queries your MongoDB database**
-1. MongoDB Lens retrieves your MongoDB query results**
+1. MongoDB Lens queries your MongoDB database
+1. MongoDB Lens retrieves your MongoDB query results
 1. MongoDB Lens sends the data back to the client<br><sup>➥ The client receives results formatted by MongoDB Lens.</sup>
 1. The client forwards the data to the remote LLM<br><sup>➥ The LLM provider sees the exact data returned by MongoDB Lens.</sup>
 1. The remote LLM processes the data<br><sup>➥ It may summarize or format the results further.</sup>

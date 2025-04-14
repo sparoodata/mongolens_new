@@ -5718,7 +5718,6 @@ const parseEnvValue = (value, defaultValue, path) => {
     if (path === 'logLevel') {
       const validLogLevels = ['info', 'verbose']
       const cleanLogLevel = normalizedValue.toLowerCase()
-      console.log({ validLogLevels, cleanLogLevel })
       if (!validLogLevels.includes(cleanLogLevel)) {
         throw new Error(`Config [${path}] is invalid: ${value}`)
       }

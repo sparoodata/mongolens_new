@@ -5689,37 +5689,43 @@ const createEnvMapping = (obj, prefix = 'CONFIG', path = '') => {
 
 const parseEnvValue = (value, defaultValue, path) => {
   try {
+    const normalizedValue = value.trim().replace(/^['"]|['"]$/g, '')
+
     if (typeof defaultValue === 'number') {
-      const parsed = Number(value)
+      const parsed = Number(normalizedValue)
       if (isNaN(parsed)) throw new Error(`Invalid number for config [${path}]: ${value}`)
       return parsed
     }
 
     if (typeof defaultValue === 'boolean') {
-      if (value.toLowerCase() !== 'true' && value.toLowerCase() !== 'false') {
+      const cleanBool = normalizedValue.toLowerCase()
+      if (cleanBool !== 'true' && cleanBool !== 'false') {
         throw new Error(`Invalid boolean for config [${path}]: ${value}`)
       }
-      return value.toLowerCase() === 'true'
+      return cleanBool === 'true'
     }
 
     if (Array.isArray(defaultValue)) {
       try {
-        const parsed = JSON.parse(value)
+        const parsed = JSON.parse(normalizedValue)
         if (!Array.isArray(parsed)) throw new Error(`Config [${path}] is not an array`)
         return parsed
       } catch (e) {
-        return value.split(',').map(item => item.trim())
+        return normalizedValue.split(',').map(item => item.trim())
       }
     }
 
     if (path === 'logLevel') {
       const validLogLevels = ['info', 'verbose']
-      if (!validLogLevels.includes(value)) {
+      const cleanLogLevel = normalizedValue.toLowerCase()
+      console.log({ validLogLevels, cleanLogLevel })
+      if (!validLogLevels.includes(cleanLogLevel)) {
         throw new Error(`Config [${path}] is invalid: ${value}`)
       }
+      return cleanLogLevel
     }
 
-    return value
+    return normalizedValue
   } catch (error) {
     console.error(`Error parsing environment variable for config [${path}]: ${error.message}. Using default: ${defaultValue}`)
     return defaultValue
@@ -5765,7 +5771,10 @@ const arraysEqual = (a, b) => {
 }
 
 const log = (message, forceLog = false) => {
-  if (forceLog || process.env.CONFIG_LOG_LEVEL === 'verbose' || globalThis.config && config.logLevel === 'verbose') console.error(message)
+  const logLevel = process.env.CONFIG_LOG_LEVEL &&
+  typeof process.env.CONFIG_LOG_LEVEL === 'string' &&
+  process.env.CONFIG_LOG_LEVEL.trim().replace(/^['"]+|['"]+$/g, '')
+  if (forceLog || logLevel === 'verbose' || globalThis.config && config.logLevel === 'verbose') console.error(message)
 }
 
 const cleanup = async () => {

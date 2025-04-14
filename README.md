@@ -732,7 +732,7 @@ For each option:
       "run", "--rm", "-i",
       "--network=host",
       "--pull=always",
-      "-e", "CONFIG_LOG_LEVEL='verbose'",
+      "-e", "CONFIG_LOG_LEVEL=verbose",
       "furey/mongodb-lens",
       "mongodb://your-connection-string"
     ]

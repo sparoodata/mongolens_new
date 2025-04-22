@@ -5146,6 +5146,12 @@ const formatCsvValue = (value) => {
 }
 
 const serializeDocument = (doc) => {
+  if (Array.isArray(doc)) {
+    return doc.map(serializeDocument)
+  }
+  if (doc === null || typeof doc !== 'object') {
+    return doc
+  }
   const result = {}
 
   for (const [key, value] of Object.entries(doc)) {
@@ -5153,6 +5159,8 @@ const serializeDocument = (doc) => {
       result[key] = `ObjectId("${value.toString()}")`
     } else if (value instanceof Date) {
       result[key] = `ISODate("${value.toISOString()}")`
+    } else if (Array.isArray(value)) {
+      result[key] = value.map(serializeDocument)
     } else if (typeof value === 'object' && value !== null) {
       result[key] = serializeDocument(value)
     } else {

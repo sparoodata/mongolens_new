@@ -5146,12 +5146,10 @@ const formatCsvValue = (value) => {
 }
 
 const serializeDocument = (doc) => {
-  if (Array.isArray(doc)) {
-    return doc.map(serializeDocument)
-  }
-  if (doc === null || typeof doc !== 'object') {
-    return doc
-  }
+  if (Array.isArray(doc)) return doc.map(serializeDocument)
+
+  if (doc === null || typeof doc !== 'object') return doc
+
   const result = {}
 
   for (const [key, value] of Object.entries(doc)) {
